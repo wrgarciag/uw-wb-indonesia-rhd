@@ -2,8 +2,7 @@
 *.html
 !docs/*.html
 *.
-data/raw/**/*.*
-!data/raw/**/*.md
+!data-raw/**/*.md
 
 
 .Rproj.user
