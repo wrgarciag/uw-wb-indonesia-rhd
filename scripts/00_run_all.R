@@ -19,13 +19,13 @@ library(forecast)
 
 wd <- "C:/Users/wrgar/OneDrive - UW/02Work/WorldBank-Indonesia/uw-wb-indonesia-rhd/"
 
-wd_code <- paste0(wd,"code/")
+wd_code <- paste0(wd,"scripts/")
 
 # Raw data not available on GitHub
-wd_raw <- paste0(wd,"data/raw/")
+wd_raw <- paste0(wd,"data-raw/")
 
 # Processed data (from base rates and tps)
-wd_data <- paste0(wd,"data/processed/")
+wd_data <- paste0(wd,"data/")
 wd_outp <- paste0(wd,"output/")
 
 # Create a temporary directory for the processing data change to wd in final version
@@ -40,7 +40,7 @@ setwd(paste0(wd_code))
 # 0. Functions and parameters-----
 #...........................................................
 
-source("01_utils.R")
+#source("01_utils.R")
 
 run_calibration_par <- TRUE # set to TRUE to run parallel calibration
 
@@ -79,7 +79,7 @@ cause_cols <- names(cause_map)
 # 02. Load inputs-----
 #...........................................................
 
-source("02_load_inputs_indonesia.R")
+source("01_prepare_inputs.R")
 
 #...........................................................
 # 03. Clean and process inputs-----
