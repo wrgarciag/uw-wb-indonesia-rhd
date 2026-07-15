@@ -76,55 +76,50 @@ cause_map <- c(
 cause_cols <- names(cause_map)
 
 #...........................................................
-# 02. Load inputs-----
+# NOTE: sourcing updated to the ACTUAL script filenames in scripts/.
+# The previous list (03_calibration.R, 04_define_interventions.R,
+# cvd/05..09_*.R) referred to parent-NCD files that do not exist in this repo.
 #...........................................................
 
+setwd(wd_code)   # scripts are sourced from scripts/ ; each uses absolute wd_* / here() for I/O
+
+#...........................................................
+# 01. Load & filter GBD inputs -> data-raw/temp_baseline_rates_gbd.rds
+#...........................................................
 source("01_prepare_inputs.R")
 
 #...........................................................
-# 03. Clean and process inputs-----
+# 02. Build WPP2024 population backbone
+#     -> data/pop_observed_1990_2023.rds, data/pop_projection_2026_2100.rds
 #...........................................................
-
-source("03_calibration.R")
-
-#...........................................................
-# 04. define interventions ----
-#...........................................................
-
-source("04_define_interventions.R")
+source("02_build_demography.R")
 
 #...........................................................
-# 05. build baseline ----
+# 03. RHD disease model (data-fed) -> in-memory `ref`/`sap` + economic globals
 #...........................................................
-
-# Run CVD multiple interventions
-setwd(paste0(wd_code,"cvd/"))
-source("05_build_baseline_indonesia.R")
+source("03_build_disease_model.R")
 
 #...........................................................
-# 06. Run model ----
+# 04. Random-search TP calibration (RHD-native) -> data/adjusted_searo_part*.rds
+#     Keep run_adjustment_model == FALSE (this bakes multipliers into IR/CF).
 #...........................................................
-
-# Run CVD multiple interventions
-setwd(paste0(wd_code,"cvd/"))
-source("06_run_scenarios_indonesia_fair.R")
+source("04_calibration_random_tp.R")
 
 #...........................................................
-# 07. Run Burden of Disease ----
+# 05-06. Parent-NCD baseline (05_build_baseline.R) and the toy prevention model
+#     (06_run_prevention_model.R, a duplicate of 03) are NOT yet ported to the
+#     RHD pipeline and reference inputs absent from this repo. Skipped by default;
+#     flip run_downstream_ncd <- TRUE once they are ported.
 #...........................................................
-
-setwd(paste0(wd_code,"cvd/"))
-source("07_output_dalys.R")
-
-#...........................................................
-# 08. Run Economic Value ----
-#...........................................................
-setwd(paste0(wd_code,"cvd/"))
-source("08_economic_value_calculation.R")
-
+run_downstream_ncd <- FALSE
+if (run_downstream_ncd) {
+  source("05_build_baseline.R")
+  source("06_run_prevention_model.R")
+}
 
 #...........................................................
-# 09. Run Validation ----
+# 07. Make outputs (budget impact, BCR, DALYs) from 03's `ref`/`sap`
+#     -> written into output/
 #...........................................................
-setwd(paste0(wd_code,"cvd/"))
-source("09_validation_indonesia.R")
+setwd(wd_outp)
+source(paste0(wd_code, "07_make_outputs.R"))

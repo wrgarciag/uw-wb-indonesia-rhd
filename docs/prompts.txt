@@ -1,0 +1,212 @@
+# Task: Refactor the Indonesia RHD modeling pipeline (scripts 02–04)
+
+## Context
+
+This is an Indonesia rheumatic heart disease (RHD) secondary-prevention investment-case model. The pipeline runs `scripts/00_run_all.R`, which sources numbered scripts in order. Global paths and flags (`wd`, `wd_raw`, `wd_data`, `wd_temp`, `wd_outp`, `dx_include`, `cause_map`, `cause_cols`, `run_calibration_par`) are defined in `00_run_all.R` and must keep working.
+
+The relevant scripts are:
+
+- `scripts/01_prepare_inputs.R` — loads GBD 2023 CSVs (epidemiology + population) for Indonesia, filters to `dx_include` = {"All causes", "Rheumatic heart disease"}, saves `temp_baseline_rates_gbd.rds` and `temp_population_gbd.rds` in `wd_raw`. **This is upstream and provides the RHD incidence/prevalence/death rates the disease model must consume.**
+- `scripts/02_build_demography.R` — currently builds a WPP2024-based demographic backbone (`sf.wpp`) via a custom `get.par()` back-solve. Needs refactoring (see Task 1).
+- `scripts/03_build_disease_model.R` — currently a hard-coded, self-contained RHD cohort state-transition model with fabricated Australia-like constants (`pop_2021 <- 288e6`, `gdp_pc_2019 <- 1800`, etc.). Needs to be fed real inputs (see Task 2).
+- `scripts/04_calibration_random_tp.R` — pure random-search calibration of transition probabilities (IR = incidence, well→sick; CF = case-fatality, sick→dead) against GBD Deaths + Prevalence counts. Needs its calibration window and validation tightened (see Task 3).
+
+Work incrementally, one script at a time, in order (02 → 03 → 04). After each script, confirm it sources cleanly and its outputs exist with the expected dimensions before moving on. Preserve the existing global-variable interface and the `00_run_all.R` sourcing order. Do not touch `01_prepare_inputs.R`, `05`–`09`, or any other script except where a change is required to make 02–04 interoperate — and if such a change is needed, flag it explicitly and ask before editing.
+
+Keep the existing coding style: `data.table` where the current scripts use it, base pipes / dplyr where they use those, and the `library()` set already loaded in `00_run_all.R`.
+
+---
+
+## Task 1 — Refactor `scripts/02_build_demography.R`
+
+Turn this into a population-projection builder from WPP for **2017–2100** with two deliverables, both saved into `data/` (`wd_data`):
+
+1. **Observed single-year population Nx, 1990–2023**, by **sex** and by **location (Indonesia)**, single-year of age. Build this from the **observed** WPP data, and use **splines to smooth** the single-year-of-age series (so the smoothed Nx is continuous and free of the sawtooth/age-heaping artefacts in the raw single-year counts). Preserve totals when smoothing (smooth the age distribution, then rescale so smoothed sums match the observed all-age total per sex-year).
+
+2. **A single projection of population by age–sex–location–year for 2026–2100**, single-year of age.
+
+Requirements and guardrails:
+
+- Output two clean tidy tables (long format: columns `location`, `year`, `sex`, `age`, `Nx`), one for observed 1990–2023 and one for the 2026–2100 projection. Save both as `.rds` (and optionally `.csv`) in `wd_data` with clear, self-describing filenames (e.g. `pop_observed_1990_2023.rds` and `pop_projection_2026_2100.rds`).
+- Keep the WPP2024 package as the data source (`data(popAge1dt)`, `data(popprojAge1dt)`, `mx1dt`, etc.) already used in the current script; keep `get.lt()` and the `locations` lookup available if downstream scripts still need them, but the primary deliverables are the two population tables above.
+- The projection engine can retain the existing `get.par()` CCPM back-solve logic if it still produces the 2026–2100 series correctly, but re-scope the year ranges from the current 2020-anchored horizon to the 2017–2100 window the task specifies. Reconcile the observed (1990–2023) and projected (2026–2100) segments so there is no discontinuity across the join.
+- **Validate before saving:** Nx must be non-negative and non-NA for every age–sex–year cell; total population by sex-year must be within a sane range (Indonesia ~275M total ca. 2020); age must span 0 to the WPP terminal open age group consistently. Fail loudly (`stop()`) if any check fails.
+
+---
+
+## Task 2 — Refactor `scripts/03_build_disease_model.R`
+
+Replace the hard-coded Australia-flavoured constants with **real, data-driven inputs**. The model must be fed:
+
+- **Year × single-age × sex × location RHD incidence, prevalence, and death rates** derived from `scripts/01_prepare_inputs.R` (i.e. from the GBD 2023 RHD data it saves — `temp_baseline_rates_gbd.rds`). Convert GBD rates/numbers into the per-age, per-year, per-sex incidence inflow, prevalence seed, and mortality the cohort model needs.
+- **Population by year × single-age × sex × location** from the Task 1 output (`pop_observed_1990_2023.rds` for the historical/seed period and `pop_projection_2026_2100.rds` for the forward horizon).
+
+Requirements:
+
+- Remove the fabricated scalars (`pop_2021 <- 288e6`, `pop_growth`, `au_pop`, `gdp_pc_2019`, `prev_rhd_2021 <- 1.4e6`, `rhd_incident_2021 <- 66000`, `seed_frac`, etc.). The seed prevalent population, incident inflow, and the age–sex structure must all come from the GBD + population inputs, not from constants.
+- Keep the cohort state-transition **structure** intact (mild/asymptomatic → severe → post-surgery, with SAP, HF-management, and surgery levers, discounting, cost blocks, and the `run_scenario()` engine / reference-vs-scale-up run at the bottom). It is only the *inputs* that change from hard-coded to data-fed; the intervention logic and coverage ramps stay.
+- Parameterise by `location` so the same engine runs for Indonesia (and could extend to more locations later).
+- Keep intervention effect sizes and unit costs as clearly-tagged parameters (`[PAPER]` / `[LIT]` / `[CALIBRATE]`), but the demographic and epidemiological inputs become tables joined in from upstream, not literals.
+- Preserve the model horizon consistency with the rest of the pipeline (align the disease-model years with the demography years; do not silently keep the old 2017–2050 hard-code if the demography now runs to 2100 — make the horizon explicit and driven by the input years).
+- Add input-validation guards: after building the fed inputs, assert there are no NA/negative incidence, prevalence, death rates, or populations, and that every (year, age, sex, location) cell the engine needs is present.
+
+---
+
+## Task 3 — Refactor `scripts/04_calibration_random_tp.R`
+
+1. **Run the calibration model over 2000–2019** (change `CAL_YEAR_START`/`CAL_YEAR_END` and any downstream window logic so the projection cohort runs `2000` → `2019`; today the file uses 2009–2019). Make sure the input `tps_inpt_part*.rds` and population inputs actually cover 2000 onward; if they don't, flag it rather than silently truncating.
+2. **Calibrate against observed GBD prevalent cases and deaths** (GBD "Number" for Prevalence and Deaths, aggregated to 5-year age groups — the existing target-prep logic) and **estimate the structural transition probabilities** (the calibrated IR and CF per location–sex–cause, at the current `GRANULARITY`). Keep the random-search argmin-over-i.i.d.-draws strategy and the "candidate 0 = baseline so calibration is never worse than baseline" guarantee.
+
+   **Death target = ALL-CAUSE deaths, decomposed.** The deaths side of the objective must calibrate to GBD **All-causes** deaths (the "All causes" cause in `dx_include` / `cause_map[["all"]]`), not RHD deaths alone. The all-cause death count for each (location, sex, age-group, year) cell must be reproduced as the sum of (a) the **RHD deaths the model produces** (the disease case-fatality flow, sick→dead via CF) plus (b) **background mortality** (the non-RHD competing mortality, `BG.mx` applied to the surviving population pool). So the model's predicted all-cause deaths = model RHD deaths + background deaths, and *that sum* is what gets compared to the GBD All-causes target. Concretely:
+   - Currently the target-prep drops "All causes" (`targets <- gbd[cause != cause_map[["all"]], ...]`) and `combo_error` compares model `Deaths` only to per-cause `gbdDeaths`. Change this so the deaths component of the objective uses the GBD **All-causes** deaths as the target, and the model prediction is the decomposed sum (RHD CF deaths + background mortality deaths) rather than RHD deaths in isolation.
+   - Prevalence stays an RHD-specific target (GBD RHD Prevalence vs the model's sick stock), unchanged.
+   - Because BG.mx is now pinned by the all-cause deaths fit rather than treated as fixed exogenous input, be explicit about whether background mortality is held fixed and only IR/CF move (RHD deaths + fixed BG must sum to observed all-cause), or whether BG.mx is also a free/derived quantity in the decomposition. Document the choice in the header and keep it consistent with the `enforce_tp_constraints` competing-risk logic (which already treats IR/CF/BG.mx as competing risks summing to ≤ 1).
+3. **Validate the estimated probabilities:** after calibration, assert for every row of the calibrated output that IR and CF (and BG.mx) are **between 0 and 1** and **never NA**. Strengthen the existing `stopifnot()` validation block so these are hard failures, and additionally check the competing-risk row sums (IR + BG.mx ≤ 1, CF + BG.mx ≤ 1) as the script already does. If any probability is NA or out of [0,1], `stop()` with a message identifying the offending combo/age.
+
+Keep the existing output contract: `adjusted_searo_part{1..10}.rds`, `calibration_factors_random_tp.csv`, and `calibration_diagnostics_random_tp.csv` in `wd_data`, same schema and chunking. Remember the double-calibration warning: this script bakes the multipliers into IR/CF, so `run_adjustment_model` must stay `FALSE` downstream.
+
+---
+
+## Deliverables & working method
+
+- Edit the three scripts in place (02, 03, 04). Do not rename them or change how `00_run_all.R` sources them.
+- For each script, after editing: source it in a clean R session (or `Rscript`), confirm it runs end-to-end without error, and print/inspect the shape of every saved output to confirm the dimensions and year ranges match the spec above.
+- Add a short header comment block to each refactored script documenting its new inputs, outputs (filenames + dimensions), and the year ranges it produces.
+- If you discover a genuine blocker — a missing input file, a year range the source data can't support, or a schema mismatch between 01's output and what 03 needs — stop and report it with the specific file/column/year involved rather than fabricating a value or silently narrowing the range.
+- At the end, give me a concise summary: what changed in each script, the exact output filenames and their dimensions, and any assumptions or blockers.
+
+###################################################################################3
+##############3
+
+# Task: Refactor the Indonesia RHD secondary-prevention modeling pipeline
+
+Before writing ANY code, read and fully understand all eight scripts in `scripts/`
+(00_run_all.R through 07_make_outputs.R). They form a cohort state-transition model
+(well–sick–dead Markov, structured after Coates et al., Lancet Glob Health 2021) for
+scaling up secondary prevention of rheumatic heart disease (RHD) in Indonesia:
+echo screening + secondary antibiotic prophylaxis (SAP). Map out the current data
+flow, the inputs/outputs of each script, and note the inconsistencies before touching
+anything. Summarise your understanding back to me, then proceed.
+
+## Ground rules for the whole refactor
+- Use R `data.table` for all data processing.
+- Set up the model in MATRIX form (age × sex arrays) and run the Markov cycles as
+  matrix operations, not row-wise loops, wherever practical.
+- Add SANITY CHECKS after every major step (fail loudly with informative `stop()`
+  messages: no NAs, no negatives, probabilities and competing-risk sums in [0,1],
+  age/year grids complete, totals preserved, order-of-magnitude anchors vs GBD).
+- Preserve the existing tagging convention in comments: [PAPER] / [LIT] / [CALIBRATE].
+- Keep the code honest about provenance and keep the existing "fail before writing"
+  validation philosophy already present in 02 and 04.
+- Do NOT invent input files that don't exist; where an input is required, read it
+  from the outputs the upstream refactored script actually writes.
+
+## The specific changes (do them in this order)
+
+### 1. scripts/02_build_demography.R — close the year gap
+Currently: observed 1990–2023 and projected 2026–2100 (a 2024–2025 gap).
+Change to: observed 1990–2024 and projected 2025–2100, matching the UNWPP2024
+projection structure (WPP2024 observed runs through 2024; medium-variant projection
+begins 2025). Update OBS_YEARS, PROJ_YEARS, output filenames/paths, all messages,
+and the join-continuity validation (the observed→projection join is now 2024→2025).
+Rename the output objects/files consistently (e.g. pop_observed_1990_2024,
+pop_projection_2025_2100) and update every downstream reference to them.
+
+### 2. scripts/03_build_disease_model.R — reposition as input builder, not runner
+This script must NOT run the baseline projection or intervention scenarios. That job
+belongs to 05 (prepare initial state / inputs) and 06 (run the model). Refactor 03
+so it only BUILDS and validates the disease-model inputs (data-fed age×sex×year arrays:
+incidence, prevalence seed, RHD mortality, all-cause and background mortality, the
+severity split, clinical transition-probability parameters, intervention effect sizes,
+coverage-ramp structure). Remove the `run_scenario()` engine and the `ref`/`sap` runs
+from this script — move the engine ownership to 06. Persist the built inputs to disk
+(RDS) so 05/06 can consume them without recomputation. Keep all sanity checks.
+
+### 3. scripts/04_calibration_random_tp.R — extend age range + clarify purpose
+- Extend the calibrated age range to cover pediatric and young populations: instead of
+  ages 20–95, calibrate the full 0–95+ range (AGE_LO = 0). Update the single-year→GBD
+  age-group mapping to include the <1, 12–23mo, 2–4, 5–9, 10–14, 15–19 groups (mirror
+  the mapping already used in 03), the age_match helper, the age-20-entrant logic (there
+  are now age-0 entrants / births inflow instead of age-20 entrants), and all target
+  aggregation and validation accordingly.
+- Reaffirm the script's purpose in code and comments: it does NOT run the model or the
+  interventions. Its sole objective is to CALIBRATE/IMPROVE the transition-probability
+  inputs (IR and CF) within the in-sample window 2000–2019 so the model reproduces GBD
+  targets better than the raw GBD-rate-implied values. The OUTPUT is the calibrated,
+  improved transition probabilities. Keep the pure random-search approach, the
+  competing-risk constraints, the diagnostics, and the "calibrated never worse than
+  baseline" guarantee.
+
+### 4. scripts/05_build_baseline.R — prepare the initial state
+Rewrite this script (the current version is full of leftover parent-NCD / HTN / blood-
+pressure / COVID / multi-country logic that does not belong to the RHD-Indonesia model —
+strip all of it). Its job: assemble and load the INITIAL STATE and all inputs needed to
+run the secondary-prevention model in 06 WITHOUT re-running scripts 01–04. It should read
+the persisted outputs of 02 (demography), 03 (disease-model inputs) and 04 (calibrated
+transition probabilities), construct the initial state matrices (seeded prevalent pool by
+age×sex, well/sick stocks, incidence inflow, background mortality, coverage trajectories),
+validate them, and save a single self-contained "baseline state" object (RDS) that 06
+loads directly. No cost/monetary values here (see rule 7).
+
+### 5. scripts/06_run_prevention_model.R — the actual model runner, parallel by location
+This is the script that effectively RUNS the secondary-prevention scenarios, starting
+from the initial state produced by 05. Requirements:
+- Load the baseline state from 05 (do not recompute inputs).
+- Run the reference scenario and the SAP scale-up scenario using the matrix-form
+  well–sick–dead engine (mild → severe → post-surgery, with SAP acting on progression),
+  cohorts ageing one year per cycle, new incident cases entering each year. Move the
+  engine here (from old 03/06); remove the hard-coded Australia scalars (pop_2021,
+  au_pop, prev_rhd_2021, seed_frac, rhd_incident_2021, etc.) — everything comes from the
+  05 state.
+- PARALLELISE BY LOCATION (foreach/doParallel; currently just Indonesia, but the loop
+  must be location-general and safe with setDTthreads(1) inside workers).
+- Write outputs to `output/out_model/`, one `.RDS` per location. This is a model with
+  TUNNEL STATES, so produce TWO output tables per location:
+    (1) a table with the reference and SAP scenario model-output tables APPENDED
+        (row-bound, distinguished by a `scenario` column);
+    (2) the second tunnel-state output table (produce and export the appropriate
+        companion table required by the tunnel-state structure — infer the correct
+        second table from the model structure and state it explicitly in comments).
+- NO cost/monetary calculations here (see rule 7). Keep sanity checks.
+
+### 6. scripts/07_make_outputs.R — consume 06 outputs, emit the standard long table
+Refactor so it is fed by the outputs of 06 (read the per-location RDS files from
+`output/out_model/`). Compile from output table (1) a single tidy table with EXACTLY
+these columns, in this order:
+  "scenario", "age", "cause", "sex", "year", "well", "sick", "newcases", "dead",
+  "pop", "all.mx", "intervention", "location", "eff_ir", "eff_cf"
+where:
+  - `sick` = sum of all RHD cases across states (mild + severe + post);
+  - `eff_ir` and `eff_cf` are relative-risk-reduction multipliers on the scale [0,1],
+    where 1 = no reduction and 0 = 100% reduction — `eff_ir` applied to incidence
+    (new RHD cases) and `eff_cf` applied to RHD cause-specific mortality.
+Remove the economic/BCR/DALY/monetary content from this script (it moves to 08).
+
+### 7. Create scripts/08_economic_evaluation.R — all economics live here only
+New script for the benefit–cost assessment and cost-effectiveness evaluation
+(incremental cost, monetised benefits, BCR, net benefit, cost per death averted,
+cost per DALY averted, discounting). It takes the model outputs from 06 (per-location
+RDS) as its inputs. CRITICALLY: remove ALL cost and monetary/economic values and
+computations from scripts 01–07 (unit costs, gdp_pc, gdp_growth, vsl_mult,
+dalys_per_death, discounting, cost columns in the engine, etc.). Only 08 computes
+economics, and it reads the economic parameters from the user-declared parameters in
+00_run_all.R.
+
+### 8. Update scripts/00_run_all.R — single control panel
+Make 00_run_all.R the single place where the user enters every parameter needed to run
+scripts 01–08 (paths, horizon/year windows, ramp window, calibration settings, coverage
+targets, clinical/effect parameters that the user should control, all economic parameters
+for 08, parallel/core settings, location list, etc.). Consolidate parameters that are
+currently scattered across scripts into 00. Remove parameters/flags in 00 that are no
+longer used by any script (e.g. dead run_* flags, unused cause maps). Then source
+01 → 08 in order, adding the 08 source call and removing the obsolete
+`run_downstream_ncd` gating now that 05/06 are real.
+
+## Deliverables
+- All eight refactored scripts + the new 08.
+- A short written summary of the new data flow (which script writes what, which reads what).
+- Confirmation that each script's sanity checks pass on a dry run, or a clear note of any
+  input file I need to supply for a check to run.
+
+Work incrementally: refactor one script, run its sanity checks, then move to the next.
+Do not silently drop the [PAPER]/[LIT]/[CALIBRATE] provenance tags.

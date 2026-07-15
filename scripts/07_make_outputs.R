@@ -61,6 +61,8 @@ results <- list(budget_impact = bi, incremental = inc,
                                      deaths_averted = tot_deaths_avert,
                                      cost_per_death, cost_per_daly))
 saveRDS(results, "rhd_results.rds")
+
+fwrite(ref, "rhd_reference.csv")
 fwrite(bi,  "rhd_budget_impact.csv")
 fwrite(inc, "rhd_incremental.csv")
 cat("Saved: rhd_budget_impact.csv, rhd_incremental.csv, rhd_results.rds\n")

@@ -68,8 +68,8 @@ dt_pop <- dt_pop[age_name!="80+ years",]
 # Filter only Indonesia
 dt_pop <- dt_pop[location_name == "Indonesia",]
 
-# save temp baseline rates from gbd 2023
-saveRDS(dt, file = paste0(wd_raw,"temp_population_gbd.rds"))
+# save temp population from gbd 2023 (was mistakenly saving `dt` = epi rates)
+saveRDS(dt_pop, file = paste0(wd_raw,"temp_population_gbd.rds"))
 
 # Here make population projecions based on gbd population
 
