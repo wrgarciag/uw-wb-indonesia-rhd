@@ -1,378 +1,291 @@
-# Required inputs----
+# ==============================================================================
+# RHD secondary-prevention investment case: INITIAL-STATE ASSEMBLER
+# scripts/05_build_baseline.R
+#
+# Structure after: Coates et al., Lancet Glob Health 2021 (PMC9087136).
+#
+# ------------------------------------------------------------------------------
+# ROLE OF THIS SCRIPT (rewritten in this refactor)
+# ------------------------------------------------------------------------------
+# The previous version was parent-NCD leftover (blood pressure / salt / HTN / COVID
+# / multi-country) and referenced many inputs that do not exist in this repo. It
+# has been fully replaced.
+#
+# This script assembles the INITIAL STATE and every input needed to RUN the
+# secondary-prevention model in 06 WITHOUT re-running 01-04. It reads only the
+# PERSISTED outputs of the upstream refactored scripts:
+#
+#   INPUTS
+#     data/pop_projection_2025_2100.rds  (02) population [age x sex x year], horizon
+#     data/disease_model_inputs.rds      (03) rate arrays + clinical/effect params +
+#                                             severity split + coverage-ramp structure
+#     data/adjusted_searo_part{1..10}.rds(04) CALIBRATED transition probabilities
+#                                             (IR incidence, CF case-fatality), 2000-2019
+#
+#   OUTPUT (written to wd_data = data/):
+#     baseline_state.rds  — a single self-contained "baseline state" object that 06
+#       loads directly. It is a per-location bundle (location-general; Indonesia only
+#       for now) holding, per location:
+#         pop      [age x sex x year]  population over the horizon (from 02)
+#         ir       [age x sex x year]  incidence probability — CALIBRATED (04, last
+#                                      calibration year) with the secular trend applied
+#         cf       [age x sex]         CALIBRATED RHD case-fatality (04) — base-year
+#                                      RHD-mortality ANCHOR (see NOTE below)
+#         oth_mort [age x sex]         background (non-RHD) competing mortality (03)
+#         seed     list(mild,severe,post) [age x sex] seeded prevalent pool at year 1
+#         clinical / effects           tagged clinical + intervention parameters (03)
+#         coverage                     REALISED coverage trajectories per scenario
+#                                      (ref, sap) over the horizon + screening window
+#     plus a `meta` block (AGES, SEXES, years, base_year, scenarios, ramp window, ...).
+#
+# NOTE on the calibrated TPs (documented modelling decision):
+#   * CALIBRATED IR drives the incidence inflow of new (mild) RHD directly.
+#   * CALIBRATED CF is carried in as the base-year RHD case-fatality ANCHOR. The
+#     06 engine is the Coates mild->severe->post tunnel model whose within-sick RHD
+#     mortality comes from the clinical parameters; 06 checks that its base-year
+#     aggregate RHD death rate is within an order-of-magnitude band of CF x prevalence.
+#   * Background mortality is held FIXED (from 03's GBD all-cause minus RHD). This is
+#     consistent with 04, which calibrated only IR and CF and held background fixed.
+#
+# NO monetary / cost values live here — economics are in 08 only.
+# ==============================================================================
 
-#...........................................................
-#add covid mx data ----
-#...........................................................
+library(data.table)
+if (!exists("wd_data")) wd_data <- paste0(here::here("data"), "/")
 
-setwd(wd_raw)
-load(paste0(wd_data,"wpp.adj.Rda"))
+# ------------------------------------------------------------------------------
+# 0. CONFIG (honour globals from 00_run_all.R; else standalone defaults)
+# ------------------------------------------------------------------------------
+LOCATIONS <- if (exists("LOCATIONS")) LOCATIONS else "Indonesia"
+SCENARIOS <- c("ref", "sap")           # reference vs secondary-prevention scale-up
 
-wpp.adj<-wpp.adj%>%
-  mutate(location_name = ifelse(location_name=="North Korea", "Democratic People's Republic of Korea", location_name))
-#Covid mx ~= excess mortality
+IN_POP     <- paste0(wd_data, "pop_projection_2025_2100.rds")
+IN_DISEASE <- paste0(wd_data, "disease_model_inputs.rds")
+OUT_FILE   <- paste0(wd_data, "baseline_state.rds")
 
-# check for names as GBD and UWPP 2024
-locs_wpp.adj <- unique(wpp.adj$location_name)
+for (f in c(IN_POP, IN_DISEASE))
+  if (!file.exists(f))
+    stop("Missing required input:\n  ", f,
+         "\n  Run the upstream script (02 / 03) first.", call. = FALSE)
 
-#baseline rates calculated in file calibration:
+# ------------------------------------------------------------------------------
+# 1. LOAD PERSISTED UPSTREAM OUTPUTS
+# ------------------------------------------------------------------------------
+message("── 05_build_baseline.R : assembling initial state ─────────")
 
-files <- list.files(
-  path       = wd_data, 
-  pattern    = "adjusted", 
-  full.names = TRUE
-)
+dmi      <- readRDS(IN_DISEASE)            # 03 disease-model inputs
+pop_long <- as.data.table(readRDS(IN_POP)) # 02 population (tidy long)
 
-dt_list <- lapply(files, function(f) {
-  dt <- readRDS(f)
-  setDT(dt)  # convert to data.table by reference if it isn't already
-  dt
-})
+AGES  <- dmi$meta$AGES
+SEXES <- dmi$meta$SEXES
+years <- dmi$meta$years                    # projection horizon (2025..2100)
+n_age <- length(AGES); n_sex <- length(SEXES); n_years <- length(years)
+base_year <- min(years)
 
-# Bind them all together, matching columns by name and filling missing ones
-b_rates <- rbindlist(dt_list, use.names = TRUE, fill = TRUE)
+# calibrated TPs (04) — read + row-bind all chunks
+tp_files <- list.files(wd_data, pattern = "^adjusted_searo_part[0-9]+\\.rds$",
+                       full.names = TRUE)
+if (length(tp_files) == 0)
+  stop("No calibrated TP files (adjusted_searo_part*.rds) found in ", wd_data,
+       ".\n  Run 04_calibration_random_tp.R first.", call. = FALSE)
+calib <- rbindlist(lapply(tp_files, readRDS), use.names = TRUE, fill = TRUE)
+calib_last_year <- max(calib$year)         # last calibration year (2019)
 
-rm(dt_list, files)
+message(sprintf("  Loaded: pop(%d rows) | disease inputs(horizon %d-%d) | calibrated TPs(%d rows, %d-%d)",
+                nrow(pop_long), min(years), max(years),
+                nrow(calib), min(calib$year), max(calib$year)))
 
-locs_b_rates <- unique(b_rates$location)
-b_rates[location=="United States of America",location:="United States"]
-b_rates[location=="Bolivia (Plurinational State of)",location:="Bolivia"]
-b_rates[location=="United Republic of Tanzania",location:="Tanzania"]
+# ------------------------------------------------------------------------------
+# 2. HELPERS  (tidy long -> [age x sex] matrix / [age x sex x year] array)
+# ------------------------------------------------------------------------------
+empty_mat <- function() matrix(0, n_age, n_sex, dimnames = list(AGES, SEXES))
 
-b_rates <- b_rates[!is.na(location),]
-b_rates[,c("percent_lag","percent_diff"):=NULL]
-
-b_rates<-left_join(b_rates, wpp.adj%>%
-                     rename(location = location_name)%>%
-                     select( -Nx, -mx, -iso3))
-
-# Update to UNWPP 2024
-dt_pop_unwpp <- as.data.table(readRDS(paste0(wd_data,"PopulationsSingleAge0050.rds")))
-
-dt_pop_unwpp[age>=95, age:= 95]
-
-setnames(dt_pop_unwpp, c("year_id"), c("year"))
-
-dt_pop_unwpp <- dt_pop_unwpp[, .(Nx = sum(Nx)), by = .(location, year, sex, age)]
-
-b_rates <- merge(b_rates,
-                 dt_pop_unwpp[, .(location,year,age,sex,Nx2=Nx)],
-                 by = c("location", "year", "age","sex"),
-                 all.x = TRUE
-)
-
-# replace Nx with Nx2
-b_rates <- b_rates[, Nx := ifelse(is.na(Nx2), Nx, Nx2)]
-
-b_rates[,Nx2 := NULL]
-
-locs <- unique(b_rates$location)
-
-#...........................................................
-# Population data from UNWPP
-pop20 <- read.csv(paste0(wd_data,"PopulationsAge20_2050.csv"), stringsAsFactors = F)
-
-b_rates<-left_join(b_rates, pop20%>%rename(Nx2=Nx, year=year_id)%>%filter(year>=2017), 
-                   by=c("location", "year", "sex", "age"))%>%
-  mutate(Nx = ifelse(is.na(Nx2), Nx, Nx2), pop=Nx)%>%
-  select(-c(Nx2))
-
-#...........................................................
-# Blood Pressure data ----
-# blood pressure data calculated in file: "Blood pressure.R"
-#...........................................................
-
-data.in<-fread(paste0(wd_data,"bp_data6.csv"))%>%rename(location = location_gbd)%>%select(-Year, -Country)
-# 
-# data.in$salt[data.in$location=="China"]<-4.83*2.54
-# length(unique(data.in$location))
-
-#...........................................................
-# HTN add scale-up data ----
-#...........................................................
-
-inc <- read.csv(paste0(wd_data,"covfxn2.csv"), stringsAsFactors = F)%>%
-  select(iso3, location, Year, aroc, p_change, a_change, refwsalt, aspwsalt, reach_base,
-         aroc2, p_change2, a_change2, ideal)
-
-bpcats<-c("<120", "120-129", "130-139", 
-          "140-149", "150-159", "160-169", 
-          "170-179", "180+")
-
-data.in<-merge(bpcats, data.in)%>%rename(bp_cat = x)
-
-data.in <- as.data.table(data.in)
-# Fixes location names
-
-name_map <- c(
-  "Brunei"                            = "Brunei Darussalam",
-  "Cape Verde"                        = "Cabo Verde",
-  "Cote d'Ivoire"                     = "Ivory Coast",
-  "Czech Republic"                    = "Czechia",
-  "Federated States of Micronesia"    = "Micronesia (Federated States of)",
-  "Iran"                              = "Iran (Islamic Republic of)",
-  "Laos"                              = "Lao People's Democratic Republic",
-  "Macedonia"                         = "North Macedonia",
-  "Moldova"                           = "Republic of Moldova",
-  "South Korea"                       = "Republic of Korea",
-  "Swaziland"                         = "Eswatini",
-  "Syria"                             = "Syrian Arab Republic",
-  "The Bahamas"                       = "Bahamas",
-  "The Gambia"                        = "Gambia",
-  "Venezuela"                         = "Venezuela (Bolivarian Republic of)",
-  "Vietnam"                           = "Viet Nam",
-  "North Korea"                       = "Democratic People's Republic of Korea"
-)
-
-# 3. update your data.in in place, using fcoalesce() so that
-#    any location not in name_map stays unchanged
-data.in[, location := fcoalesce(name_map[location], location)]
-
-inc <- as.data.table(inc)
-inc[, location := fcoalesce(name_map[location], location)]
-
-unique(data.in$location)
-any(is.na(data.in))
-
-locs_data.in <- unique(data.in$location)
-
-#? testing covid.x =0
-#b_rates[covid.mx==0, covid.mx:=0]
-
-#rebalance TPs w/ covid such that they sum to less than 1
-#especially @ old ages where covid deaths are high
-b_rates[,check_well := BG.mx+covid.mx+IR]
-b_rates[,check_sick := BG.mx+covid.mx+CF]
-
-#first ensure that background mortality + covid <1
-b_rates[check_well>1 | check_sick>1, covid.mx:=ifelse(1-BG.mx<covid.mx, 1-BG.mx, covid.mx)]
-#then proportionally reduce rates by check_well
-b_rates[check_well>1, covid.mx:= covid.mx - covid.mx*(check_well-1)/(covid.mx+BG.mx+IR)]
-b_rates[check_well>1, BG.mx   := BG.mx    - BG.mx*   (check_well-1)/(covid.mx+BG.mx+IR)]
-b_rates[check_well>1, IR      := IR       - IR*      (check_well-1)/(covid.mx+BG.mx+IR)]
-
-b_rates[,check_well := BG.mx+covid.mx+IR]
-b_rates[check_well>1]
-
-#same process for check_sick
-b_rates[check_sick>1, covid.mx:= covid.mx - covid.mx*(check_sick-1)/(covid.mx+BG.mx+CF)]
-b_rates[check_sick>1, BG.mx   := BG.mx    - BG.mx*   (check_sick-1)/(covid.mx+BG.mx+CF)]
-b_rates[check_sick>1, CF      := CF       - CF*      (check_sick-1)/(covid.mx+BG.mx+CF)]
-
-b_rates[,check_sick := BG.mx+covid.mx+CF]
-b_rates[check_sick>1]
-
-#check that no BG.mx.all+covid>1
-b_rates[covid.mx+BG.mx.all>1]
-
-#...........................................................
-###fxn ----
-#...........................................................
-
-repYear<-function(row){
-  2017+floor((row-1)/224)
-}
-
-data.in<-data.table(data.in%>%select(-age)%>%rename(age=Age.group))
-b_rates[, newcases:=0]
-
-##repeat rates for years 2020-2050
-rep<-b_rates%>%filter(year==2019)
-
-for (i in 2020:2050){
-  b_rates<-bind_rows(b_rates, rep%>%mutate(year=i))
-}
-
-# # rename causes to match abbreviated names
-# b_rates[,cause:=ifelse(cause=="Ischemic heart disease", "ihd",
-#                        ifelse(cause=="Ischemic stroke", "istroke",
-#                               ifelse(cause=="Intracerebral hemorrhage", "hstroke",
-#                                      ifelse(cause=="Hypertensive heart disease", "hhd",
-#                                             ifelse(cause=="Alzheimer's disease and other dementias", "aod",
-#                                                    cause)))))]
-
-# Build reverse lookup: full name -> abbreviation
-cause_lookup <- setNames(names(cause_map), cause_map)
-
-# Rename in place; unmapped causes keep their original name
-b_rates[, cause := fcoalesce(cause_lookup[cause], cause)]
-
-# #...........................................................
-# # Adjustments ----
-# #...........................................................
-# ?? Adjustment of incidence rates and CF 
-
-if(run_adjustment_model == TRUE) {
-  
-  adjustments <- fread(file = paste0(wd_data,"adjustments2023_age.csv"))
-  
-  adjustments <- adjustments[,c("location","sex","cause","age_group","IRadjust", "CFadjust"),with=FALSE]
-  
-  gbd_breaks <- c(seq(20, 95, by = 5), Inf)
-  gbd_labels <- c(
-    paste0(seq(20, 90, by = 5), "-", seq(24, 94, by = 5)),
-    "95+"
-  )
-  
-  # 2) (Optionally) wrap in a helper
-  create_gbd_age_group <- function(age) {
-    cut(
-      age,
-      breaks        = gbd_breaks,
-      labels        = gbd_labels,
-      right         = FALSE,      # [20,25), [25,30), …, [95,Inf)
-      include.lowest = TRUE
-    )
-  }
-  
-  b_rates[,age_group := create_gbd_age_group(age)]
-  # Adjustments for age group
-  #b_rates <- merge(b_rates,adjustments,by=c("location","sex","cause"),all.x = T)
-  b_rates <- merge(b_rates,adjustments,by=c("location","sex","cause","age_group"),all.x = T)
-  
-  b_rates[ , age_group:=NULL]
-  
-  b_rates[!is.na(IRadjust), IR:=IR * IRadjust]
-  b_rates[!is.na(CFadjust), CF:=CF * CFadjust]
-  
-  b_rates[,c("IRadjust", "CFadjust"):=NULL]
-  
-}
-
-# #...........................................................
-# # UNWPP 2024 Pop ----
-# #...........................................................
-# Adjust pop 20 to unwpp
-
-b_rates<-left_join(b_rates, pop20%>%rename(Nx2=Nx, year=year_id)%>%filter(year>=2017), 
-                   by=c("location", "year", "sex", "age"))%>%
-  mutate(Nx = ifelse(is.na(Nx2), Nx, Nx2), pop=Nx)%>%
-  select(-c(Nx2))
-
-# #...........................................................
-# # Covid 2020/2021 ----
-# #...........................................................
-
-b_rates[,covid.mx:=NULL]
-b_rates <- merge(b_rates,wpp.adj[,c("location_name","year","sex","age","covid.mx"),with=F],
-                 by.x=c("location","year","sex","age"),
-                 by.y=c("location_name","year","sex","age"),all.x=T)
-
-b_rates[is.na(covid.mx), covid.mx:=0]
-b_rates[covid.mx>=1, covid.mx:=0.9]
-
-
-#...........................................................
-# Mortality downward trends ----
-#...........................................................
-
-if(run_bgmx_trend == TRUE){
-  
-  bgmx_fcst <- readRDS(file = paste0(wd_data,"tps_bgmx_forecasted.rds"))
-  
-  bgmx_fcst[,BG.mx.all:=NULL]
-  
-  bgmx_fcst <- bgmx_fcst[year>2019,]
-  
-  bgmx_fcst <- unique(bgmx_fcst,by=c("age","sex","cause","year"))
-  
-  bgmx_fcst[, cause := fcase(
-    cause == "Ischemic heart disease", "ihd",
-    cause == "Ischemic stroke", "istroke",
-    cause == "Intracerebral hemorrhage", "hstroke",
-    cause == "Hypertensive heart disease", "hhd",
-    cause == "Alzheimer's disease and other dementias", "aod",
-    default = cause
-  )]
-  
-  summary(b_rates$BG.mx)
-  
-  b_rates <- merge(b_rates,bgmx_fcst,,by=c("age","sex","cause","year"),all.x = T)
-  
-  b_rates[year>2019 & !is.na(percent_diff),BG.mx:=BG.mx*(1+percent_diff)]
-  b_rates[,c("percent_lag","percent_diff"):=NULL]
-  
-  summary(b_rates$BG.mx)
-  
-  # All dead envelope
-  bgmx_fcst <- readRDS(file = paste0(wd_data,"tps_bgmx_all_forecasted.rds"))
-  
-  bgmx_fcst <- bgmx_fcst[year>2019,]
-  
-  bgmx_fcst[,BG.mx.all:=NULL]
-  
-  bgmx_fcst <- unique(bgmx_fcst,by=c("age","sex","cause","year"))
-  
-  bgmx_fcst[, cause := fcase(
-    cause == "Ischemic heart disease", "ihd",
-    cause == "Ischemic stroke", "istroke",
-    cause == "Intracerebral hemorrhage", "hstroke",
-    cause == "Hypertensive heart disease", "hhd",
-    cause == "Alzheimer's disease and other dementias", "aod",
-    default = cause
-  )]
-  
-  summary(b_rates$BG.mx.all)
-  
-  b_rates <- merge(b_rates,bgmx_fcst,by=c("age","sex","cause","year"),all.x = T)
-  
-  b_rates[year>2019 & !is.na(percent_diff),BG.mx.all:=BG.mx.all*(1+percent_diff)]
-  b_rates[,c("percent_lag","percent_diff"):=NULL]
-  
-  summary(b_rates$BG.mx.all)
-}
-
-## Adjusting also CF with downward trend
-
-if(run_CF_trend== TRUE){
-  
-  if(run_CF_trend_ihme== TRUE){
-    
-    bgmx_fcst <- readRDS(file = paste0(wd_data,"tps_bgmx_cvd_ihme.rds"))
-    
-    bgmx_fcst <- bgmx_fcst[year>2019,]
-    
-    bgmx_fcst <- unique(bgmx_fcst,by=c("cause","year"))
-    
-    b_rates <- merge(b_rates,bgmx_fcst,by=c("cause","year"),all.x = T)
-    
-    b_rates[year>2019 & !is.na(percent_diff),CF:=CF*(1+percent_diff)]
-    b_rates[,c("percent_diff"):=NULL]
-    
-  }else{
-    
-    # All dead envelope
-    #bgmx_fcst <- readRDS(file = paste0(wd_data,"tps_bgmx_all_forecasted.rds"))
-    bgmx_fcst <- readRDS(file = paste0(wd_data,"tps_bgmx_cvd_forecasted.rds"))
-    
-    bgmx_fcst <- bgmx_fcst[year>2019,]
-    
-    bgmx_fcst[,BG.mx.all:=NULL]
-    
-    bgmx_fcst <- unique(bgmx_fcst,by=c("age","sex","cause","year"))
-    
-    bgmx_fcst[, cause := fcase(
-      cause == "Ischemic heart disease", "ihd",
-      cause == "Ischemic stroke", "istroke",
-      cause == "Intracerebral hemorrhage", "hstroke",
-      cause == "Hypertensive heart disease", "hhd",
-      cause == "Alzheimer's disease and other dementias", "aod",
-      default = cause
-    )]
-    
-    
-    b_rates <- merge(b_rates,bgmx_fcst,by=c("age","sex","cause","year"),all.x = T)
-    
-    if(run_CF_trend_80 == TRUE){
-      b_rates[year>2019 & !is.na(percent_diff),CF:=CF*(1+percent_diff*0.8)]
-    }else{
-      b_rates[year>2019 & !is.na(percent_diff),CF:=CF*(1+percent_diff)]
+# build an [age x sex] matrix for one location from a long DT with cols age,sex,<val>.
+# ages beyond the calibrated top age (AGE_HI) inherit the top-age value (95+ open
+# group); ages absent entirely stay 0.
+mat_from_long <- function(dt, valcol) {
+  m <- empty_mat()
+  for (s in SEXES) {
+    ds <- dt[sex == s]
+    if (!nrow(ds)) next
+    idx <- match(ds$age, AGES)
+    keep <- !is.na(idx)
+    m[idx[keep], s] <- ds[[valcol]][keep]
+    # forward-fill ages above the max supplied age with that top value (95+ open)
+    top_age <- max(ds$age)
+    if (top_age < max(AGES)) {
+      fill_rows <- which(AGES > top_age)
+      m[fill_rows, s] <- m[as.character(top_age), s]
     }
-    
-    b_rates[,c("percent_lag","percent_diff"):=NULL]
-    
   }
-  
+  m
 }
 
-# Clean up environment
-rm("adjustments","bgmx_fcst","dt_pop_unwpp","wpp.adj","rep","pop20")
+# coverage ramp: baseline before window, linear across [start,end], target after
+ramp_traj <- function(baseline, target, start, end) {
+  frac <- (years - start) / (end - start)
+  frac <- pmin(pmax(frac, 0), 1)
+  baseline + (target - baseline) * frac
+}
+
+# ------------------------------------------------------------------------------
+# 3. BUILD PER-LOCATION INITIAL STATE
+# ------------------------------------------------------------------------------
+cov <- dmi$coverage
+build_location_state <- function(loc) {
+
+  ## 3a. population array [age x sex x year] from 02 --------------------------
+  pl <- pop_long[location == loc & age %in% AGES & sex %in% SEXES]
+  if (!nrow(pl)) stop("No population rows for location '", loc, "'.", call. = FALSE)
+  pop_arr <- array(0, dim = c(n_age, n_sex, n_years),
+                   dimnames = list(AGES, SEXES, years))
+  for (iy in seq_len(n_years)) {
+    py <- pl[year == years[iy]]
+    m  <- empty_mat()
+    for (s in SEXES) {
+      ps <- py[sex == s]
+      m[match(ps$age, AGES), s] <- ps$Nx
+    }
+    pop_arr[, , iy] <- m
+  }
+
+  ## 3b. calibrated IR & CF at the last calibration year, [age x sex] --------
+  cb <- calib[location == loc & year == calib_last_year]
+  if (!nrow(cb))
+    stop("No calibrated TP rows for location '", loc, "' at year ",
+         calib_last_year, ".", call. = FALSE)
+  ir_base <- mat_from_long(cb, "IR")   # incidence probability, calibrated
+  cf_base <- mat_from_long(cb, "CF")   # RHD case-fatality, calibrated (anchor)
+
+  ## 3c. incidence array over horizon: calibrated base pattern x secular trend
+  ##     trend anchored at the last calibration year (continuous decline forward).
+  trend <- dmi$meta$incidence_trend
+  ir_arr <- array(0, dim = c(n_age, n_sex, n_years),
+                  dimnames = list(AGES, SEXES, years))
+  for (iy in seq_len(n_years))
+    ir_arr[, , iy] <- ir_base * trend^(years[iy] - calib_last_year)
+
+  ## 3d. background (non-RHD) mortality + prevalence seed from 03 -------------
+  oth_mort <- dmi$rates_by_year$oth_mort[, , 1]   # base-year pattern (held)
+  prev_seed <- dmi$rates_by_year$prev_seed        # [age x sex] prevalence fraction
+
+  ## 3e. seed the prevalent pool at year 1 (split by severity) ---------------
+  prev_pool <- prev_seed * pop_arr[, , 1]
+  seed <- list(
+    mild   = prev_pool * dmi$seed_split[["mild"]],
+    severe = prev_pool * dmi$seed_split[["severe"]],
+    post   = prev_pool * dmi$seed_split[["post"]]
+  )
+
+  ## 3f. realised coverage trajectories per scenario -------------------------
+  #  Only SAP differs between arms; HF & surgery held at baseline in both.
+  coverage <- list(
+    ref = list(
+      sap  = ramp_traj(cov$sap_ref_baseline, cov$sap_ref_target, cov$ramp_start, cov$ramp_end),
+      hf   = ramp_traj(cov$hf_baseline,      cov$hf_target,      cov$ramp_start, cov$ramp_end),
+      surg = ramp_traj(cov$surg_baseline,    cov$surg_target,    cov$ramp_start, cov$ramp_end)
+    ),
+    sap = list(
+      sap  = ramp_traj(cov$sap_up_baseline,  cov$sap_up_target,  cov$ramp_start, cov$ramp_end),
+      hf   = ramp_traj(cov$hf_baseline,      cov$hf_target,      cov$ramp_start, cov$ramp_end),
+      surg = ramp_traj(cov$surg_baseline,    cov$surg_target,    cov$ramp_start, cov$ramp_end)
+    ),
+    screen_age_lo = cov$screen_age_lo,
+    screen_age_hi = cov$screen_age_hi
+  )
+
+  list(pop = pop_arr, ir = ir_arr, cf = cf_base, oth_mort = oth_mort,
+       seed = seed, clinical = dmi$clinical, effects = dmi$effects,
+       coverage = coverage)
+}
+
+states <- setNames(lapply(LOCATIONS, build_location_state), LOCATIONS)
+
+# ------------------------------------------------------------------------------
+# 4. VALIDATION  (fail loudly BEFORE writing)
+# ------------------------------------------------------------------------------
+message("── Validation ─────────────────────────────────")
+
+chk <- function(x, nm) {
+  if (any(is.na(x)))  stop(nm, ": contains NA.", call. = FALSE)
+  if (any(x < 0))     stop(nm, ": contains negative values.", call. = FALSE)
+}
+chk_prob <- function(x, nm) {
+  chk(x, nm)
+  if (any(x > 1)) stop(nm, ": contains values > 1 (must be a probability/rate).", call. = FALSE)
+}
+
+for (loc in LOCATIONS) {
+  st <- states[[loc]]
+
+  # shapes
+  if (!identical(dim(st$pop), c(n_age, n_sex, n_years)))
+    stop(loc, ": population array has wrong dimensions.", call. = FALSE)
+  if (!identical(dim(st$ir), c(n_age, n_sex, n_years)))
+    stop(loc, ": incidence array has wrong dimensions.", call. = FALSE)
+  if (!identical(dim(st$cf), c(n_age, n_sex)))
+    stop(loc, ": CF matrix has wrong dimensions.", call. = FALSE)
+
+  # non-negativity / probability ranges
+  chk(st$pop, paste0(loc, " pop"))
+  chk_prob(st$ir, paste0(loc, " ir"))
+  chk_prob(st$cf, paste0(loc, " cf"))
+  chk_prob(st$oth_mort, paste0(loc, " oth_mort"))
+
+  # competing risks at base year: IR + background <= 1 ; CF + background <= 1
+  ir1 <- st$ir[, , 1]
+  if (any(ir1 + st$oth_mort > 1 + 1e-9))
+    stop(loc, ": IR + background mortality exceeds 1 at some age-sex cell.", call. = FALSE)
+  if (any(st$cf + st$oth_mort > 1 + 1e-9))
+    stop(loc, ": CF + background mortality exceeds 1 at some age-sex cell.", call. = FALSE)
+
+  # seeded prevalent pool: non-negative and NOT exceeding the year-1 population
+  sick1 <- st$seed$mild + st$seed$severe + st$seed$post
+  chk(sick1, paste0(loc, " seeded sick pool"))
+  if (any(sick1 > st$pop[, , 1] + 1e-6))
+    stop(loc, ": seeded sick pool exceeds year-1 population somewhere.", call. = FALSE)
+
+  # coverage trajectories in [0,1] for both arms
+  for (sc in SCENARIOS) for (k in c("sap", "hf", "surg")) {
+    v <- st$coverage[[sc]][[k]]
+    if (length(v) != n_years) stop(loc, ": coverage ", sc, "/", k, " wrong length.", call. = FALSE)
+    chk_prob(v, paste0(loc, " coverage ", sc, "/", k))
+  }
+
+  # order-of-magnitude anchor: seeded RHD prevalence vs a sane band
+  prev_cnt <- sum(sick1)
+  message(sprintf("  %s | seeded RHD prevalence (year %d) ~ %s | max sick/pop = %.4f%%",
+                  loc, base_year, formatC(round(prev_cnt), format = "d", big.mark = ","),
+                  100 * max(sick1 / pmax(st$pop[, , 1], 1))))
+  if (prev_cnt < 1e5 || prev_cnt > 1e7)
+    stop(loc, ": seeded RHD prevalence ", round(prev_cnt),
+         " outside the sane band 1e5-1e7.", call. = FALSE)
+}
+
+# ------------------------------------------------------------------------------
+# 5. ASSEMBLE + PERSIST THE BASELINE STATE
+# ------------------------------------------------------------------------------
+baseline_state <- list(
+  locations = LOCATIONS,
+  states    = states,
+  meta = list(
+    AGES = AGES, SEXES = SEXES, years = years, base_year = base_year,
+    scenarios = SCENARIOS,
+    ramp_start = cov$ramp_start, ramp_end = cov$ramp_end,
+    incidence_trend = dmi$meta$incidence_trend,
+    calib_last_year = calib_last_year,
+    RATE_BASE_YEAR  = dmi$meta$RATE_BASE_YEAR,
+    intervention_labels = c(ref = "none", sap = "echo_screening_plus_SAP"),
+    built_from = c(basename(IN_POP), basename(IN_DISEASE),
+                   "adjusted_searo_part*.rds")
+  )
+)
+
+saveRDS(baseline_state, file = OUT_FILE)
+
+message("── Saved ──────────────────────────────────────")
+message(sprintf("  %s  | locations: %s | horizon %d-%d | scenarios: %s",
+                basename(OUT_FILE), paste(LOCATIONS, collapse = ", "),
+                min(years), max(years), paste(SCENARIOS, collapse = ", ")))
+message("── 05_build_baseline.R complete ───────────────────────")
+message("  Next: 06_run_prevention_model.R")

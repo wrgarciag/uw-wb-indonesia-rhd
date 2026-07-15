@@ -2,6 +2,10 @@
 # GBD 2023 Data ----
 #...........................................................
 
+# Standalone-sourcing guard (honour 00_run_all.R globals when present).
+library(data.table)
+if (!exists("wd_raw")) wd_raw <- paste0(here::here("data-raw"), "/")
+
 # Indonesia Level 2
 
 # https://collab2023.healthdata.org/gbd-results?params=gbd-api-2023-permalink/e23ae880499d3ae1d643dca738057425

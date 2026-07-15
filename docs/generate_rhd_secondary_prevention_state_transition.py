@@ -1,13 +1,18 @@
 from pathlib import Path
+
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
-from matplotlib.path import Path as MplPath
 import matplotlib.patheffects as pe
+from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+from matplotlib.path import Path as MplPath
+
 
 # -----------------------------------------------------------------------------
 # Output
 # -----------------------------------------------------------------------------
-output_path = Path("rhd_secondary_prevention_state_transition.png")
+OUTPUT_PATH = Path(__file__).resolve().with_name(
+    "rhd_secondary_prevention_state_transition.png"
+)
+
 
 # -----------------------------------------------------------------------------
 # Figure setup
@@ -17,27 +22,28 @@ ax.set_xlim(0, 18)
 ax.set_ylim(0, 10)
 ax.axis("off")
 
+
 # -----------------------------------------------------------------------------
-# Colors
+# Palette
 # -----------------------------------------------------------------------------
 navy = "#2C3E50"
 text_dark = "#17202A"
 muted = "#607286"
 state_fill = "#EAF2F8"
-risk_fill = "#F7F9F9"
+input_fill = "#F7F9F9"
 
 intervention_fill = "#FFF3CD"
 intervention_edge = "#B7791F"
 intervention_line = "#C27C0E"
-
-green_fill = "#EAF7EE"
-green_edge = "#2E7D32"
 
 purple_fill = "#F1ECF8"
 purple_edge = "#6C4A8B"
 
 red_fill = "#FDECEC"
 red_edge = "#B83227"
+
+cycle_fill = "#EEF5F1"
+cycle_edge = "#3F7C64"
 
 white = "#FFFFFF"
 
@@ -55,10 +61,11 @@ def node(
     fill=state_fill,
     edge=navy,
     title_fs=13,
-    sub_fs=9.7,
+    sub_fs=9.5,
     z=5,
+    linewidth=1.8,
 ):
-    """Draw a rounded state or intervention node."""
+    """Draw a rounded state, input, or intervention node."""
     patch = FancyBboxPatch(
         (x - w / 2, y - h / 2),
         w,
@@ -66,7 +73,7 @@ def node(
         boxstyle="round,pad=0.035,rounding_size=0.14",
         facecolor=fill,
         edgecolor=edge,
-        linewidth=1.8,
+        linewidth=linewidth,
         zorder=z,
     )
     patch.set_path_effects(
@@ -74,16 +81,17 @@ def node(
             pe.SimplePatchShadow(
                 offset=(2, -2),
                 shadow_rgbFace=(0, 0, 0),
-                alpha=0.11,
+                alpha=0.10,
             ),
             pe.Normal(),
         ]
     )
     ax.add_patch(patch)
 
+    title_y = y + (0.17 if subtitle else 0)
     ax.text(
         x,
-        y + (0.16 if subtitle else 0),
+        title_y,
         title,
         ha="center",
         va="center",
@@ -97,16 +105,15 @@ def node(
     if subtitle:
         ax.text(
             x,
-            y - 0.26,
+            y - 0.27,
             subtitle,
             ha="center",
             va="center",
             fontsize=sub_fs,
             color=muted,
             zorder=z + 1,
-            linespacing=1.15,
+            linespacing=1.14,
         )
-
     return patch
 
 
@@ -121,8 +128,9 @@ def arrow(
     linestyle="-",
     z=3,
     mutation=17,
+    label_fs=9.5,
 ):
-    """Draw a straight or curved arrow between two points."""
+    """Draw a straight or curved arrow."""
     patch = FancyArrowPatch(
         start,
         end,
@@ -140,10 +148,7 @@ def arrow(
         lx, ly = (
             label_xy
             if label_xy is not None
-            else (
-                (start[0] + end[0]) / 2,
-                (start[1] + end[1]) / 2,
-            )
+            else ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2)
         )
         ax.text(
             lx,
@@ -151,18 +156,17 @@ def arrow(
             label,
             ha="center",
             va="center",
-            fontsize=9.8,
+            fontsize=label_fs,
             color=color,
             zorder=z + 3,
-            linespacing=1.15,
+            linespacing=1.13,
             bbox={
                 "boxstyle": "round,pad=0.16",
                 "facecolor": white,
                 "edgecolor": "none",
-                "alpha": 0.94,
+                "alpha": 0.95,
             },
         )
-
     return patch
 
 
@@ -174,8 +178,9 @@ def curved_path(
     lw=1.9,
     linestyle="-",
     z=2,
+    label_fs=9.2,
 ):
-    """Draw a cubic Bezier arrow using four control points."""
+    """Draw a cubic Bézier arrow from four control points."""
     path = MplPath(
         points,
         [
@@ -185,7 +190,6 @@ def curved_path(
             MplPath.CURVE4,
         ],
     )
-
     patch = FancyArrowPatch(
         path=path,
         arrowstyle="-|>",
@@ -204,7 +208,7 @@ def curved_path(
             label,
             ha="center",
             va="center",
-            fontsize=9.3,
+            fontsize=label_fs,
             color=color,
             zorder=z + 4,
             linespacing=1.12,
@@ -215,7 +219,6 @@ def curved_path(
                 "alpha": 0.95,
             },
         )
-
     return patch
 
 
@@ -224,7 +227,7 @@ def curved_path(
 # -----------------------------------------------------------------------------
 ax.text(
     9,
-    9.6,
+    9.63,
     "Rheumatic Heart Disease Secondary-Prevention Model",
     ha="center",
     va="center",
@@ -232,246 +235,250 @@ ax.text(
     fontweight="bold",
     color=text_dark,
 )
-
 ax.text(
     9,
-    9.18,
+    9.22,
     (
-        "Annual cohort state transitions; secondary prevention reduces "
-        "ARF-to-RHD and mild-to-severe progression"
+        "Age–sex structured annual cohort model for Indonesia (2026–2100); "
+        "ARF is not represented as a health state"
     ),
     ha="center",
     va="center",
-    fontsize=12,
+    fontsize=11.8,
     color=muted,
 )
 
 
 # -----------------------------------------------------------------------------
-# Intervention callouts
+# Top callouts
 # -----------------------------------------------------------------------------
 node(
-    5.55,
-    8.15,
-    3.25,
-    1.08,
-    "1  SAP after ARF",
-    "Coverage 5% → 40%  |  55% RRR\n"
-    "p = p₀[1 − 0.55 × coverage]",
-    fill=intervention_fill,
-    edge=intervention_edge,
-    title_fs=12.5,
-    sub_fs=9.2,
+    2.55,
+    8.10,
+    4.15,
+    1.25,
+    "Data-fed epidemiology",
+    "GBD 2023 age–sex rates:\nincidence, prevalence, RHD deaths,\nand other-cause mortality",
+    fill=input_fill,
+    edge=navy,
+    title_fs=12.3,
+    sub_fs=8.8,
 )
 
 node(
-    9.25,
-    8.15,
-    4.05,
-    1.18,
-    "2  Echo screening + SAP",
-    "Detect mild RHD, then prophylaxis\n"
-    "Coverage 5% → 40%  |  55% RRR\n"
-    "p = p₀[1 − 0.55 × coverage]",
+    8.75,
+    8.10,
+    4.55,
+    1.30,
+    "Echo screening + SAP scale-up",
+    "School-age screening (5–15 years)\nCoverage 5% → 40% by 2030 | 55% RRR\n"
+    "pMS(t) = pMS,0 [1 − 0.55 × coverage(t)]",
     fill=intervention_fill,
     edge=intervention_edge,
-    title_fs=12.5,
+    title_fs=12.4,
+    sub_fs=8.7,
+)
+
+node(
+    14.60,
+    8.10,
+    3.75,
+    1.20,
+    "Tertiary care held fixed",
+    "HF management and surgery coverage\nremain at baseline in both scenarios",
+    fill=purple_fill,
+    edge=purple_edge,
+    title_fs=11.8,
     sub_fs=8.9,
 )
 
+
+# -----------------------------------------------------------------------------
+# Main states and inputs
+# -----------------------------------------------------------------------------
 node(
-    14.1,
-    8.15,
-    3.15,
-    1.05,
-    "Tertiary pathways held fixed",
-    "HF management and surgery remain\n"
-    "at baseline coverage",
-    fill=purple_fill,
-    edge=purple_edge,
-    title_fs=11.7,
+    1.45,
+    5.65,
+    2.50,
+    1.25,
+    "Population",
+    "Single-year age × sex\nprojection",
+    fill=input_fill,
+    edge=navy,
+    title_fs=13,
+)
+
+node(
+    5.25,
+    5.65,
+    2.85,
+    1.42,
+    "Mild RHD",
+    "Asymptomatic / subclinical\nIncident cases enter here\nSurvivors remain in state",
+    fill=state_fill,
+    edge=navy,
+    title_fs=13.3,
     sub_fs=9.0,
 )
 
-
-# -----------------------------------------------------------------------------
-# Main health states
-# -----------------------------------------------------------------------------
 node(
-    1.35,
-    5.7,
-    2.35,
-    1.2,
-    "Population at risk",
-    "Exogenous annual inflows",
-    fill=risk_fill,
-)
-
-node(
-    4.55,
-    5.7,
-    2.55,
-    1.3,
-    "Acute rheumatic\nfever (ARF)",
-    "New cases each year",
-)
-
-node(
-    8.05,
-    5.7,
-    2.55,
-    1.35,
-    "Mild RHD",
-    "Asymptomatic / subclinical\n"
-    "Survivors remain in state",
-)
-
-node(
-    11.55,
-    5.7,
-    2.7,
-    1.35,
+    10.10,
+    5.65,
+    2.95,
+    1.42,
     "Severe RHD",
-    "Heart failure / advanced disease\n"
-    "Non-surgical survivors remain",
+    "Heart failure / advanced disease\nNon-surgical survivors remain",
+    fill=state_fill,
+    edge=navy,
+    title_fs=13.3,
+    sub_fs=9.0,
 )
 
 node(
-    15.05,
-    5.7,
-    2.5,
-    1.35,
+    14.70,
+    5.65,
+    2.85,
+    1.42,
     "Post-surgery",
-    "Valve intervention survivors\n"
-    "Survivors remain in state",
+    "Valve-intervention survivors\nSurvivors remain in state",
     fill=purple_fill,
     edge=purple_edge,
-)
-
-
-# -----------------------------------------------------------------------------
-# Resolved and absorbing states
-# -----------------------------------------------------------------------------
-node(
-    4.55,
-    1.95,
-    2.55,
-    1.1,
-    "Resolved / no RHD",
-    "ARF remission",
-    fill=green_fill,
-    edge=green_edge,
+    title_fs=13.0,
+    sub_fs=9.0,
 )
 
 node(
-    11.8,
-    1.85,
-    2.85,
+    10.20,
+    2.15,
+    3.10,
     1.25,
     "Death",
-    "ARF, RHD, operative,\nor other-cause",
+    "RHD, operative, or\nother-cause mortality",
     fill=red_fill,
     edge=red_edge,
+    title_fs=13.0,
+    sub_fs=9.2,
 )
 
 
 # -----------------------------------------------------------------------------
-# Main disease pathway
+# Data-fed entry mechanisms
 # -----------------------------------------------------------------------------
 arrow(
-    (2.53, 5.7),
-    (3.25, 5.7),
-    "Incident ARF",
-    label_xy=(2.9, 6.05),
+    (2.72, 5.65),
+    (3.78, 5.65),
+    "Annual incident mild RHD\n= incidence rate × population",
+    color=navy,
+    lw=2.15,
+    label_xy=(3.25, 6.16),
+    label_fs=9.1,
 )
 
-arrow(
-    (5.83, 5.7),
-    (6.76, 5.7),
-    color=intervention_line,
-    lw=2.8,
-)
-
-ax.text(
-    6.30,
-    6.02,
-    "ARF → RHD",
-    ha="center",
-    va="center",
-    fontsize=9.5,
-    color=intervention_edge,
-    fontweight="bold",
-    zorder=7,
-    bbox={
-        "boxstyle": "round,pad=0.13",
-        "facecolor": white,
-        "edgecolor": "none",
-        "alpha": 0.96,
-    },
-)
-
-arrow(
-    (9.34, 5.7),
-    (10.18, 5.7),
-    color=intervention_line,
-    lw=2.8,
-)
-
-ax.text(
-    9.76,
-    6.02,
-    "Mild → severe RHD",
-    ha="center",
-    va="center",
-    fontsize=9.3,
-    color=intervention_edge,
-    fontweight="bold",
-    zorder=7,
-    bbox={
-        "boxstyle": "round,pad=0.13",
-        "facecolor": white,
-        "edgecolor": "none",
-        "alpha": 0.96,
-    },
-)
-
-arrow(
-    (12.92, 5.7),
-    (13.78, 5.7),
-    "Surgery among eligible cases",
-    color=purple_edge,
-    lw=2.1,
-    label_xy=(13.35, 6.12),
-)
-
-
-# -----------------------------------------------------------------------------
-# Incident asymptomatic RHD inflow
-# -----------------------------------------------------------------------------
 curved_path(
     [
-        (2.45, 5.35),
-        (3.7, 4.15),
-        (5.65, 4.15),
-        (6.82, 5.35),
+        (2.50, 7.46),
+        (3.35, 6.95),
+        (3.75, 6.55),
+        (4.42, 6.30),
     ],
-    label="Incident asymptomatic RHD",
-    label_xy=(4.7, 4.28),
+    label="Prevalence seed in 2026\n96% mild",
+    label_xy=(3.52, 7.02),
     color=navy,
-    lw=1.9,
-    z=2,
+    lw=1.65,
+    linestyle="--",
+    label_fs=8.8,
+)
+
+curved_path(
+    [
+        (2.82, 7.48),
+        (5.50, 7.05),
+        (7.80, 6.80),
+        (9.08, 6.30),
+    ],
+    label="3% severe",
+    label_xy=(6.95, 7.10),
+    color=navy,
+    lw=1.55,
+    linestyle="--",
+    label_fs=8.8,
+)
+
+curved_path(
+    [
+        (3.00, 7.52),
+        (7.90, 7.35),
+        (12.30, 7.10),
+        (13.80, 6.30),
+    ],
+    label="1% post-surgery",
+    label_xy=(11.55, 7.35),
+    color=navy,
+    lw=1.55,
+    linestyle="--",
+    label_fs=8.8,
 )
 
 
 # -----------------------------------------------------------------------------
-# Resolution
+# Main disease transitions
 # -----------------------------------------------------------------------------
 arrow(
-    (4.55, 5.03),
-    (4.55, 2.53),
-    "Resolution",
-    color=green_edge,
-    label_xy=(4.05, 3.75),
+    (6.70, 5.65),
+    (8.60, 5.65),
+    color=intervention_line,
+    lw=2.9,
+    mutation=19,
+)
+ax.text(
+    7.65,
+    6.05,
+    "Mild → severe progression",
+    ha="center",
+    va="center",
+    fontsize=9.7,
+    color=intervention_edge,
+    fontweight="bold",
+    zorder=7,
+    bbox={
+        "boxstyle": "round,pad=0.14",
+        "facecolor": white,
+        "edgecolor": "none",
+        "alpha": 0.96,
+    },
+)
+
+arrow(
+    (11.60, 5.65),
+    (13.25, 5.65),
+    "Surgery among eligible\nsevere cases",
+    color=purple_edge,
+    lw=2.15,
+    label_xy=(12.42, 6.08),
+    label_fs=9.0,
+)
+
+
+# -----------------------------------------------------------------------------
+# Intervention pointers
+# -----------------------------------------------------------------------------
+arrow(
+    (8.75, 7.43),
+    (7.72, 6.05),
+    color=intervention_line,
+    lw=1.8,
+    linestyle="--",
+    mutation=14,
+    z=4,
+)
+arrow(
+    (14.60, 7.49),
+    (12.50, 6.12),
+    color=purple_edge,
+    lw=1.6,
+    linestyle="--",
+    mutation=14,
+    z=4,
 )
 
 
@@ -480,114 +487,140 @@ arrow(
 # -----------------------------------------------------------------------------
 curved_path(
     [
-        (5.15, 5.05),
-        (6.6, 3.85),
-        (8.9, 2.65),
-        (10.45, 2.05),
+        (5.30, 4.92),
+        (5.90, 3.85),
+        (7.55, 2.80),
+        (8.70, 2.28),
     ],
-    label="Acute ARF death",
-    label_xy=(7.1, 3.48),
+    label="Other-cause mortality",
+    label_xy=(6.85, 3.48),
+    color=red_edge,
+    lw=1.8,
 )
 
 curved_path(
     [
-        (8.2, 5.02),
-        (8.55, 4.0),
-        (9.35, 2.95),
-        (10.55, 2.18),
+        (10.10, 4.92),
+        (10.10, 4.05),
+        (10.15, 3.12),
+        (10.18, 2.78),
     ],
-    label="Other-cause death",
-    label_xy=(9.05, 3.3),
+    label="RHD mortality reduced by HF management\n+ other-cause mortality",
+    label_xy=(11.45, 3.62),
+    color=red_edge,
+    lw=1.9,
+    label_fs=8.8,
 )
 
 curved_path(
     [
-        (11.55, 5.02),
-        (11.55, 4.15),
-        (11.7, 3.0),
-        (11.75, 2.49),
-    ],
-    label=(
-        "RHD + other-cause death\n"
-        "HF management lowers RHD death"
-    ),
-    label_xy=(12.75, 3.72),
-)
-
-curved_path(
-    [
-        (13.35, 5.48),
-        (13.7, 4.35),
-        (13.2, 3.0),
-        (12.82, 2.42),
+        (12.55, 5.42),
+        (12.90, 4.25),
+        (12.05, 3.08),
+        (11.55, 2.60),
     ],
     label="Operative mortality",
-    label_xy=(14.0, 4.25),
+    label_xy=(13.15, 4.18),
+    color=red_edge,
+    lw=1.7,
     linestyle="--",
-    lw=1.8,
+    label_fs=8.8,
 )
 
 curved_path(
     [
-        (15.05, 5.02),
-        (15.0, 3.8),
-        (14.2, 2.75),
-        (13.15, 2.15),
+        (14.70, 4.92),
+        (14.55, 3.75),
+        (13.05, 2.75),
+        (11.72, 2.30),
     ],
-    label="Residual RHD + other-cause death",
-    label_xy=(15.05, 3.2),
+    label="Residual RHD + other-cause mortality",
+    label_xy=(14.45, 3.35),
+    color=red_edge,
+    lw=1.8,
+    label_fs=8.8,
 )
 
 
 # -----------------------------------------------------------------------------
-# Intervention pointers
+# Cohort ageing / next-cycle mechanism
 # -----------------------------------------------------------------------------
-arrow(
-    (5.55, 7.60),
-    (6.15, 6.0),
-    color=intervention_line,
-    lw=1.8,
-    linestyle="--",
-    z=4,
-    mutation=14,
+node(
+    2.90,
+    2.05,
+    4.15,
+    1.15,
+    "Annual ageing of survivors",
+    "After each cycle: age a → a + 1\nAge 100 is an open terminal group",
+    fill=cycle_fill,
+    edge=cycle_edge,
+    title_fs=11.8,
+    sub_fs=8.9,
+    linewidth=1.6,
 )
 
-arrow(
-    (9.25, 7.55),
-    (9.72, 6.0),
-    color=intervention_line,
-    lw=1.8,
-    linestyle="--",
-    z=4,
-    mutation=14,
-)
-
-arrow(
-    (14.1, 7.62),
-    (13.38, 6.03),
-    color=purple_edge,
+curved_path(
+    [
+        (5.00, 4.92),
+        (4.55, 4.00),
+        (3.82, 3.10),
+        (3.35, 2.60),
+    ],
+    color=cycle_edge,
     lw=1.6,
     linestyle="--",
-    z=4,
+)
+curved_path(
+    [
+        (9.30, 4.95),
+        (7.70, 3.95),
+        (5.00, 2.98),
+        (4.25, 2.40),
+    ],
+    color=cycle_edge,
+    lw=1.5,
+    linestyle="--",
+)
+curved_path(
+    [
+        (13.95, 4.95),
+        (11.30, 3.70),
+        (6.20, 2.80),
+        (4.55, 2.23),
+    ],
+    color=cycle_edge,
+    lw=1.5,
+    linestyle="--",
+)
+
+arrow(
+    (1.95, 2.62),
+    (1.45, 5.00),
+    "Next annual cycle",
+    color=cycle_edge,
+    lw=1.6,
+    rad=-0.18,
+    label_xy=(1.05, 3.72),
+    linestyle="--",
     mutation=14,
+    label_fs=8.8,
 )
 
 
 # -----------------------------------------------------------------------------
 # Legend and footer
 # -----------------------------------------------------------------------------
-legend_y = 0.65
+legend_y = 0.68
 
 ax.text(
     0.45,
     legend_y,
     "Legend",
-    fontsize=10.3,
+    fontsize=10.2,
     fontweight="bold",
     color=text_dark,
     va="center",
 )
-
 
 def legend_swatch(x, fill, edge, label):
     swatch = FancyBboxPatch(
@@ -600,82 +633,56 @@ def legend_swatch(x, fill, edge, label):
         linewidth=1.25,
     )
     ax.add_patch(swatch)
-
     ax.text(
         x + 0.55,
         legend_y,
         label,
-        fontsize=9.5,
+        fontsize=9.2,
         color=text_dark,
         va="center",
     )
 
-
+legend_swatch(1.20, input_fill, navy, "Data or population input")
+legend_swatch(4.25, state_fill, navy, "Living RHD state")
 legend_swatch(
-    1.2,
-    state_fill,
-    navy,
-    "Disease state",
-)
-
-legend_swatch(
-    3.25,
+    7.10,
     intervention_fill,
     intervention_edge,
     "Scaled secondary-prevention intervention",
 )
-
-legend_swatch(
-    7.45,
-    purple_fill,
-    purple_edge,
-    "Tertiary-care pathway held at baseline",
-)
-
-legend_swatch(
-    11.55,
-    red_fill,
-    red_edge,
-    "Absorbing death state",
-)
+legend_swatch(12.10, purple_fill, purple_edge, "Tertiary-care pathway")
+legend_swatch(15.20, red_fill, red_edge, "Absorbing death state")
 
 ax.text(
     17.55,
-    0.65,
-    "Cycle length: 1 year  |  Living-state stocks carry forward",
+    0.20,
+    "Reference: SAP coverage fixed at 5%  |  Scale-up: 5% → 40% (2026–2030)",
     ha="right",
-    va="center",
-    fontsize=9.3,
-    color=muted,
-)
-
-ax.text(
-    9,
-    0.18,
-    (
-        "Model logic from 06_secondary_prevention_model(1).R. "
-        "ARF and asymptomatic RHD incidence are exogenous; "
-        "secondary prevention changes progression probabilities."
-    ),
-    ha="center",
     va="center",
     fontsize=9.0,
     color=muted,
 )
+ax.text(
+    0.45,
+    0.20,
+    "No ARF state or ARF-to-RHD transition",
+    ha="left",
+    va="center",
+    fontsize=9.0,
+    color=muted,
+    fontweight="bold",
+)
 
 
 # -----------------------------------------------------------------------------
-# Save output
+# Save
 # -----------------------------------------------------------------------------
 plt.tight_layout(pad=0.8)
-
 fig.savefig(
-    output_path,
+    OUTPUT_PATH,
     dpi=300,
     bbox_inches="tight",
     facecolor="white",
 )
-
-plt.show()
-
-print(f"Saved PNG: {output_path.resolve()}")
+plt.close(fig)
+print(f"Saved PNG: {OUTPUT_PATH}")

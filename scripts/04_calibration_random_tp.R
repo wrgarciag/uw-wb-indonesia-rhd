@@ -3,12 +3,22 @@
 #-------------------------------------------------------------------------------
 # RANDOM-SEARCH TP CALIBRATION FOR THE INDONESIA RHD WELL-SICK-DEAD MARKOV MODEL
 #
+# PURPOSE (reaffirmed): this script does NOT run the model and does NOT run the
+# interventions. Its SOLE objective is to CALIBRATE / IMPROVE the transition-
+# probability INPUTS (IR incidence and CF case-fatality) within the in-sample
+# window 2000-2019, so the well-sick-dead model reproduces the GBD targets BETTER
+# than the raw GBD-rate-implied values. The OUTPUT is the calibrated, improved
+# transition probabilities (adjusted_searo_part*.rds). The forward projection and
+# the reference/SAP scenarios are run downstream (05 prepares the state, 06 runs
+# the model). Background mortality is held fixed; only IR and CF are calibrated.
+#
 # WHAT THIS SCRIPT DOES
 # ---------------------
 # 1. BUILDS an RHD-native baseline transition-probability (TP) table from
 #    upstream, rather than reading the parent NCD model's tps_inpt_part*.rds
-#    (which do not exist in this repo). For ages 20-95, both sexes, Indonesia,
-#    years 2000-2019 it derives, per single age x sex x year:
+#    (which do not exist in this repo). For the FULL 0-95+ age range (paediatric
+#    and adult), both sexes, Indonesia, years 2000-2019 it derives, per single
+#    age x sex x year:
 #        IR        RHD incidence probability (well -> sick)      = GBD RHD Incidence Rate/1e5
 #        CF        RHD case-fatality (sick -> dead)              = RHD Deaths / RHD Prevalence
 #        PREVt0    prevalent RHD fraction (seed)                 = GBD RHD Prevalence Rate/1e5
@@ -18,7 +28,7 @@
 #        BG.mx.all background (non-RHD) mortality of the pool     = ALL.mx - DIS.mx.t0  (>=0)
 #        Nx        population                                     = 02's pop_observed table
 #    INPUTS:  data-raw/temp_baseline_rates_gbd.rds  (from 01_prepare_inputs.R)
-#             data/pop_observed_1990_2023.rds        (from 02_build_demography.R)
+#             data/pop_observed_1990_2024.rds        (from 02_build_demography.R)
 #
 # 2. CALIBRATES the structural IR and CF (per location-sex-cause, at GRANULARITY)
 #    by PURE RANDOM SEARCH over multiplicative adjustment factors, projecting the
@@ -27,7 +37,9 @@
 #    calibrated fit is never worse than baseline. The argmin over i.i.d. uniform
 #    draws is kept (no Gaussian step / restart -- those are hill-climb constructs).
 #
-# CALIBRATION TARGETS  (GBD 2023 "Number", aggregated to 5-year age groups)
+# CALIBRATION TARGETS  (GBD 2023 "Number", aggregated to GBD age groups: the
+#                        paediatric groups <1/12-23mo/2-4/5-9/10-14/15-19 plus the
+#                        5-year groups 20-24..90-94 and 95+)
 # ------------------------------------------------------------------------
 #   * PREVALENCE : GBD RHD Prevalence  vs the model sick stock          (RHD-specific)
 #   * DEATHS     : GBD ALL-CAUSES Deaths vs the model's DECOMPOSED
@@ -56,8 +68,10 @@
 #   * calibration_diagnostics_random_tp.csv      -- baseline-vs-calibrated RMSE
 #       (RMSE_deaths_* now measure ALL-CAUSE deaths), weighted error, % improvement.
 #
-# AVOID DOUBLE-CALIBRATION: this script bakes the calibrated multipliers into
-#   IR/CF, so keep  run_adjustment_model <- FALSE  downstream (05_build_baseline).
+# AVOID DOUBLE-CALIBRATION: this script bakes the calibrated multipliers directly
+#   into IR/CF. Downstream scripts (05 prepares state, 06 runs the model) must
+#   consume these calibrated TPs AS-IS and must NOT re-apply any further
+#   adjustment/multiplier on top.
 #
 # Source AFTER 01_prepare_inputs.R and 02_build_demography.R.
 #===============================================================================
@@ -68,40 +82,41 @@ library(doParallel)
 library(parallel)
 
 #===============================================================================
-# 0. TUNABLE PARAMETERS
+# 0. TUNABLE PARAMETERS  (all honour 00_run_all.R globals via getp(); else default)
 #===============================================================================
+getp <- function(nm, default) if (exists(nm, inherits = TRUE)) get(nm, inherits = TRUE) else default
 
 ## --- search SPACE -----------------------------------------------------------
-SEARCH_HALFWIDTH <- 0.50            # IR/CF sampled in [1-hw, 1+hw] = [0.5, 1.5]
-GRANULARITY <- "age_group"          # "combo" (primary) | "age_group" (sensitivity)
+SEARCH_HALFWIDTH <- getp("SEARCH_HALFWIDTH", 0.50)  # IR/CF sampled in [1-hw, 1+hw] = [0.5, 1.5]
+GRANULARITY <- getp("GRANULARITY", "age_group")     # "combo" (primary) | "age_group" (sensitivity)
 
 ## --- search ALGORITHM (PURE RANDOM SEARCH) ----------------------------------
-N_ITER       <- 400                 # i.i.d. uniform candidates per combo (baseline = cand 0)
-CONVERGE_TOL <- 1e-4                # early stop if best weighted error < this
-SEED         <- 42                  # master seed; per-combo seed = SEED + ci*10000
+N_ITER       <- getp("N_ITER",       400)           # i.i.d. uniform candidates/combo (baseline = cand 0)
+CONVERGE_TOL <- getp("CONVERGE_TOL", 1e-4)          # early stop if best weighted error < this
+SEED         <- getp("SEED",         42)            # master seed; per-combo seed = SEED + ci*10000
 
 ## --- objective WEIGHTS / numerics -------------------------------------------
-W_DEATHS <- 2                       # fatal weight
-W_PREV   <- 1                       # non-fatal weight
-EPS_REL  <- 1e-6                    # denominator floor for relative error
+W_DEATHS <- getp("W_DEATHS", 2)                     # fatal weight
+W_PREV   <- getp("W_PREV",   1)                     # non-fatal weight
+EPS_REL  <- 1e-6                                    # denominator floor for relative error
 
 ## --- probability-constraint numerics ----------------------------------------
-TP_EPS <- 0.005                     # buffer kept below 1 when capping/renormalising
+TP_EPS <- 0.005                                     # buffer kept below 1 when capping/renormalising
 
-## --- calibration target window (TASK: run the cohort 2000 -> 2019) ----------
-CAL_YEAR_START <- 2000
-CAL_YEAR_END   <- 2019
+## --- calibration target window (run the cohort 2000 -> 2019) ----------------
+CAL_YEAR_START <- as.integer(getp("CAL_YEAR_START", 2000))
+CAL_YEAR_END   <- as.integer(getp("CAL_YEAR_END",   2019))
 
 ## --- RHD baseline TP build ---------------------------------------------------
-LOCATION  <- "Indonesia"
-AGE_LO    <- 0L                    # cohort age range (matches the 5-year GBD group logic)
-AGE_HI    <- 95L
+LOCATION  <- getp("LOCATION", "Indonesia")
+AGE_LO    <- as.integer(getp("AGE_LO", 0L))  # FULL cohort age range: 0..95+ (paediatric + adult).
+AGE_HI    <- as.integer(getp("AGE_HI", 95L)) # AGE_LO is the birth/entrant age (see project_combo).
 RHD_CAUSE <- "Rheumatic heart disease"
 ALL_CAUSE <- "All causes"
 
 ## --- execution --------------------------------------------------------------
 RUN_PAR   <- if (exists("run_calibration_par")) isTRUE(run_calibration_par) else TRUE
-MAX_CORES <- 14
+MAX_CORES <- as.integer(getp("MAX_CORES", 14L))
 N_OUT_CHUNKS <- 10
 
 ## --- paths (honour 00_run_all.R globals; else here()) -----------------------
@@ -112,14 +127,23 @@ if (!exists("wd_data")) wd_data <- paste0(here::here("data"), "/")
 # 1. BUILD RHD-NATIVE BASELINE TP TABLE  (replaces tps_inpt_part*.rds)
 #===============================================================================
 
-## single-year age (20-95) -> 5-year GBD age-group label (matches make_age_match)
+## single-year age (0-95+) -> GBD age-group label (matches make_age_match).
+## MIRRORS the mapping in 03_build_disease_model.R, INCLUDING the paediatric /
+## young groups (<1, 12-23mo, 2-4, 5-9, 10-14, 15-19) so the full 0-95+ range is
+## calibrated. (Previously this started at "20-24 years", which silently binned
+## every age < 25 into the 20-24 group.)
 age_to_gbd_group <- function(a) {
   fcase(
-    a < 25, "20-24 years", a < 30, "25-29 years", a < 35, "30-34 years",
-    a < 40, "35-39 years", a < 45, "40-44 years", a < 50, "45-49 years",
-    a < 55, "50-54 years", a < 60, "55-59 years", a < 65, "60-64 years",
-    a < 70, "65-69 years", a < 75, "70-74 years", a < 80, "75-79 years",
-    a < 85, "80-84 years", a < 90, "85-89 years", a < 95, "90-94 years",
+    a < 1,  "<1 year",
+    a < 2,  "12-23 months",
+    a < 5,  "2-4 years",
+    a < 10, "5-9 years",
+    a < 15, "10-14 years", a < 20, "15-19 years", a < 25, "20-24 years",
+    a < 30, "25-29 years", a < 35, "30-34 years", a < 40, "35-39 years",
+    a < 45, "40-44 years", a < 50, "45-49 years", a < 55, "50-54 years",
+    a < 60, "55-59 years", a < 65, "60-64 years", a < 70, "65-69 years",
+    a < 75, "70-74 years", a < 80, "75-79 years", a < 85, "80-84 years",
+    a < 90, "85-89 years", a < 95, "90-94 years",
     default = "95+ years"
   )
 }
@@ -173,7 +197,7 @@ build_rhd_tps <- function(gbd, pop, loc, y0, y1) {
 }
 
 gbd_raw <- as.data.table(readRDS(paste0(wd_raw, "temp_baseline_rates_gbd.rds")))
-pop_obs <- as.data.table(readRDS(paste0(wd_data, "pop_observed_1990_2023.rds")))
+pop_obs <- as.data.table(readRDS(paste0(wd_data, "pop_observed_1990_2024.rds")))
 
 ## the input population MUST actually cover the 2000-onward calibration window
 pop_years <- range(pop_obs[location == LOCATION, year])
@@ -204,16 +228,18 @@ cat(sprintf("Built RHD baseline TPs: %d rows | ages %d-%d | years %d-%d | sexes 
             min(b_rates$year), max(b_rates$year),
             paste(unique(b_rates$sex), collapse = ", ")))
 
-## incoming age-20 population each projection year (from 02's observed table)
-pop20 <- pop_obs[location %in% locs & age == AGE_LO &
-                   year >= CAL_YEAR_START & year <= CAL_YEAR_END,
-                 .(location, sex, age, year, Nx20 = Nx)]
+## incoming AGE_LO (=age 0, births) population each calibration year, from 02's
+## observed table. With AGE_LO = 0 these are the birth-cohort entrants that refresh
+## the youngest age each year (previously age-20 entrants when the range began at 20).
+pop_ent <- pop_obs[location %in% locs & age == AGE_LO &
+                     year >= CAL_YEAR_START & year <= CAL_YEAR_END,
+                   .(location, sex, age, year, Nx_ent = Nx)]
 
 #===============================================================================
 # 2. GBD CALIBRATION TARGETS
 #    Prevalence target = GBD RHD Prevalence (Number).
 #    Deaths     target = GBD ALL-CAUSES Deaths (Number)  <-- decomposed match.
-#    Both by 5-year age group x sex x year, calibration window, LOCATION.
+#    Both by GBD age group x sex x year, calibration window, LOCATION.
 #===============================================================================
 
 gbd <- copy(gbd_raw)
@@ -243,7 +269,7 @@ if (nrow(targets) == 0)
 # 3. HELPER FUNCTIONS
 #===============================================================================
 
-## 5-year GBD age-group labels for ages 20-95 (matches age_to_gbd_group).
+## GBD age-group labels for the full 0-95+ range (matches age_to_gbd_group).
 make_age_match <- function() {
   am <- data.table(age = AGE_LO:AGE_HI)
   am[, age.group := age_to_gbd_group(age)]
@@ -321,8 +347,8 @@ apply_multipliers <- function(combo_rates, mtab, age_match) {
 ## (model ALL-CAUSE deaths = RHD CF deaths + background of the pool).
 project_combo <- function(cr, pop_combo, y0 = CAL_YEAR_START, y1 = CAL_YEAR_END) {
   br <- merge(cr, pop_combo, by = c("year", "location", "sex", "age"), all.x = TRUE)
-  br[age == AGE_LO & year > y0, Nx := Nx20]      # refresh age-20 entrants each year
-  br[, Nx20 := NULL]
+  br[age == AGE_LO & year > y0, Nx := Nx_ent]    # refresh age-0 (birth) entrants each year
+  br[, Nx_ent := NULL]
 
   br[year == y0 | age == AGE_LO, sick   := Nx * PREVt0]
   br[year == y0 | age == AGE_LO, dead   := Nx * DIS.mx.t0]
@@ -364,7 +390,7 @@ project_combo <- function(cr, pop_combo, y0 = CAL_YEAR_START, y1 = CAL_YEAR_END)
   br[year >= y0, .(location, sex, cause, year, age, sick, dead, all.mx)]
 }
 
-## aggregate single-age projection to 5-year groups and join GBD targets.
+## aggregate single-age projection to GBD age groups and join GBD targets.
 ## model Prevalence = sum(sick); model AllDeaths = sum(all.mx) (decomposed).
 proj_vs_targets <- function(proj, combo_targets, age_match) {
   m  <- merge(proj, age_match, by = "age", all.x = TRUE)
@@ -434,11 +460,11 @@ calibrate_one_combo_random <- function(combo_rates, pop_combo, combo_targets, ag
 }
 
 ## drive one combo end-to-end.
-run_combo <- function(ci, combos, b_rates, pop20, targets, age_match) {
+run_combo <- function(ci, combos, b_rates, pop_ent, targets, age_match) {
   loc <- combos$location[ci]; sx <- combos$sex[ci]; cse <- combos$cause[ci]
 
   cr <- b_rates[location == loc & sex == sx & cause == cse]
-  pc <- pop20[location == loc & sex == sx]
+  pc <- pop_ent[location == loc & sex == sx]
   ct <- targets[location == loc & sex == sx & cause == cse]
 
   base_rows <- enforce_tp_constraints(copy(cr))
@@ -501,7 +527,7 @@ cat(sprintf("Search range per multiplier: [%.2f, %.2f] | %d i.i.d. candidates/co
             1 - SEARCH_HALFWIDTH, 1 + SEARCH_HALFWIDTH, N_ITER))
 
 worker_exports <- c(
-  "combos", "b_rates", "pop20", "targets", "age_match",
+  "combos", "b_rates", "pop_ent", "targets", "age_match",
   "make_age_match", "perturb_cvd_combo_random", "enforce_tp_constraints",
   "build_mtab", "apply_multipliers", "project_combo", "proj_vs_targets",
   "combo_error", "combo_diag", "calibrate_one_combo_random", "run_combo",
@@ -519,13 +545,13 @@ if (RUN_PAR && n_combos > 1) {
                      .packages = c("data.table"),
                      .export   = worker_exports) %dopar% {
     setDTthreads(1)
-    run_combo(ci, combos, b_rates, pop20, targets, age_match)
+    run_combo(ci, combos, b_rates, pop_ent, targets, age_match)
   }
   stopCluster(cl)
 } else {
   cat("Running sequentially...\n")
   results <- lapply(seq_len(n_combos), function(ci) {
-    res <- run_combo(ci, combos, b_rates, pop20, targets, age_match)
+    res <- run_combo(ci, combos, b_rates, pop_ent, targets, age_match)
     cat(sprintf("  [%d/%d] %s | %s | %s : err %.3g -> %.3g\n",
                 ci, n_combos, combos$location[ci], combos$sex[ci], combos$cause[ci],
                 res$err$base_err, res$err$cal_err))
@@ -638,4 +664,4 @@ cat("\nWrote:\n")
 cat(sprintf("  %sadjusted_searo_part{1..%d}.rds\n", wd_data, N_OUT_CHUNKS))
 cat(sprintf("  %scalibration_factors_random_tp.csv\n", wd_data))
 cat(sprintf("  %scalibration_diagnostics_random_tp.csv\n", wd_data))
-cat("\nReminder: keep  run_adjustment_model <- FALSE  before 05_build_baseline.R.\n")
+cat("\nReminder: 05/06 consume these calibrated TPs AS-IS (no further adjustment).\n")

@@ -11,34 +11,37 @@ Indonesia Rheumatic Heart Disease (RHD) Simulation Model — a Markov State-Tran
 The pipeline is a numbered sequence of R scripts under `scripts/`. Run them in order, or source the master orchestrator:
 
 ```r
-source("scripts/00_run_all.R")   # runs full pipeline (sets wd, global flags, sources all scripts)
+source("scripts/00_run_all.R")   # single control panel: sets every parameter, sources 01→08
 ```
 
-Individual scripts can be sourced in R/RStudio using `here::here()` paths — they do not need to be run from within their own directory.
+`00_run_all.R` is the SINGLE place to set every parameter (paths, year windows, ramp,
+calibration settings, clinical/effect/coverage parameters, economic parameters, cores,
+location list). Individual scripts can also be sourced standalone in R/RStudio — each reads
+`00`'s globals when present and otherwise falls back to documented defaults via `here::here()`.
 
-**Run order and purpose:**
+**Run order and purpose (each script reads the persisted outputs of the previous ones):**
 
-| Script | Purpose | Run frequency |
+| Script | Purpose | Writes |
 |---|---|---|
-| `01_prepare_inputs.R` | Loads GBD 2023 epidemiology/population CSVs from `data-raw/` | Each session |
-| `02_build_demography.R` | Builds WPP2024 demographic backbone (`sf.wpp`); outputs `data/wpp/indonesia_ncd_demography.Rda` | Once per WPP version |
-| `03_build_disease_model.R` | Loads and filters GBD cause-fraction data | Each run |
-| `04_calibration_random_tp.R` | Random-search Monte Carlo calibration of Markov transition probabilities | When inputs change |
-| `05_build_baseline.R` | Assembles baseline rates from calibrated TPs, WPP population, and COVID mortality | Each run |
-| `06_run_prevention_model.R` | Runs reference vs. secondary-prevention scale-up scenarios | Each run |
-| `07_make_outputs.R` | Compiles tables and figures from scenario results | After 06 completes |
+| `01_prepare_inputs.R` | Load & filter GBD 2023 epidemiology CSVs | `data-raw/temp_baseline_rates_gbd.rds` |
+| `02_build_demography.R` | WPP2024 population backbone; observed 1990–2024, projection 2025–2100 | `data/pop_observed_1990_2024.rds`, `data/pop_projection_2025_2100.rds`, `data/wpp/indonesia_rhd_demography.Rda` |
+| `03_build_disease_model.R` | **Input builder only** (no run): data-fed rate arrays + clinical/effect/coverage params | `data/disease_model_inputs.rds` |
+| `04_calibration_random_tp.R` | Random-search calibration of IR/CF, **full 0–95+**, window 2000–2019 | `data/adjusted_searo_part{1..10}.rds` + calibration CSVs |
+| `05_build_baseline.R` | Assemble the initial state from 02+03+04 (no recompute) | `data/baseline_state.rds` |
+| `06_run_prevention_model.R` | **Run** ref vs SAP scale-up; matrix WSD engine; parallel by location; no costs | `output/out_model/<location>.rds` (`$wsd` + `$tunnel`) |
+| `07_make_outputs.R` | Compile the standard long table from `$wsd` | `output/tables/rhd_model_long.csv/.rds` |
+| `08_economic_evaluation.R` | **All economics** (BCR, cost/death, cost/DALY) from `$tunnel`+`$wsd` | `output/tables/rhd_economic_summary.csv`, `rhd_budget_impact.csv` |
 
-## Key Global Flags (set in `00_run_all.R` before sourcing scripts)
+## Parameters (all set in `00_run_all.R`)
 
-```r
-run_calibration_par  <- TRUE   # parallel calibration (recommended)
-run_adjustment_model <- FALSE  # MUST be FALSE when using 04_calibration_random_tp.R
-run_bgmx_trend       <- TRUE   # apply background mortality secular trends post-2019
-run_CF_trend         <- TRUE   # apply case-fatality secular trends post-2019
-run_CF_trend_80      <- TRUE   # use 80% of secular CF trend (default)
-```
+There are no longer any `run_*` trend/adjustment flags. `00_run_all.R` holds all parameters in
+labelled blocks A–K: paths, locations, year/horizon windows, ramp window, incidence trend,
+calibration settings (`run_calibration_par`, `SEARCH_HALFWIDTH`, `GRANULARITY`, `N_ITER`, …),
+clinical params, intervention effect sizes + seed split, coverage targets, economic parameters
+(block J — the ONLY monetary values in the pipeline), and parallel/core settings.
 
-> **Critical**: `run_adjustment_model` must be `FALSE` when `04_calibration_random_tp.R` is used. Setting it `TRUE` re-applies the old 032 adjustment factors on top of already-calibrated TPs, double-adjusting IR and CF.
+> **Provenance discipline**: scripts 01–07 contain NO monetary values (all economics live in
+> `08`). Calibrated TPs from `04` are consumed AS-IS by 05/06 — no further adjustment is applied.
 
 ## Package Dependencies
 
@@ -64,20 +67,21 @@ R >= 4.1.0 is required (uses the native pipe `|>`).
 
 ```
 data-raw/
-  epidemiology/*.csv   ← GBD 2023 cause-specific rates (not tracked by git)
-  population/*.csv     ← GBD 2023 population (not tracked)
-  GBD/                 ← Additional GBD files used by calibration
+  epidemiology/*.csv         ← GBD 2023 RHD + All-causes rates (not tracked by git)
+  population/*.csv           ← GBD 2023 population (not tracked)
+  temp_baseline_rates_gbd.rds← from 01
        ↓
 data/
-  wpp/indonesia_ncd_demography.Rda   ← sf.wpp from 02_build_demography.R
-  tps_inpt_part*.rds                 ← baseline transition probabilities (input to calibration)
-  adjusted_searo_part{1..10}.rds     ← calibrated TPs output by 04_calibration_random_tp.R
-  model/scenarios/                   ← scenario results CSVs from 06
-  model/baseline/                    ← baseline results from 05/06
+  pop_observed_1990_2024.rds       ← 02 (observed; 2024 = WPP jump-off)
+  pop_projection_2025_2100.rds     ← 02 (medium-variant projection)
+  wpp/indonesia_rhd_demography.Rda ← 02 (get.lt, locations, both tables)
+  disease_model_inputs.rds         ← 03 (rate arrays + clinical/effect/coverage params)
+  adjusted_searo_part{1..10}.rds   ← 04 (calibrated IR/CF, ages 0–95+, 2000–2019)
+  baseline_state.rds               ← 05 (per-location initial state)
        ↓
-outputs/
-  tables/   ← CSV tables from 07_make_outputs.R
-  figures/  ← PNG figures from 07_make_outputs.R
+output/
+  out_model/<location>.rds  ← 06 (list: $wsd aggregate + $tunnel detail)  [gitignored]
+  tables/                   ← 07 (rhd_model_long.*) + 08 (economics CSVs/rds)
 ```
 
 ### Core Model: Well-Sick-Dead Markov Recursion
@@ -91,25 +95,39 @@ Transition probabilities must satisfy: `IR + BG.mx ≤ 1` and `CF + BG.mx ≤ 1`
 
 ### Calibration (`04_calibration_random_tp.R`)
 
-Pure Monte Carlo random search (not hill-climbing). For each `location × sex × cause` combo:
-- Draws `N_ITER = 400` i.i.d. uniform multipliers in `[1 ± SEARCH_HALFWIDTH]` for IR and CF
-- Minimises weighted relative squared error against GBD 2009–2019 Deaths + Prevalence
-- Parallelises across combos (not locations); Indonesia has one location so combo-level parallelism uses all available cores
+It BUILDS an RHD-native baseline TP table (from GBD RHD rates + observed population) and then
+calibrates by pure Monte Carlo random search (not hill-climbing). Purpose: improve the IR/CF
+INPUTS only — it does NOT run the model or interventions. For each `location × sex × cause` combo:
+- Draws `N_ITER` i.i.d. uniform multipliers in `[1 ± SEARCH_HALFWIDTH]` for IR and CF (candidate 0 = baseline, so calibrated is never worse than baseline)
+- Full age range **0–95+** (paediatric groups `<1`, `12-23 months`, `2-4`, … included), window **2000–2019**
+- Minimises weighted relative squared error against GBD RHD Prevalence + All-causes Deaths (background held fixed)
+- Parallelises across combos; age-0 (births) inflow refreshes the youngest cohort each year
 
-Key tunable constants at the top of the file: `SEARCH_HALFWIDTH`, `GRANULARITY` ("combo" or "age_group"), `N_ITER`, `CONVERGE_TOL`, `SEED`.
+Key tunable constants (all controllable from `00`): `SEARCH_HALFWIDTH`, `GRANULARITY` ("combo" or "age_group"), `N_ITER`, `CONVERGE_TOL`, `SEED`.
 
 ### RHD Prevention Model (`06_run_prevention_model.R`)
 
-Cohort state-transition model (2021–2030) with three disease stocks:
+Matrix-form (age × sex arrays) cohort state-transition model over the projection horizon
+(2025–2100), whose "sick" state is resolved into three tunnel stocks:
 - **Mild** (asymptomatic RHD): SAP reduces progression to severe
 - **Severe** (heart failure): HF management reduces mortality; surgery moves to post-surgery
 - **Post-surgery**: residual RHD mortality
 
-Two scenarios: `ref` (baseline) and `sap` (secondary-prevention scale-up). Outputs incremental costs, deaths averted, DALYs, and benefit-cost ratio.
+Loads the initial state from `05` (no recompute), parallelises by location, and writes two tables
+per location: `$wsd` (well-sick-dead aggregate, `sick = mild+severe+post`, ref+sap row-bound with a
+`scenario` column) and `$tunnel` (the disaggregated sub-states + intervention volumes). NO costs
+here — `07` emits the standard long table and `08` does all economics (BCR, deaths averted, DALYs).
+`eff_ir`/`eff_cf` are reported RRR multipliers on [0,1] (1 = no reduction): `eff_ir = 1`
+(secondary prevention doesn't cut incidence); `eff_cf = 1 − eff_sap_asymp × cov_sap`.
 
 ### Demography (`02_build_demography.R`)
 
-Builds `sf.wpp` from the `wpp2024` R package. `get.par()` back-solves net migration as the residual between WPP projected population and a forward CCPM projection. Output arrays are `[131 years × 2 sexes × 101 ages]` covering 2020–2150. `get.lt()` (life table function) and `locations` lookup are saved alongside `sf.wpp` in the `.Rda` file since the projection engine needs them at runtime.
+Builds two tidy single-year population tables directly from the `wpp2024` R package: observed
+1990–2024 (spline-smoothed, totals preserved; the 2024 slice is WPP's jump-off year, taken from
+`popprojAge1dt`) and the 2025–2100 medium-variant projection. This closes the former 2024–2025 gap.
+The former `get.par()` migration back-solve and 2020-anchored `sf.wpp` arrays are retired (the
+forward engine they fed is absent from this repo). `get.lt()` (life-table fn) and the `locations`
+lookup are saved alongside both tables in `data/wpp/indonesia_rhd_demography.Rda`.
 
 ### Shared Utilities
 

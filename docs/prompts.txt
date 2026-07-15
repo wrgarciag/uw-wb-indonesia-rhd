@@ -210,3 +210,43 @@ longer used by any script (e.g. dead run_* flags, unused cause maps). Then sourc
 
 Work incrementally: refactor one script, run its sanity checks, then move to the next.
 Do not silently drop the [PAPER]/[LIT]/[CALIBRATE] provenance tags.
+
+############################################################
+# Prompt for Claude Code — build `analysis/report.RMD`
+
+Create `analysis/report.RMD` — a self-contained R Markdown file that knits to a **self-contained HTML** report documenting the **methods and results** of the RHD secondary-prevention investment-case model. Use `report.RMD` (a report from a *different* project — the sodium-policy model) as the **style and structure template only**: match its YAML header, path-resolution pattern, helper/formatter conventions, section flow, table styling (`kable`/`kableExtra` + interactive `DT::datatable`), figure aesthetics (`theme_minimal`, solid=historical/dashed=projected linetype split), limitations and reproducibility sections. Do **not** copy its content — this is a *rheumatic heart disease (RHD)* model, not sodium.
+
+## Hard constraints
+
+- **Do not modify any file in `scripts/`.** Read them to understand the pipeline, but every calculation the report needs must be done **inside `analysis/report.RMD`**.
+- The report reads only the pipeline's **output artifacts** on disk (the per-location `.rds` files in `output/out_model/` and the tables in `output/tables/`), plus GBD baseline inputs from `data/` for the historical validation panels. It must **not** re-run the model.
+- Use **`data.table`** for all data processing wherever possible (mirror the template's idioms).
+- Resolve paths robustly relative to the `.Rmd` location (same `tryCatch`/`here`-style pattern as the template) so it knits on any machine. Set `code_folding: hide`, `toc_float`, `number_sections`, `self_contained: true`.
+
+## First: study the scripts and their outputs (review dependencies)
+
+Read `scripts/06_run_prevention_model.R`, `07_make_outputs.R`, and `08_economic_evaluation.R`, and trace their dependencies — in particular `06` depends on `data/baseline_state.rds` built by `05_build_baseline.R`, so inspect `05` and `00_run_all.R` too. Key facts to reflect accurately:
+
+- **`06`** runs a **well–sick–dead Markov model** with the "sick" compartment resolved into three **tunnel states**: mild (asymptomatic) → severe (heart failure) → post-surgery. It runs a **reference (`ref`)** and a **SAP scale-up (`sap`)** scenario per location (currently Indonesia only). It writes **one `.rds` per location** to `output/out_model/<location>.rds`, each containing `$wsd` (aggregate well-sick-dead table), `$tunnel` (disaggregated tunnel states + intervention flow volumes: `newcases`, `mild_to_severe`, `surgeries`, `op_deaths`, `n_on_sap`, `n_screened`, `rhd_deaths`, coverage columns), `$diag`, and `$meta`.
+- **`07`** compiles `$wsd` across locations into the tidy long table `output/tables/rhd_model_long.csv/.rds` with the exact column contract (`scenario, age, cause, sex, year, well, sick, newcases, dead, pop, all.mx, intervention, location, eff_ir, eff_cf`).
+- **`08`** is the **only** place economics live; it reads `$tunnel` + `$wsd`, applies unit costs and discounting, and writes `output/tables/rhd_budget_impact.csv`, `rhd_economic_summary.csv`, and `rhd_economic_results.rds` (a bundle including `$summary`, `$budget_impact`, `$incremental`, and `$params`).
+
+## Report sections (in order)
+
+**1. Background** — brief framing of RHD and the secondary-prevention (echo screening + secondary antibiotic prophylaxis, "SAP") investment case; cite the model is structured after Coates et al., *Lancet Glob Health* 2021.
+
+**2. Model inputs** — a **table of key input parameters**, grouped and tagged by provenance: **literature** `[LIT]`, **calibrated** `[CALIBRATE]`, and **user-defined** `[PAPER]`/user controls. **Pull these values programmatically from the scripts' outputs** — read the clinical/effect parameters and coverage schedule out of `data/baseline_state.rds` (`$states[[loc]]$clinical`, `$effects`, `$coverage`) and the economic parameters out of `output/tables/rhd_economic_results.rds$params` (do **not** hard-code them; surface them from the artifacts so the report can never drift from the model). Include unit costs, discount rate, GDP-pc, VSL multiplier, DALYs/death, and the clinical transition probabilities and intervention efficacies.
+
+**3. Methods** — describe **conceptually and mathematically** what the model does, focused on `06`. Explain the well-sick-dead structure with mild→severe→post tunnel states as Markov cycles in matrix (age×sex) form; write the transition equations (new incident mild cases = `well × IR`; SAP slows the fatal mild→severe progression via `eff_cf = 1 − eff_sap_asymp × cov_sap`; HF management reduces severe mortality; surgery moves severe→post; competing background mortality; annual `age_shift` with open terminal 100+). State clearly that **`eff_ir = 1`** (secondary prevention does **not** reduce incidence) and that only SAP coverage differs between arms. Use `$$…$$` LaTeX blocks as the template does.
+
+**4. Baseline / pre-intervention trend & validation** — using the **`ref`** scenario as the pre-intervention baseline, show model-projected series over the **simulation horizon (2026–2100)**, **complemented with GBD historical data from 2000** so the reader can see continuity/validity at the simulation start. Plot with the solid=historical, dashed=projected linetype convention. Show: **incident cases and rates**, **prevalent cases and proportion (prevalence)**, and **mortality rates from RHD and all causes**. Then add **age- and sex-specific figures** for **selected years 2000:2100 by every 10 years** (faceted or small-multiples by decade, split by sex).
+
+**5. Results / outputs** — reproduce the **Lancet Glob Health figure** ([PIIS2214-109X(21)00199-6](https://www.thelancet.com/journals/langlo/article/PIIS2214-109X(21)00199-6/fulltext), same layout as the uploaded reference image): a two-row figure with **absolute cases/deaths (or reductions in cases) on top** and **relative reduction in rates (%) on the bottom**, columns for incident RHD, total (prevalent) RHD, and RHD deaths, `ref` vs `sap` arms with uncertainty bands where available. Compute reductions in-report as `ref − sap`. Add supporting summary tables (cumulative deaths/cases averted by scenario) as `kable` + interactive `DT`.
+
+**6. Economic evaluation** — a **separate, dedicated section**. Read `rhd_economic_results.rds`, `rhd_economic_summary.csv`, and `rhd_budget_impact.csv`. Present: the **economic summary table** (incremental cost, monetised benefit, net benefit, BCR, cost per death averted, cost per DALY averted, per location + TOTAL), a **budget-impact table**, and **illustrative figures** — including a **Figure 3: cost of interventions scaled to target coverage, by source** (stacked cost components `c_screen`, `c_sap`, `c_hf`, `c_surg` over the scale-up years, mirroring the example paper's "Figure 3 Cost of interventions scaled to target coverage by source"), plus a benefit-vs-cost / net-benefit-over-time figure. State the discounting method explicitly (matching `08`).
+
+**7. Limitations & interpretation** and **8. Reproducibility** (session info, files loaded, year range) — same style as the template.
+
+## Deliverable
+
+Write the file to `analysis/report.RMD`. Make it knit cleanly end-to-end (guard against missing optional artifacts gracefully). After writing, do a dry sanity check that all referenced object/column names actually match what `06`/`07`/`08` produce.

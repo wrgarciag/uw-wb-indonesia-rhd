@@ -2,33 +2,42 @@
 # INDONESIA RHD MODEL — POPULATION BACKBONE FROM WPP2024
 # scripts/02_build_demography.R
 # ------------------------------------------------------------------------------
-# Builds the single-year-of-age population backbone the RHD disease model
-# (03_build_disease_model.R) and calibration (04) consume. Two tidy tables plus
-# a life-table helper and a country lookup.
+# Builds the single-year-of-age population backbone that the RHD disease-model
+# input builder (03_build_disease_model.R), the calibration (04) and the initial
+# state assembler (05) consume. Two tidy tables plus a life-table helper and a
+# country lookup.
 #
 # INPUTS  (wpp2024 R package datasets — data only; devtools::install_github('PPgp/wpp2024'))
-#   popAge1dt      observed single-year population, 1949-2023, ages 0-100 (100 = 100+)
+#   popAge1dt      "observed" single-year population, 1949-2023, ages 0-100 (100 = 100+)
 #   popprojAge1dt  projected single-year population (medium variant), 2024-2100, ages 0-100
 #   mx1dt          single-year mortality rates (kept only for the get.lt helper)
 #   UNlocations    country lookup (-> `locations`)
 #
 # OUTPUTS (written to wd_data = data/):
-#   pop_observed_1990_2023.rds / .csv
-#       tidy long {location, year, sex, age, Nx}; 34 yr x 2 sex x 101 age = 6,868 rows.
+#   pop_observed_1990_2024.rds / .csv
+#       tidy long {location, year, sex, age, Nx}; 35 yr x 2 sex x 101 age = 7,070 rows.
 #       Single-year age distribution SPLINE-SMOOTHED (removes single-year sawtooth /
-#       age-heaping), then rescaled so each (sex, year) sums EXACTLY to the observed
+#       age-heaping), then rescaled so each (sex, year) sums EXACTLY to the source
 #       WPP all-age total for that sex-year (totals preserved).
-#   pop_projection_2026_2100.rds / .csv
-#       tidy long {location, year, sex, age, Nx}; 75 yr x 2 sex x 101 age = 15,150 rows.
+#   pop_projection_2025_2100.rds / .csv
+#       tidy long {location, year, sex, age, Nx}; 76 yr x 2 sex x 101 age = 15,352 rows.
 #       WPP2024 medium-variant projection, taken directly (UN single-year projections
 #       are already graduated, so no extra smoothing is applied).
 #   wpp/indonesia_rhd_demography.Rda
 #       get.lt (life-table fn), locations (lookup), and copies of both tables —
 #       for any downstream script that still expects the .Rda bundle.
 #
-# YEAR RANGES : observed 1990-2023 ; projection 2026-2100. WPP2024 is internally
-#   continuous across the 2024-2025 gap (same vintage), so the observed and
-#   projected segments join without a level discontinuity (validated below).
+# YEAR RANGES : observed 1990-2024 ; projection 2025-2100.  This CLOSES the former
+#   2024-2025 gap (previously observed 1990-2023 + projection 2026-2100).  The split
+#   mirrors the UNWPP2024 structure: WPP2024 estimates run through 2024 and the
+#   medium-variant projection proper begins 2025.
+#
+#   IMPORTANT provenance note: in the wpp2024 R PACKAGE, popAge1dt (the "observed"
+#   table) ends at 2023, and 2024 is stored as the FIRST row of popprojAge1dt (the
+#   projection jump-off / base year). So the 2024 "last observed" slice is taken
+#   from popprojAge1dt, and the projection proper is 2025-2100 (also popprojAge1dt).
+#   Because 2024 and 2025 are consecutive rows of the SAME series, the observed ->
+#   projection join (2024 -> 2025) is internally continuous (validated below).
 # AGE         : single year 0..100; 100 is the WPP terminal OPEN age group (100+).
 # Nx UNITS    : persons (WPP reports thousands; multiplied by 1e3 here).
 #
@@ -36,11 +45,11 @@
 #   The former get.par() migration back-solve and the 2020-anchored sf.wpp arrays
 #   (mx/mig/asfr/srb/base.pop) are retired. get.par() only produced projection
 #   PARAMETERS for a forward engine (engine.R) that is NOT present in this repo,
-#   was anchored at 2020 (this task needs 2017-2100), and indexed pop[y-2024,,]
-#   (negative indices for y<2024). Because the deliverables here are the two
-#   population TABLES, the projection is taken directly from WPP2024's own
-#   medium-variant series — internally consistent with the observed series and
-#   requiring no absent engine. get.lt() and `locations` are retained per spec.
+#   was anchored at 2020, and indexed pop[y-2024,,] (negative indices for y<2024).
+#   Because the deliverables here are the two population TABLES, the projection is
+#   taken directly from WPP2024's own medium-variant series — internally consistent
+#   with the observed series and requiring no absent engine. get.lt() and
+#   `locations` are retained per spec.
 #
 # Run ONCE per WPP version. R >= 4.1.0 (native pipe).
 ################################################################################
@@ -83,10 +92,23 @@ MODEL_COUNTRIES <- tribble(
   "IDN",  "Indonesia"
 )
 
-OBS_YEARS  <- 1990:2023      # observed segment
-PROJ_YEARS <- 2026:2100      # projection segment
+# Year windows (honour globals from 00_run_all.R when present, else defaults).
+# OBS_YEARS closes the former 2024-2025 gap by extending observed through 2024;
+# PROJ_YEARS is the medium-variant projection proper, 2025-2100.
+if (!exists("OBS_YEARS"))  OBS_YEARS  <- 1990:2024   # observed segment (2024 = WPP jump-off)
+if (!exists("PROJ_YEARS")) PROJ_YEARS <- 2025:2100   # medium-variant projection segment
+
+# In the wpp2024 package, popAge1dt (observed) ends at 2023 and popprojAge1dt
+# begins at 2024. Split the requested observed window accordingly.
+OBS_YEARS_FROM_OBS  <- OBS_YEARS[OBS_YEARS <= 2023L]         # taken from popAge1dt
+OBS_YEARS_FROM_PROJ <- OBS_YEARS[OBS_YEARS >= 2024L]         # taken from popprojAge1dt (jump-off)
+
 TERMINAL_AGE <- 100L         # WPP single-year terminal OPEN age group (100+)
 AGES <- 0:TERMINAL_AGE       # 101 single-year ages
+
+# self-describing labels used in filenames / object names / messages
+OBS_LABEL  <- sprintf("%d_%d", min(OBS_YEARS),  max(OBS_YEARS))    # "1990_2024"
+PROJ_LABEL <- sprintf("%d_%d", min(PROJ_YEARS), max(PROJ_YEARS))   # "2025_2100"
 
 ################################################################################
 # 2  LIFE TABLE FUNCTION  (retained from parent CCPM; saved for downstream use)
@@ -147,23 +169,33 @@ idn_name <- MODEL_COUNTRIES$wpp_name[MODEL_COUNTRIES$iso3 == "IDN"]
 
 message("  Locations resolved: ", paste(locations$iso3, collapse = ", "))
 
+# helper: pull a single-year raw slice (persons) from a wpp2024 table
+pull_wpp_slice <- function(tbl, years_keep) {
+  as.data.frame(tbl) |>
+    # popAge1dt$year is integer but popprojAge1dt$year is character; coerce both.
+    mutate(year = as.integer(year), age = as.integer(age)) |>
+    filter(name == idn_name, year %in% years_keep, age %in% AGES) |>
+    transmute(location = name, year, age,
+              Female = popF * 1e3, Male = popM * 1e3)
+}
+
 ################################################################################
-# 4  OBSERVED single-year population, 1990-2023  (spline-smoothed, totals kept)
+# 4  OBSERVED single-year population, 1990-2024  (spline-smoothed, totals kept)
+#    1990-2023 from popAge1dt; 2024 from popprojAge1dt (WPP jump-off / base year).
 ################################################################################
 
-# 4a  raw observed long table (persons)
-obs_raw <- as.data.frame(popAge1dt) |>
-  # wpp2024 stores popAge1dt$year as integer but popprojAge1dt$year as character;
-  # coerce both to integer age/year so the saved tables have consistent types.
-  mutate(year = as.integer(year), age = as.integer(age)) |>
-  filter(name == idn_name, year %in% OBS_YEARS, age %in% AGES) |>
-  transmute(location = name, year, age,
-            Female = popF * 1e3, Male = popM * 1e3) |>
+obs_raw <- bind_rows(
+  pull_wpp_slice(popAge1dt,     OBS_YEARS_FROM_OBS),   # 1990-2023
+  pull_wpp_slice(popprojAge1dt, OBS_YEARS_FROM_PROJ)   # 2024 (jump-off in proj series)
+) |>
   pivot_longer(c(Female, Male), names_to = "sex", values_to = "Nx") |>
   arrange(location, year, sex, age)
 
+if (length(OBS_YEARS_FROM_PROJ))
+  message("  Observed 2024 slice sourced from popprojAge1dt (WPP jump-off year).")
+
 # 4b  spline-smooth the single-year age distribution within each (location,year,sex),
-#     then rescale so the smoothed counts sum to the observed all-age total.
+#     then rescale so the smoothed counts sum to the source all-age total.
 smooth_age_distribution <- function(df) {
   df <- df[order(df$age), ]
   raw_total <- sum(df$Nx)
@@ -176,7 +208,7 @@ smooth_age_distribution <- function(df) {
   df
 }
 
-pop_observed <- obs_raw |>
+pop_observed_1990_2024 <- obs_raw |>
   group_by(location, year, sex) |>
   group_modify(~ smooth_age_distribution(.x)) |>
   ungroup() |>
@@ -186,20 +218,16 @@ pop_observed <- obs_raw |>
 # diagnostic: how much did smoothing move any single-age cell?
 smooth_shift <- obs_raw |>
   rename(Nx_raw = Nx) |>
-  inner_join(pop_observed, by = c("location", "year", "sex", "age")) |>
+  inner_join(pop_observed_1990_2024, by = c("location", "year", "sex", "age")) |>
   mutate(rel = abs(Nx - Nx_raw) / pmax(Nx_raw, 1))
-message(sprintf("  Observed 1990-2023 smoothed | max single-age shift = %.1f%% | mean = %.2f%%",
-                100 * max(smooth_shift$rel), 100 * mean(smooth_shift$rel)))
+message(sprintf("  Observed %s smoothed | max single-age shift = %.1f%% | mean = %.2f%%",
+                OBS_LABEL, 100 * max(smooth_shift$rel), 100 * mean(smooth_shift$rel)))
 
 ################################################################################
-# 5  PROJECTION single-year population, 2026-2100  (WPP medium variant, direct)
+# 5  PROJECTION single-year population, 2025-2100  (WPP medium variant, direct)
 ################################################################################
 
-pop_projection <- as.data.frame(popprojAge1dt) |>
-  mutate(year = as.integer(year), age = as.integer(age)) |>   # year is character in wpp2024 proj
-  filter(name == idn_name, year %in% PROJ_YEARS, age %in% AGES) |>
-  transmute(location = name, year, age,
-            Female = popF * 1e3, Male = popM * 1e3) |>
+pop_projection_2025_2100 <- pull_wpp_slice(popprojAge1dt, PROJ_YEARS) |>
   pivot_longer(c(Female, Male), names_to = "sex", values_to = "Nx") |>
   select(location, year, sex, age, Nx) |>
   arrange(location, year, sex, age)
@@ -235,14 +263,14 @@ validate_pop <- function(dt, years_expected, label) {
   invisible(TRUE)
 }
 
-validate_pop(pop_observed,   OBS_YEARS,  "pop_observed_1990_2023")
-validate_pop(pop_projection, PROJ_YEARS, "pop_projection_2026_2100")
+validate_pop(pop_observed_1990_2024,   OBS_YEARS,  paste0("pop_observed_", OBS_LABEL))
+validate_pop(pop_projection_2025_2100, PROJ_YEARS, paste0("pop_projection_", PROJ_LABEL))
 
 # totals preserved by smoothing (observed): each sex-year smoothed sum == raw sum
 tot_check <- obs_raw |>
   group_by(location, year, sex) |>
   summarise(raw = sum(Nx), .groups = "drop") |>
-  inner_join(pop_observed |>
+  inner_join(pop_observed_1990_2024 |>
                group_by(location, year, sex) |>
                summarise(sm = sum(Nx), .groups = "drop"),
              by = c("location", "year", "sex")) |>
@@ -252,24 +280,27 @@ if (max(tot_check$rel) > 1e-6)
        signif(max(tot_check$rel), 3), ").", call. = FALSE)
 
 # sane national totals: Indonesia ~275M around 2020
-tot2020 <- pop_observed |> filter(year == 2020) |> summarise(t = sum(Nx)) |> pull(t)
+tot2020 <- pop_observed_1990_2024 |> filter(year == 2020) |> summarise(t = sum(Nx)) |> pull(t)
 message(sprintf("  Total population 2020 (observed): %s",
                 formatC(round(tot2020), format = "d", big.mark = ",")))
 if (tot2020 < 2e8 || tot2020 > 3.5e8)
   stop("Indonesia 2020 total = ", round(tot2020 / 1e6),
        "M, outside the sane band 200-350M.", call. = FALSE)
 
-# no observed->projection level discontinuity across the 2023/2026 join
-tot2023 <- pop_observed   |> filter(year == 2023) |> summarise(t = sum(Nx)) |> pull(t)
-tot2026 <- pop_projection |> filter(year == 2026) |> summarise(t = sum(Nx)) |> pull(t)
-join_ratio <- tot2026 / tot2023
-message(sprintf("  Join check: total 2023 obs = %s -> 2026 proj = %s (ratio %.3f)",
-                formatC(round(tot2023), format = "d", big.mark = ","),
-                formatC(round(tot2026), format = "d", big.mark = ","),
+# no observed->projection level discontinuity across the 2024/2025 join
+join_obs_yr  <- max(OBS_YEARS)     # 2024
+join_proj_yr <- min(PROJ_YEARS)    # 2025
+totA <- pop_observed_1990_2024   |> filter(year == join_obs_yr)  |> summarise(t = sum(Nx)) |> pull(t)
+totB <- pop_projection_2025_2100 |> filter(year == join_proj_yr) |> summarise(t = sum(Nx)) |> pull(t)
+join_ratio <- totB / totA
+message(sprintf("  Join check: total %d obs = %s -> %d proj = %s (ratio %.4f)",
+                join_obs_yr,  formatC(round(totA), format = "d", big.mark = ","),
+                join_proj_yr, formatC(round(totB), format = "d", big.mark = ","),
                 join_ratio))
-if (join_ratio < 0.9 || join_ratio > 1.2)
-  stop("Observed/projection join looks discontinuous (2026/2023 ratio = ",
-       round(join_ratio, 3), ", expected ~1.0-1.1).", call. = FALSE)
+# consecutive WPP years: expect ~1 year of growth (tight band since same series)
+if (join_ratio < 0.97 || join_ratio > 1.05)
+  stop("Observed/projection join looks discontinuous (", join_proj_yr, "/", join_obs_yr,
+       " ratio = ", round(join_ratio, 4), ", expected ~1.00-1.02).", call. = FALSE)
 
 message("  All demography validation checks passed ✓")
 
@@ -277,18 +308,21 @@ message("  All demography validation checks passed ✓")
 # 7  SAVE
 ################################################################################
 
-saveRDS(pop_observed,   file = paste0(wd_data, "pop_observed_1990_2023.rds"))
-saveRDS(pop_projection, file = paste0(wd_data, "pop_projection_2026_2100.rds"))
-readr::write_csv(pop_observed,   paste0(wd_data, "pop_observed_1990_2023.csv"))
-readr::write_csv(pop_projection, paste0(wd_data, "pop_projection_2026_2100.csv"))
+f_obs  <- paste0(wd_data, "pop_observed_",   OBS_LABEL)
+f_proj <- paste0(wd_data, "pop_projection_", PROJ_LABEL)
 
-save(get.lt, locations, pop_observed, pop_projection, file = OUT_RDA)
+saveRDS(pop_observed_1990_2024,   file = paste0(f_obs,  ".rds"))
+saveRDS(pop_projection_2025_2100, file = paste0(f_proj, ".rds"))
+readr::write_csv(pop_observed_1990_2024,   paste0(f_obs,  ".csv"))
+readr::write_csv(pop_projection_2025_2100, paste0(f_proj, ".csv"))
+
+save(get.lt, locations, pop_observed_1990_2024, pop_projection_2025_2100, file = OUT_RDA)
 
 message("\n── Saved ──────────────────────────────────")
-message("  pop_observed_1990_2023.rds/.csv   [", nrow(pop_observed),  " rows]  years ",
-        min(pop_observed$year),   "-", max(pop_observed$year))
-message("  pop_projection_2026_2100.rds/.csv [", nrow(pop_projection), " rows]  years ",
-        min(pop_projection$year), "-", max(pop_projection$year))
+message("  pop_observed_",   OBS_LABEL,  ".rds/.csv   [", nrow(pop_observed_1990_2024),  " rows]  years ",
+        min(pop_observed_1990_2024$year),   "-", max(pop_observed_1990_2024$year))
+message("  pop_projection_", PROJ_LABEL, ".rds/.csv [", nrow(pop_projection_2025_2100), " rows]  years ",
+        min(pop_projection_2025_2100$year), "-", max(pop_projection_2025_2100$year))
 message("  wpp/indonesia_rhd_demography.Rda  (get.lt, locations, both tables)")
 message("\n── 02_build_demography.R complete ────────────────────")
 message("  Next: 03_build_disease_model.R")

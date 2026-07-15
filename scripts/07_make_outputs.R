@@ -1,69 +1,133 @@
 # ==============================================================================
-# 8. RUN incremental and benefit analysis
+# RHD secondary-prevention investment case: STANDARD LONG-TABLE OUTPUT
+# scripts/07_make_outputs.R
+#
+# ------------------------------------------------------------------------------
+# ROLE OF THIS SCRIPT (refactored)
+# ------------------------------------------------------------------------------
+# Fed by the outputs of 06 (the per-location model runs). It reads every
+# output/out_model/<location>.rds, takes the WELL-SICK-DEAD aggregate table (1)
+# ($wsd), row-binds it across locations, and compiles ONE tidy long table with
+# EXACTLY these columns, in this order:
+#
+#   scenario, age, cause, sex, year, well, sick, newcases, dead, pop, all.mx,
+#   intervention, location, eff_ir, eff_cf
+#
+#   * sick   = sum of all RHD cases across the tunnel states (mild + severe + post),
+#              as produced by 06's $wsd table.
+#   * eff_ir = relative-risk-reduction multiplier on INCIDENCE (new RHD cases), on
+#              the scale [0,1] (1 = no reduction, 0 = 100% reduction).
+#   * eff_cf = relative-risk-reduction multiplier on RHD cause-specific MORTALITY,
+#              same [0,1] scale.
+#
+# ALL economic / benefit-cost / DALY / monetary content has been REMOVED from this
+# script — it now lives solely in 08_economic_evaluation.R.
+#
+#   INPUT : output/out_model/*.rds                 (from 06)
+#   OUTPUT: output/tables/rhd_model_long.csv / .rds
 # ==============================================================================
 
-inc <- data.table(
-  year             = years,
-  rhd_deaths_avert = ref$rhd_deaths - sap$rhd_deaths,
-  severe_avert     = ref$severe     - sap$severe,
-  inc_cost         = sap$cost - ref$cost
-)
-inc[, deaths_avert := rhd_deaths_avert]
+library(data.table)
 
-df      <- 1 / (1 + disc_rate)^(years - years[1])          # discount factors, base 2021
-gdp_pc  <- gdp_pc_2019 * (1 + gdp_growth)^(years - 2019)
-vsl     <- vsl_mult * gdp_pc
+if (!exists("wd_outp")) wd_outp <- paste0(here::here("output"), "/")
 
-benefit_vsl   <- inc$deaths_avert * vsl        # value of health (dominant term)
-benefit_gdp   <- inc$deaths_avert * gdp_pc     # productivity proxy
-benefit_total <- benefit_vsl + benefit_gdp
+IN_DIR  <- paste0(wd_outp, "out_model/")
+OUT_DIR <- paste0(wd_outp, "tables/")
+dir.create(OUT_DIR, recursive = TRUE, showWarnings = FALSE)
 
-tot_cost_disc    <- sum(inc$inc_cost  * df)
-tot_benefit_disc <- sum(benefit_total * df)
-tot_deaths_avert <- sum(inc$deaths_avert)
-bcr            <- tot_benefit_disc / tot_cost_disc
-net_ben        <- tot_benefit_disc - tot_cost_disc
-cost_per_death <- tot_cost_disc / tot_deaths_avert
-cost_per_daly  <- tot_cost_disc / (sum(inc$deaths_avert * df) * dalys_per_death)
+# EXACT output column contract (order matters)
+OUT_COLS <- c("scenario", "age", "cause", "sex", "year",
+              "well", "sick", "newcases", "dead", "pop", "all.mx",
+              "intervention", "location", "eff_ir", "eff_cf")
 
-# ==============================================================================
-# 9. REPORT
-# ==============================================================================
-cat("\n============================================================\n")
-cat(sprintf(" RHD SECONDARY PREVENTION (screening + SAP)\n Horizon %d-%d | scale-up ramp %d-%d\n",
-            min(years), max(years), ramp_start, ramp_end))
-cat("============================================================\n\n")
+# ------------------------------------------------------------------------------
+# 1. LOAD per-location model outputs (table 1 = $wsd)
+# ------------------------------------------------------------------------------
+files <- list.files(IN_DIR, pattern = "\\.rds$", full.names = TRUE)
+if (length(files) == 0)
+  stop("No model outputs found in ", IN_DIR,
+       ".\n  Run 06_run_prevention_model.R first.", call. = FALSE)
 
-cat("--- BUDGET IMPACT (US$ millions) ---\n")
-bi <- sap[, .(year, screening = c_screen/1e6, SAP = c_sap/1e6,
-              HF = c_hf/1e6, surgery = c_surg/1e6, total = cost/1e6)]
-bi <- merge(bi, ref[, .(year, total_ref = cost/1e6)], by = "year")
-bi[, incremental := total - total_ref]
-print(bi[, lapply(.SD, function(x) if (is.numeric(x)) round(x, 1) else x)])
+message(sprintf("── 07_make_outputs.R : reading %d location file(s) from %s ──",
+                length(files), IN_DIR))
 
-cat("\n--- HEALTH IMPACT (cumulative) ---\n")
-cat(sprintf("  RHD deaths averted                   : %s\n",
-            format(round(tot_deaths_avert), big.mark = ",")))
-cat(sprintf("  Severe RHD cases averted (2030 stock): %s\n",
-            format(round(inc$severe_avert[n_years]), big.mark = ",")))
+wsd_list <- lapply(files, function(f) {
+  obj <- readRDS(f)
+  if (is.null(obj$wsd))
+    stop("File ", basename(f), " has no $wsd table (re-run 06).", call. = FALSE)
+  as.data.table(obj$wsd)
+})
+dt <- rbindlist(wsd_list, use.names = TRUE, fill = TRUE)
 
-cat("\n--- ECONOMIC RESULTS (3% discounting; 2019 US$) ---\n")
-cat(sprintf("  Total incremental cost    : $%.2f billion\n", tot_cost_disc/1e9))
-cat(sprintf("  Total monetised benefit   : $%.2f billion\n", tot_benefit_disc/1e9))
-cat(sprintf("  Net benefit               : $%.2f billion\n", net_ben/1e9))
-cat(sprintf("  Benefit-cost ratio        : %.2f\n", bcr))
-cat(sprintf("  Cost per death averted    : $%s\n", format(round(cost_per_death), big.mark = ",")))
-cat(sprintf("  Cost per DALY averted      : $%s\n\n", format(round(cost_per_daly), big.mark = ",")))
+# ------------------------------------------------------------------------------
+# 2. SELECT + ORDER the exact contract columns
+# ------------------------------------------------------------------------------
+missing <- setdiff(OUT_COLS, names(dt))
+if (length(missing))
+  stop("Model output is missing required column(s): ",
+       paste(missing, collapse = ", "), call. = FALSE)
 
-results <- list(budget_impact = bi, incremental = inc,
-                summary = data.table(bcr, net_benefit = net_ben,
-                                     total_cost = tot_cost_disc, total_benefit = tot_benefit_disc,
-                                     deaths_averted = tot_deaths_avert,
-                                     cost_per_death, cost_per_daly))
-saveRDS(results, "rhd_results.rds")
+long <- dt[, ..OUT_COLS]
+setorder(long, location, scenario, sex, year, age)
 
-fwrite(ref, "rhd_reference.csv")
-fwrite(bi,  "rhd_budget_impact.csv")
-fwrite(inc, "rhd_incremental.csv")
-cat("Saved: rhd_budget_impact.csv, rhd_incremental.csv, rhd_results.rds\n")
+# ------------------------------------------------------------------------------
+# 3. VALIDATION  (fail loudly before writing)
+# ------------------------------------------------------------------------------
+if (!identical(names(long), OUT_COLS))
+  stop("Output column order does not match the contract.", call. = FALSE)
+if (anyNA(long))
+  stop("Compiled long table contains NA.", call. = FALSE)
 
+# numeric stock/flow columns must be non-negative
+for (cc in c("well", "sick", "newcases", "dead", "pop", "all.mx"))
+  if (any(long[[cc]] < -1e-6)) stop("Column '", cc, "' has negative values.", call. = FALSE)
+
+# effect multipliers on [0,1]
+for (cc in c("eff_ir", "eff_cf"))
+  if (any(long[[cc]] < 0 | long[[cc]] > 1))
+    stop("Column '", cc, "' outside [0,1].", call. = FALSE)
+
+# well-sick-dead accounting: well + sick <= pop ; all-cause deaths >= RHD deaths
+if (long[, any(well + sick > pop + 1e-3)])
+  stop("well + sick exceeds pop somewhere.", call. = FALSE)
+if (long[, any(all.mx + 1e-6 < dead)])
+  stop("all-cause deaths < RHD deaths somewhere.", call. = FALSE)
+
+# completeness: every (location, scenario) covers the same full age x sex x year grid
+grid_n <- long[, .N, by = .(location, scenario)]
+if (uniqueN(grid_n$N) != 1L)
+  stop("Age/sex/year grid is not identical across every location-scenario.", call. = FALSE)
+
+# reference vs SAP: SAP averts RHD deaths (cumulative, per location)
+chk <- dcast(long[, .(dead = sum(dead)), by = .(location, scenario)],
+             location ~ scenario, value.var = "dead")
+if ("sap" %in% names(chk) && "ref" %in% names(chk) &&
+    chk[, any(sap > ref + 1e-6)])
+  stop("SAP scenario has MORE cumulative RHD deaths than reference in some location.",
+       call. = FALSE)
+
+# ------------------------------------------------------------------------------
+# 4. WRITE + report
+# ------------------------------------------------------------------------------
+fwrite(long,   paste0(OUT_DIR, "rhd_model_long.csv"))
+saveRDS(long,  paste0(OUT_DIR, "rhd_model_long.rds"))
+
+message("── Compiled standard long table ───────────────────────")
+message(sprintf("  rows: %s | locations: %s | scenarios: %s | years %d-%d | ages %d-%d",
+                formatC(nrow(long), format = "d", big.mark = ","),
+                paste(unique(long$location), collapse = ", "),
+                paste(unique(long$scenario), collapse = ", "),
+                min(long$year), max(long$year), min(long$age), max(long$age)))
+message("  columns: ", paste(names(long), collapse = ", "))
+
+# concise headline: cumulative RHD deaths averted by scenario difference (all locs)
+tot <- long[, .(dead = sum(dead), sick_end = sum(sick[year == max(year)])),
+            by = scenario]
+if (all(c("ref", "sap") %in% tot$scenario)) {
+  averted <- tot[scenario == "ref", dead] - tot[scenario == "sap", dead]
+  message(sprintf("  Cumulative RHD deaths averted (ref - sap): %s",
+                  formatC(round(averted), format = "d", big.mark = ",")))
+}
+message("── 07_make_outputs.R complete ─────────────────────────")
+message("  Wrote: ", OUT_DIR, "rhd_model_long.csv/.rds")
+message("  Next: 08_economic_evaluation.R (benefit-cost & cost-effectiveness)")
