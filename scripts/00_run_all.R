@@ -67,7 +67,7 @@ CAL_YEAR_END   <- 2019L
 #===============================================================================
 # D. INTERVENTION SCALE-UP RAMP WINDOW  (03/05)
 #===============================================================================
-ramp_start <- 2025L              # first year coverage begins rising
+ramp_start <- 2026L              # first year coverage begins rising
 ramp_end   <- 2030L              # year target coverage is reached (then held)
 
 #===============================================================================
