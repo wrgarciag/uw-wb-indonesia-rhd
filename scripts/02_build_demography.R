@@ -1,5 +1,5 @@
 ################################################################################
-# INDONESIA RHD MODEL — POPULATION BACKBONE FROM WPP2024
+# RHD MODEL — POPULATION BACKBONE FROM WPP2024 (COUNTRY-parameterised)
 # scripts/02_build_demography.R
 # ------------------------------------------------------------------------------
 # Builds the single-year-of-age population backbone that the RHD disease-model
@@ -23,7 +23,7 @@
 #       tidy long {location, year, sex, age, Nx}; 76 yr x 2 sex x 101 age = 15,352 rows.
 #       WPP2024 medium-variant projection, taken directly (UN single-year projections
 #       are already graduated, so no extra smoothing is applied).
-#   wpp/indonesia_rhd_demography.Rda
+#   wpp/rhd_demography.Rda
 #       get.lt (life-table fn), locations (lookup), and copies of both tables —
 #       for any downstream script that still expects the .Rda bundle.
 #
@@ -78,10 +78,12 @@ if (!requireNamespace("countrycode", quietly = TRUE))
 suppressPackageStartupMessages(library(wpp2024))
 
 # Output directory: honour the wd_data global from 00_run_all.R when present,
-# else resolve via here() for standalone sourcing.
+# else resolve via here() for standalone sourcing. COUNTRY/ISO3 come from 00.
 if (!exists("wd_data")) wd_data <- paste0(here::here("data"), "/")
+if (!exists("COUNTRY")) COUNTRY <- "Indonesia"   # 00_run_all.R sets these per country
+if (!exists("ISO3"))    ISO3    <- "IDN"
 dir.create(file.path(wd_data, "wpp"), recursive = TRUE, showWarnings = FALSE)
-OUT_RDA <- file.path(wd_data, "wpp", "indonesia_rhd_demography.Rda")
+OUT_RDA <- file.path(wd_data, "wpp", "rhd_demography.Rda")   # COUNTRY is already in wd_data path
 
 ################################################################################
 # 1  CONSTANTS
@@ -89,7 +91,7 @@ OUT_RDA <- file.path(wd_data, "wpp", "indonesia_rhd_demography.Rda")
 
 MODEL_COUNTRIES <- tribble(
   ~iso3,  ~wpp_name,
-  "IDN",  "Indonesia"
+  ISO3,   COUNTRY
 )
 
 # Year windows (honour globals from 00_run_all.R when present, else defaults).
@@ -162,10 +164,11 @@ locations <- suppressWarnings(
 ) |>
   filter(iso3 %in% MODEL_COUNTRIES$iso3)
 
-if (!"IDN" %in% locations$iso3)
-  stop("Indonesia (IDN) not resolved in UNlocations. Check wpp2024 install.")
+if (!ISO3 %in% locations$iso3)
+  stop(COUNTRY, " (", ISO3, ") not resolved in UNlocations. ",
+       "Check wpp2024 install / the countrycode name->iso3 mapping.", call. = FALSE)
 
-idn_name <- MODEL_COUNTRIES$wpp_name[MODEL_COUNTRIES$iso3 == "IDN"]
+country_name <- MODEL_COUNTRIES$wpp_name[MODEL_COUNTRIES$iso3 == ISO3]
 
 message("  Locations resolved: ", paste(locations$iso3, collapse = ", "))
 
@@ -174,7 +177,7 @@ pull_wpp_slice <- function(tbl, years_keep) {
   as.data.frame(tbl) |>
     # popAge1dt$year is integer but popprojAge1dt$year is character; coerce both.
     mutate(year = as.integer(year), age = as.integer(age)) |>
-    filter(name == idn_name, year %in% years_keep, age %in% AGES) |>
+    filter(name == country_name, year %in% years_keep, age %in% AGES) |>
     transmute(location = name, year, age,
               Female = popF * 1e3, Male = popM * 1e3)
 }
@@ -279,13 +282,17 @@ if (max(tot_check$rel) > 1e-6)
   stop("Smoothing did not preserve sex-year totals (max rel err = ",
        signif(max(tot_check$rel), 3), ").", call. = FALSE)
 
-# sane national totals: Indonesia ~275M around 2020
+# sane national totals: expected ~2020 national population, COUNTRY-specific band
+# from 00_run_all.R (Indonesia ~275M, Uganda ~45M). Standalone fallback = Indonesia.
+if (!exists("POP2020_LO")) POP2020_LO <- 2.0e8
+if (!exists("POP2020_HI")) POP2020_HI <- 3.5e8
 tot2020 <- pop_observed_1990_2024 |> filter(year == 2020) |> summarise(t = sum(Nx)) |> pull(t)
 message(sprintf("  Total population 2020 (observed): %s",
                 formatC(round(tot2020), format = "d", big.mark = ",")))
-if (tot2020 < 2e8 || tot2020 > 3.5e8)
-  stop("Indonesia 2020 total = ", round(tot2020 / 1e6),
-       "M, outside the sane band 200-350M.", call. = FALSE)
+if (tot2020 < POP2020_LO || tot2020 > POP2020_HI)
+  stop(COUNTRY, " 2020 total = ", round(tot2020 / 1e6),
+       "M, outside the sane band ", round(POP2020_LO / 1e6), "-",
+       round(POP2020_HI / 1e6), "M.", call. = FALSE)
 
 # no observed->projection level discontinuity across the 2024/2025 join
 join_obs_yr  <- max(OBS_YEARS)     # 2024
@@ -323,6 +330,6 @@ message("  pop_observed_",   OBS_LABEL,  ".rds/.csv   [", nrow(pop_observed_1990
         min(pop_observed_1990_2024$year),   "-", max(pop_observed_1990_2024$year))
 message("  pop_projection_", PROJ_LABEL, ".rds/.csv [", nrow(pop_projection_2025_2100), " rows]  years ",
         min(pop_projection_2025_2100$year), "-", max(pop_projection_2025_2100$year))
-message("  wpp/indonesia_rhd_demography.Rda  (get.lt, locations, both tables)")
+message("  wpp/rhd_demography.Rda  (get.lt, locations, both tables)")
 message("\n── 02_build_demography.R complete ────────────────────")
 message("  Next: 03_build_disease_model.R")

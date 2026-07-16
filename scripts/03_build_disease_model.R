@@ -31,7 +31,7 @@
 #           RHD Deaths     -> RHD cause-specific mortality anchor
 #           All-cause Deaths - RHD Deaths -> background (other-cause) mortality
 #     data/pop_projection_2025_2100.rds      (from 02_build_demography.R)
-#         single-year population by age x sex x year (persons), Indonesia. Read here
+#         single-year population by age x sex x year (persons), for LOCATION. Read here
 #         ONLY to establish the projection horizon (year grid) and a base-year
 #         order-of-magnitude anchor. 05 re-reads the full population itself.
 #
@@ -51,7 +51,7 @@
 # GBD gives TOTAL RHD prevalence (not split by stage) and rates only to 2023:
 #   * the prevalent pool is split into A/B/C/D by a tagged vector (Cannon et al
 #     multi-state severity split for A/B/C, normalised to the non-D share; D from
-#     the Indonesia RHD-with-heart-failure fraction, rhd_d_fraction [CALIBRATE]);
+#     the RHD-with-heart-failure fraction, rhd_d_fraction [CALIBRATE]);
 #   * for the projection horizon the GBD age-sex RATE pattern is held at its 2023
 #     level, with an explicit incidence secular trend ([CALIBRATE]) baked into the
 #     incidence array (anchored at the first projection year). Both are flagged.
@@ -143,7 +143,7 @@ surgery <- list(
 # 5. STAGE SPLIT of the prevalent RHD pool at the seed year  (A/B/C/D)
 #    A/B/C from Cannon et al (multi-state model, n=591): 56.5 / 27.2 / 16.2%,
 #    normalised and applied to the non-D share; D = rhd_d_fraction [CALIBRATE]
-#    (Indonesia RHD-with-heart-failure / complicated-RHD fraction; GBD-informed).
+#    (RHD-with-heart-failure / complicated-RHD fraction; GBD-informed).
 # ------------------------------------------------------------------------------
 rhd_d_fraction <- getp("rhd_d_fraction", 0.10)   # [CALIBRATE]
 if (rhd_d_fraction < 0 || rhd_d_fraction >= 1)
@@ -184,7 +184,8 @@ stopifnot(coverage$ramp_end > coverage$ramp_start)
 # ==============================================================================
 
 ## 7a. GBD 2023 base-year rates (per capita) at single-year age -----------------
-gbd <- as.data.table(readRDS(paste0(wd_raw, "temp_baseline_rates_gbd.rds")))
+# 01_prepare_inputs.R writes this COUNTRY-filtered temp file into wd_data.
+gbd <- as.data.table(readRDS(paste0(wd_data, "temp_baseline_rates_gbd.rds")))
 gbd <- gbd[location_name == LOCATION & metric_name == "Rate" & year == RATE_BASE_YEAR,
            .(sex = sex_name, age_group = age_name,
              cause = cause_name, measure = measure_name, rate = val / 1e5)]
@@ -340,13 +341,16 @@ message(sprintf(
   formatC(round(rhd_prev_count),  format = "d", big.mark = ","),
   formatC(round(rhd_death_count), format = "d", big.mark = ","),
   formatC(round(all_death_count), format = "d", big.mark = ",")))
-# sane bands for Indonesia RHD (order of magnitude): prevalence 1e5-1e7, deaths 1e3-1e5
-if (rhd_prev_count < 1e5 || rhd_prev_count > 1e7)
+# sane order-of-magnitude bands for RHD (COUNTRY-settable from 00_run_all.R; the
+# wide defaults cover both Indonesia and Uganda). Prevalence and RHD deaths.
+RHD_PREV_LO  <- getp("RHD_PREV_LO",  1e5); RHD_PREV_HI  <- getp("RHD_PREV_HI",  1e7)
+RHD_DEATH_LO <- getp("RHD_DEATH_LO", 1e3); RHD_DEATH_HI <- getp("RHD_DEATH_HI", 1e5)
+if (rhd_prev_count < RHD_PREV_LO || rhd_prev_count > RHD_PREV_HI)
   stop("Base-year RHD prevalence count ", round(rhd_prev_count),
-       " is outside the sane band 1e5-1e7.", call. = FALSE)
-if (rhd_death_count < 1e3 || rhd_death_count > 1e5)
+       " is outside the sane band ", RHD_PREV_LO, "-", RHD_PREV_HI, ".", call. = FALSE)
+if (rhd_death_count < RHD_DEATH_LO || rhd_death_count > RHD_DEATH_HI)
   stop("Base-year RHD death count ", round(rhd_death_count),
-       " is outside the sane band 1e3-1e5.", call. = FALSE)
+       " is outside the sane band ", RHD_DEATH_LO, "-", RHD_DEATH_HI, ".", call. = FALSE)
 
 # ==============================================================================
 # 9. ASSEMBLE + PERSIST THE DISEASE-MODEL INPUT BUNDLE
@@ -373,7 +377,7 @@ disease_model_inputs <- list(
     RATE_BASE_YEAR = as.integer(RATE_BASE_YEAR),
     incidence_trend = incidence_trend,
     rhd_d_fraction  = rhd_d_fraction,
-    built_from = c("data-raw/temp_baseline_rates_gbd.rds",
+    built_from = c("temp_baseline_rates_gbd.rds",
                    basename(POP_PROJ_FILE))
   )
 )

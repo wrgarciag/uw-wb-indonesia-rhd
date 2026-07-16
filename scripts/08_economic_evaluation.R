@@ -65,7 +65,7 @@ getp <- function(nm, default) if (exists(nm, inherits = TRUE)) get(nm, inherits 
 
 econ <- list(
   disc_rate        = getp("disc_rate",        0.03),   # [PAPER] 3% discount, costs & benefits
-  gdp_pc_base      = getp("gdp_pc_base",       4150),   # [LIT] Indonesia GDP per capita, base-yr US$
+  gdp_pc_base      = getp("gdp_pc_base",       4150),   # [LIT] GDP pc base-yr US$ (4150 = Indonesia standalone fallback; 00 sets per COUNTRY)
   gdp_pc_base_year = getp("gdp_pc_base_year",  2019),   # [LIT] year gdp_pc_base refers to
   gdp_growth       = getp("gdp_growth",        0.03),   # [CALIBRATE] real per-capita growth
   vsl_mult         = getp("vsl_mult",          30),     # [PAPER] VSL ~ 30 x GDP per capita

@@ -4,9 +4,12 @@
 
 # Standalone-sourcing guard (honour 00_run_all.R globals when present).
 library(data.table)
-if (!exists("wd_raw")) wd_raw <- paste0(here::here("data-raw"), "/")
+if (!exists("wd_raw"))   wd_raw   <- paste0(here::here("data-raw"), "/")
+if (!exists("wd_data"))  wd_data  <- paste0(here::here("data"), "/")
+if (!exists("LOCATION")) LOCATION <- "Indonesia"   # 00_run_all.R sets this per COUNTRY
+dir.create(wd_data, recursive = TRUE, showWarnings = FALSE)
 
-# Indonesia Level 2
+# GBD Level-2 country = LOCATION
 
 # https://collab2023.healthdata.org/gbd-results?params=gbd-api-2023-permalink/e23ae880499d3ae1d643dca738057425
 
@@ -44,11 +47,11 @@ cause_cols <- names(cause_map)
 # Filter the data to include only the specified causes
 dt <- dt[cause_name %in% dx_include,]
 
-# Filter only Indonesia
-dt <- dt[location_name == "Indonesia",]
+# Filter only the target country (00_run_all.R sets LOCATION)
+dt <- dt[location_name == LOCATION,]
 
-# save temp baseline rates from gbd 2023
-saveRDS(dt, file = paste0(wd_raw,"temp_baseline_rates_gbd.rds"))
+# save temp baseline rates from gbd 2023 (COUNTRY-scoped wd_data)
+saveRDS(dt, file = paste0(wd_data,"temp_baseline_rates_gbd.rds"))
 
 #...........................................................
 # GBD 2023 Population ----
@@ -69,11 +72,11 @@ dt_pop[, lower:=NULL]
 
 dt_pop <- dt_pop[age_name!="80+ years",]
 
-# Filter only Indonesia
-dt_pop <- dt_pop[location_name == "Indonesia",]
+# Filter only the target country
+dt_pop <- dt_pop[location_name == LOCATION,]
 
 # save temp population from gbd 2023 (was mistakenly saving `dt` = epi rates)
-saveRDS(dt_pop, file = paste0(wd_raw,"temp_population_gbd.rds"))
+saveRDS(dt_pop, file = paste0(wd_data,"temp_population_gbd.rds"))
 
 # Here make population projecions based on gbd population
 

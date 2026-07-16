@@ -46,6 +46,11 @@
 library(data.table)
 if (!exists("wd_data")) wd_data <- paste0(here::here("data"), "/")
 
+# getp(): honour a 00_run_all.R global when set, else the standalone default.
+getp <- function(nm, default) if (exists(nm, inherits = TRUE)) get(nm, inherits = TRUE) else default
+RHD_PREV_LO <- getp("RHD_PREV_LO", 1e5)   # seeded-prevalence sanity band (COUNTRY-settable;
+RHD_PREV_HI <- getp("RHD_PREV_HI", 1e7)   #   wide default covers Indonesia and Uganda)
+
 # ------------------------------------------------------------------------------
 # 0. CONFIG (honour globals from 00_run_all.R; else standalone defaults)
 # ------------------------------------------------------------------------------
@@ -275,9 +280,9 @@ for (loc in LOCATIONS) {
                                                   sum(st$seed$C), sum(st$seed$D)) / prev_cnt),
                         collapse = "/"),
                   100 * max(sick1 / pmax(st$pop[, , 1], 1))))
-  if (prev_cnt < 1e5 || prev_cnt > 1e7)
+  if (prev_cnt < RHD_PREV_LO || prev_cnt > RHD_PREV_HI)
     stop(loc, ": seeded RHD prevalence ", round(prev_cnt),
-         " outside the sane band 1e5-1e7.", call. = FALSE)
+         " outside the sane band ", RHD_PREV_LO, "-", RHD_PREV_HI, ".", call. = FALSE)
 }
 
 # ------------------------------------------------------------------------------
@@ -297,6 +302,9 @@ baseline_state <- list(
     calib_last_year = calib_last_year,
     stage_calibration_status = calib$stage_calibration$status,
     RATE_BASE_YEAR  = dmi$meta$RATE_BASE_YEAR,
+    # base-year death sanity bands consumed by 06 (COUNTRY-specific; 00 via getp)
+    rhd_death_lo  = getp("RHD_DEATH_LO",  1e3), rhd_death_hi  = getp("RHD_DEATH_HI",  1e5),
+    allc_death_lo = getp("ALLC_DEATH_LO", 5e5), allc_death_hi = getp("ALLC_DEATH_HI", 4e6),
     intervention_labels = c(ref = "reference_cascade_held_at_baseline",
                             sap = "echo_screening_diagnosis_SAP_scale_up"),
     built_from = c(basename(IN_POP), basename(IN_DISEASE), basename(IN_CALIB))

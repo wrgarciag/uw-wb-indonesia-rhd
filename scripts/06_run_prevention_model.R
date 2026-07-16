@@ -320,8 +320,13 @@ run_location <- function(loc, baseline_state) {
   base <- wsd_all[scenario == "ref" & year == by1]
   rhd_d  <- base[, sum(dead)]
   allc_d <- base[, sum(all.mx)]
-  fail(rhd_d  < 1e3 || rhd_d  > 5e4, sprintf("base-year RHD deaths %.0f outside band 1e3-5e4.", rhd_d))
-  fail(allc_d < 5e5 || allc_d > 4e6, sprintf("base-year all-cause deaths %.0f outside band 5e5-4e6.", allc_d))
+  # COUNTRY-specific base-year death bands (from 05's meta; Indonesia defaults if absent)
+  rhd_lo  <- if (is.null(meta$rhd_death_lo))  1e3 else meta$rhd_death_lo
+  rhd_hi  <- if (is.null(meta$rhd_death_hi))  5e4 else meta$rhd_death_hi
+  allc_lo <- if (is.null(meta$allc_death_lo)) 5e5 else meta$allc_death_lo
+  allc_hi <- if (is.null(meta$allc_death_hi)) 4e6 else meta$allc_death_hi
+  fail(rhd_d  < rhd_lo  || rhd_d  > rhd_hi,  sprintf("base-year RHD deaths %.0f outside band %g-%g.", rhd_d, rhd_lo, rhd_hi))
+  fail(allc_d < allc_lo || allc_d > allc_hi, sprintf("base-year all-cause deaths %.0f outside band %g-%g.", allc_d, allc_lo, allc_hi))
 
   attr(wsd_all, "deaths_averted_cum") <- d_ref - d_sap
   list(wsd = wsd_all, stages = stg_all,

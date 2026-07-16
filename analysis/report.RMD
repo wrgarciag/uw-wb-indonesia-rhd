@@ -1,7 +1,9 @@
 ---
-title: "Indonesia Rheumatic Heart Disease Secondary-Prevention Investment Case: Methods, Projected Health Impact and Economic Evaluation (2025–2100)"
+title: "`r params$country` Rheumatic Heart Disease Secondary-Prevention Investment Case: Methods, Projected Health Impact and Economic Evaluation (2025–2100)"
 date: "`r Sys.Date()`"
-author: "University of Washington · World Bank Indonesia RHD Model"
+author: "University of Washington · World Bank `r params$country` RHD Model"
+params:
+  country: "Uganda"    # "Indonesia" | "Uganda" — pass via rmarkdown::render(params = list(country = ...))
 output:
   html_document:
     toc: true
@@ -48,9 +50,14 @@ wd <- tryCatch({
 }, error = function(e)
   "C:/Users/wrgar/OneDrive - UW/02Work/WorldBank-Indonesia/uw-wb-indonesia-rhd/")
 
-wd_data <- paste0(wd, "data/")        # processed inputs + baseline state (from 02-05)
-wd_outp <- paste0(wd, "output/")      # model outputs (06) + tables (07/08)
-wd_raw  <- paste0(wd, "data-raw/")    # GBD 2023 epi rates (for historical validation)
+# COUNTRY drives which country's artifacts are read; mirrors 00_run_all.R's
+# COUNTRY-scoped data/ and output/ layout. Guarded for chunk-by-chunk runs where
+# `params` is absent. Set via rmarkdown::render(params = list(country = "Uganda")).
+CTRY <- if (exists("params") && !is.null(params$country)) params$country else "Indonesia"
+
+wd_data <- paste0(wd, "data/",   CTRY, "/")  # processed inputs + baseline state (02-05)
+wd_outp <- paste0(wd, "output/", CTRY, "/")  # model outputs (06) + tables (07/08)
+wd_raw  <- paste0(wd, "data-raw/")           # GBD 2023 epi rates (shared; historical validation)
 ```
 
 ```{r helpers, message=FALSE, warning=FALSE, echo=FALSE}
@@ -232,13 +239,14 @@ if (have_econ) {
 
 ```{r load-gbd, message=FALSE, warning=FALSE, echo=FALSE}
 # ---- GBD 2023 epidemiology (1990-2023) for the historical validation panels -
-# From data-raw/temp_baseline_rates_gbd.rds (01_prepare_inputs.R): Indonesia,
-# causes {All causes, Rheumatic heart disease}, measures {Deaths, Prevalence,
-# Incidence}, metrics {Number, Rate}, both sexes. data-raw/ is not tracked by
-# git, so this is treated as an OPTIONAL artifact -- the report degrades
-# gracefully to model-only series if it is absent.
-gbd_try <- c(paste0(wd_raw,  "temp_baseline_rates_gbd.rds"),
-             paste0(wd_data, "temp_baseline_rates_gbd.rds"))
+# From data/<COUNTRY>/temp_baseline_rates_gbd.rds (01_prepare_inputs.R): the
+# COUNTRY, causes {All causes, Rheumatic heart disease}, measures {Deaths,
+# Prevalence, Incidence}, metrics {Number, Rate}, both sexes. Treated as an
+# OPTIONAL artifact -- the report degrades gracefully to model-only series if it
+# is absent. Prefer the COUNTRY-scoped wd_data copy; fall back to any legacy
+# data-raw/ copy.
+gbd_try <- c(paste0(wd_data, "temp_baseline_rates_gbd.rds"),
+             paste0(wd_raw,  "temp_baseline_rates_gbd.rds"))
 gbd_path <- gbd_try[file.exists(gbd_try)][1]
 have_gbd <- !is.na(gbd_path)
 if (have_gbd) {
@@ -294,7 +302,7 @@ if (have_econ) {
 
 # Background
 
-This report documents the **Indonesia rheumatic heart disease (RHD)
+This report documents the **`r CTRY` rheumatic heart disease (RHD)
 secondary-prevention investment-case model** implemented in the numbered
 pipeline `scripts/06_run_prevention_model.R` (the runner),
 `scripts/07_make_outputs.R` (the standard long table) and
@@ -309,7 +317,7 @@ fever following group A streptococcal infection in childhood and progresses,
 over years, from a minimal (subclinical) valve lesion through advancing valve
 disease to heart failure with complications, and in advanced disease to valve
 surgery or death. It remains a major, largely preventable cause of
-cardiovascular death among young people in Indonesia. The
+cardiovascular death among young people in `r CTRY`. The
 **secondary-prevention investment case** evaluated here couples
 **echocardiographic screening** and **diagnosis** (to detect and confirm RHD)
 with **secondary antibiotic prophylaxis (SAP) / optimal treatment** — long-acting
@@ -319,7 +327,7 @@ RHD-specific mortality across the disease course.
 The central question is:
 
 > *How many RHD deaths does scaling up echo screening and secondary antibiotic
-> prophylaxis avert in Indonesia over the century, and does the monetised
+> prophylaxis avert in `r CTRY` over the century, and does the monetised
 > health benefit justify the incremental cost?*
 
 The engine is a **discrete-time, matrix-form (age × sex) Markov cohort model**
@@ -334,7 +342,7 @@ run once per **scenario**:
   treatment rise to their targets.
 
 The model is structured after **Coates et al., *Lancet Global Health* 2021**
-(the global RHD investment-case framework), adapted to Indonesian demography and
+(the global RHD investment-case framework), adapted to the demography of `r CTRY` and
 GBD 2023 epidemiology and to the WHF A/B/C/D staging of RHD.
 
 ```{r bg-inline, echo=FALSE, results='asis'}
@@ -505,7 +513,7 @@ if (have_bs) {
 
 ## Overall structure
 
-```{r fig-model-schematic, echo=FALSE, out.width="100%", fig.align="center", fig.cap="Figure M1. Rheumatic heart disease A/B/C/D model structure. An age–sex structured annual cohort for Indonesia. Incident RHD enters at stage A; the four living stages progress and regress along A ↔ B ↔ C with forward progression C → D; stage D feeds RHD death; competing background (non-RHD) mortality acts on every living stage. Secondary antibiotic prophylaxis (SAP) reduces stage-specific RHD mortality; surgery is a clinical service that reduces C → D progression and D → RHD death (it does not remove patients from a stage). Survivors age one year per cycle, with an open terminal 100+ group. Acute rheumatic fever is not represented as a health state."}
+```{r fig-model-schematic, echo=FALSE, out.width="100%", fig.align="center", fig.cap=paste0("Figure M1. Rheumatic heart disease A/B/C/D model structure. An age–sex structured annual cohort for ", CTRY, ". Incident RHD enters at stage A; the four living stages progress and regress along A ↔ B ↔ C with forward progression C → D; stage D feeds RHD death; competing background (non-RHD) mortality acts on every living stage. Secondary antibiotic prophylaxis (SAP) reduces stage-specific RHD mortality; surgery is a clinical service that reduces C → D progression and D → RHD death (it does not remove patients from a stage). Survivors age one year per cycle, with an open terminal 100+ group. Acute rheumatic fever is not represented as a health state.")}
 schematic <- file.path(wd, "docs", "rhd_abcd_state_transition.png")
 if (file.exists(schematic)) knitr::include_graphics(schematic)
 ```
@@ -1303,8 +1311,9 @@ if (have_econ) {
   slightly** under the scale-up (survivors live longer, predominantly in the
   earlier stages); this is a benefit, not a harm, and incidence is unchanged by
   design (`eff_ir = 1`).
-- **Single location.** Only Indonesia is currently run; the engine and tables
-  are location-general, but all results here are national.
+- **Single location.** Results here are for `r CTRY`; the engine and tables are
+  location-general (run per country via the `COUNTRY` switch in `00_run_all.R`),
+  but all results here are national.
 - **Calibration and held-fixed structure.** Incidence and case fatality were
   calibrated (2000–2019) against GBD prevalence and all-cause deaths; background
   (non-RHD) mortality and the GBD age–sex rate pattern are **held fixed** at

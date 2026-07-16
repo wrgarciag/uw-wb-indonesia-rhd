@@ -32,7 +32,7 @@
 # 1. BUILDS an RHD-native baseline transition-probability (TP) table from
 #    upstream, rather than reading the parent NCD model's tps_inpt_part*.rds
 #    (which do not exist in this repo). For the FULL 0-95+ age range (paediatric
-#    and adult), both sexes, Indonesia, years 2000-2019 it derives, per single
+#    and adult), both sexes, LOCATION, years 2000-2019 it derives, per single
 #    age x sex x year:
 #        IR        RHD incidence probability (well -> sick)      = GBD RHD Incidence Rate/1e5
 #        CF        RHD case-fatality (sick -> dead)              = RHD Deaths / RHD Prevalence
@@ -42,7 +42,7 @@
 #        BG.mx     background (non-RHD) mortality of the sick     = ALL.mx - DIS.mx.t0  (>=0)
 #        BG.mx.all background (non-RHD) mortality of the pool     = ALL.mx - DIS.mx.t0  (>=0)
 #        Nx        population                                     = 02's pop_observed table
-#    INPUTS:  data-raw/temp_baseline_rates_gbd.rds  (from 01_prepare_inputs.R)
+#    INPUTS:  data/<COUNTRY>/temp_baseline_rates_gbd.rds  (from 01_prepare_inputs.R)
 #             data/pop_observed_1990_2024.rds        (from 02_build_demography.R)
 #
 # 2. CALIBRATES the structural IR and CF (per location-sex-cause, at GRANULARITY)
@@ -228,7 +228,7 @@ build_rhd_tps <- function(gbd, pop, loc, y0, y1) {
   out[]
 }
 
-gbd_raw <- as.data.table(readRDS(paste0(wd_raw, "temp_baseline_rates_gbd.rds")))
+gbd_raw <- as.data.table(readRDS(paste0(wd_data, "temp_baseline_rates_gbd.rds")))
 pop_obs <- as.data.table(readRDS(paste0(wd_data, "pop_observed_1990_2024.rds")))
 
 ## the input population MUST actually cover the 2000-onward calibration window
@@ -711,7 +711,7 @@ calibrated_rhd_parameters <- list(
     search_halfwidth = SEARCH_HALFWIDTH,
     n_iter           = N_ITER,
     tp_schema        = tps_input_cols,
-    built_from       = c("data-raw/temp_baseline_rates_gbd.rds",
+    built_from       = c("temp_baseline_rates_gbd.rds",
                          "pop_observed_1990_2024.rds", basename(DISEASE_INPUTS_FILE))
   )
 )
