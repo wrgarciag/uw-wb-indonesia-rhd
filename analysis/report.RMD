@@ -65,11 +65,12 @@ usd_m   <- function(x, d = 1) paste0("$", formatC(x / 1e6, format = "f", digits 
 
 # ---- Scenario metadata (authoritative 'scenario' column from 06) ------------
 # 06 writes exactly two arms per location, distinguished by 'scenario':
-#   ref = reference (SAP held at its 5% baseline); sap = SAP scale-up to 40%.
+#   ref = reference (care cascade held at its baseline coverage);
+#   sap = scale-up of the screening -> diagnosis -> optimal-treatment cascade.
 scenario_levels <- c("ref", "sap")
 scenario_labels <- c(
-  ref = "Reference (SAP at baseline)",
-  sap = "SAP scale-up (echo screening + prophylaxis)"
+  ref = "Reference (cascade held at baseline)",
+  sap = "SAP scale-up (screening + diagnosis + prophylaxis)"
 )
 scenario_labels_short <- c(ref = "Reference", sap = "SAP scale-up")
 scenario_cols <- c(ref = "#4d4d4d", sap = "#2166ac")
@@ -116,8 +117,10 @@ base_theme <- function(sz = 13)
 ```{r load-model-output, message=FALSE, warning=FALSE, echo=FALSE}
 # ---- Load per-location model outputs written by 06_run_prevention_model.R ---
 # One file per location: output/out_model/<location>.rds, each a list with
-# $wsd (well-sick-dead aggregate), $tunnel (disaggregated states + volumes),
-# $diag and $meta. 07 compiles $wsd into output/tables/rhd_model_long.rds.
+# $wsd (aggregate well-sick-dead view, sick = A + B + C + D), $stages (the four
+# A/B/C/D living stocks + every transition flow + the surgery-service trace +
+# cascade coverages), $diag and $meta. 07 compiles these into the tables in
+# output/tables/.
 out_model_path <- paste0(wd_outp, "out_model/")
 mfiles <- list.files(out_model_path, pattern = "\\.rds$", full.names = TRUE)
 if (length(mfiles) == 0)
@@ -126,16 +129,16 @@ if (length(mfiles) == 0)
 
 wsd <- rbindlist(lapply(mfiles, function(f) as.data.table(readRDS(f)$wsd)),
                  use.names = TRUE, fill = TRUE)
-tun <- rbindlist(lapply(mfiles, function(f) as.data.table(readRDS(f)$tunnel)),
+stg <- rbindlist(lapply(mfiles, function(f) as.data.table(readRDS(f)$stages)),
                  use.names = TRUE, fill = TRUE)
 meta  <- readRDS(mfiles[1])$meta
 diag1 <- readRDS(mfiles[1])$diag
 
 # Keep recognised scenarios + impose ordering.
 wsd <- wsd[scenario %in% scenario_levels]
-tun <- tun[scenario %in% scenario_levels]
+stg <- stg[scenario %in% scenario_levels]
 wsd[, scenario := factor(scenario, levels = scenario_levels)]
-tun[, scenario := factor(scenario, levels = scenario_levels)]
+stg[, scenario := factor(scenario, levels = scenario_levels)]
 
 # ---- Key dimensions ---------------------------------------------------------
 LOCS        <- sort(unique(as.character(wsd$location)))
@@ -151,21 +154,62 @@ scenarios_present <- levels(droplevels(wsd$scenario))
 
 ```{r load-baseline-state, message=FALSE, warning=FALSE, echo=FALSE}
 # ---- Baseline state assembled by 05_build_baseline.R ------------------------
-# Holds, per location: clinical transition probabilities ($clinical),
-# intervention efficacies ($effects), and REALISED coverage trajectories per
-# scenario ($coverage). These are the model INPUTS that 06 consumes.
+# Holds, per location, the A/B/C/D model INPUTS that 06 consumes:
+#   $transitions  annual A/B/C/D transition probabilities
+#   $p_rhd_death  per-stage RHD-specific death probabilities c(A,B,C,D)
+#   $effects      sap_rrr_rhd_death, eff_surgery_C_to_D, eff_surgery_D_to_rhd_death
+#   $surgery      frac_C/D_requiring_surgery + per-arm surgery coverage
+#   $coverage     REALISED cascade + surgery coverage trajectories per scenario
+#                 ($ref/$sap each: screen, diagnosis, treatment, eff_diagnosis,
+#                  eff_treatment, surgery), plus the optional screening-age mask.
 bs_path <- paste0(wd_data, "baseline_state.rds")
 have_bs <- file.exists(bs_path)
 if (have_bs) {
   bstate  <- readRDS(bs_path)
   loc1    <- bstate$locations[1]
-  clin    <- bstate$states[[loc1]]$clinical      # 5 clinical probabilities
-  eff     <- bstate$states[[loc1]]$effects       # eff_sap_asymp, eff_hf_mgmt, eff_surgery
-  cov     <- bstate$states[[loc1]]$coverage      # ref/sap trajectories + screen window
+  tr      <- bstate$states[[loc1]]$transitions   # 7 A/B/C/D transition probabilities
+  pdth    <- bstate$states[[loc1]]$p_rhd_death    # per-stage RHD death probs c(A,B,C,D)
+  eff     <- bstate$states[[loc1]]$effects        # sap_rrr_rhd_death + surgery RRRs
+  srg     <- bstate$states[[loc1]]$surgery        # surgery-service fractions + coverage
+  cov     <- bstate$states[[loc1]]$coverage       # ref/sap cascade + surgery trajectories
   cov_years <- bstate$meta$years
+  stage_split <- bstate$meta$stage_split          # A/B/C/D prevalent-pool seed split
 } else {
-  bstate <- clin <- eff <- cov <- NULL; loc1 <- LOCS[1]; cov_years <- NULL
+  bstate <- tr <- pdth <- eff <- srg <- cov <- NULL
+  loc1 <- LOCS[1]; cov_years <- NULL; stage_split <- meta$stage_split
 }
+```
+
+```{r load-stage-flow-tables, message=FALSE, warning=FALSE, echo=FALSE}
+# ---- Compiled stage + flow long tables from 07_make_outputs.R ---------------
+# Preferred source for stage-specific quantities (07 already provides the exact
+# per-stage prevalence and the annual flow / surgery-trace volumes). Optional:
+# the report degrades to deriving these from $stages ('stg') if absent.
+stage_path <- paste0(wd_outp, "tables/rhd_stage_model_long.rds")
+flow_path  <- paste0(wd_outp, "tables/rhd_annual_flows.rds")
+have_stage_tab <- file.exists(stage_path)
+have_flow_tab  <- file.exists(flow_path)
+STAGES <- c("A", "B", "C", "D")
+stage_labels <- c(A = "A · minimal / early", B = "B · mild established",
+                  C = "C · advanced, no complications", D = "D · advanced with complications")
+stage_cols   <- c(A = "#8CBFDA", B = "#4E97C7", C = "#E4A93C", D = "#B2182B")
+
+if (have_stage_tab) {
+  stage_long <- as.data.table(readRDS(stage_path))
+} else {
+  # derive from $stages: melt the four stocks and attach prevalence per 1,000.
+  stage_long <- melt(stg[, .(scenario, age, sex, year, location, pop, A, B, C, D)],
+                     id.vars = c("scenario", "age", "sex", "year", "location", "pop"),
+                     measure.vars = STAGES, variable.name = "stage", value.name = "cases")
+  stage_long[, `:=`(prevalence = fifelse(pop > 0, cases / pop, 0),
+                    prevalence_per_1000 = fifelse(pop > 0, cases / pop * 1000, 0))]
+  stage_long[, pop := NULL]
+}
+stage_long[, scenario := factor(as.character(scenario), levels = scenario_levels)]
+stage_long[, stage := factor(as.character(stage), levels = STAGES)]
+
+flows <- if (have_flow_tab) as.data.table(readRDS(flow_path)) else copy(stg)
+flows[, scenario := factor(as.character(scenario), levels = scenario_levels)]
 ```
 
 ```{r load-econ, message=FALSE, warning=FALSE, echo=FALSE}
@@ -262,14 +306,15 @@ historical validation. It does **not** re-run the model.
 
 RHD is an acquired valvular heart disease that begins with acute rheumatic
 fever following group A streptococcal infection in childhood and progresses,
-over years, from an asymptomatic (subclinical) valve lesion to symptomatic
-heart failure, and in advanced disease to valve surgery or death. It remains a
-major, largely preventable cause of cardiovascular death among young people in
-Indonesia. The **secondary-prevention investment case** evaluated here couples
-**echocardiographic screening** (to detect asymptomatic RHD in school-age
-children) with **secondary antibiotic prophylaxis (SAP)** — long-acting
-penicillin that suppresses recurrent streptococcal infection and thereby slows
-progression of established RHD.
+over years, from a minimal (subclinical) valve lesion through advancing valve
+disease to heart failure with complications, and in advanced disease to valve
+surgery or death. It remains a major, largely preventable cause of
+cardiovascular death among young people in Indonesia. The
+**secondary-prevention investment case** evaluated here couples
+**echocardiographic screening** and **diagnosis** (to detect and confirm RHD)
+with **secondary antibiotic prophylaxis (SAP) / optimal treatment** — long-acting
+penicillin that suppresses recurrent streptococcal infection and thereby reduces
+RHD-specific mortality across the disease course.
 
 The central question is:
 
@@ -278,16 +323,19 @@ The central question is:
 > health benefit justify the incremental cost?*
 
 The engine is a **discrete-time, matrix-form (age × sex) Markov cohort model**
-whose "sick" state is resolved into three progressive **tunnel states** — mild
-(asymptomatic) → severe (heart failure) → post-surgery — run once per
-**scenario**:
+whose living RHD population is resolved into the four **World Heart Federation
+stages** — **A** (minimal / early), **B** (mild established), **C** (advanced
+without complications) and **D** (advanced with complications, heart failure) —
+run once per **scenario**:
 
-- a **reference** (`ref`) arm, with SAP held at its baseline coverage, and
-- a **SAP scale-up** (`sap`) arm, in which SAP coverage rises to its target.
+- a **reference** (`ref`) arm, with the care cascade held at its baseline
+  coverage, and
+- a **SAP scale-up** (`sap`) arm, in which screening, diagnosis and optimal
+  treatment rise to their targets.
 
 The model is structured after **Coates et al., *Lancet Global Health* 2021**
 (the global RHD investment-case framework), adapted to Indonesian demography and
-GBD 2023 epidemiology.
+GBD 2023 epidemiology and to the WHF A/B/C/D staging of RHD.
 
 ```{r bg-inline, echo=FALSE, results='asis'}
 cat(sprintf(
@@ -303,24 +351,25 @@ benefit of **%s**, a **net benefit of %s**, and a **benefit–cost ratio of
   usd_b(inccost_hl), usd_b(benefit_hl), usd_b(netben_hl), bcr_hl, fmt_usd(cpdaly_hl)))
 ```
 
-> **A note on terminology.** Because SAP slows the *fatal* mild→severe
-> progression (it acts on case fatality, not on incidence), it genuinely
+> **A note on terminology.** Because SAP reduces **RHD-specific mortality** in
+> every living stage (it acts on case fatality, not on incidence), it genuinely
 > removes RHD deaths from the horizon rather than merely delaying them. We
 > therefore report **deaths averted** (reference deaths − scale-up deaths). One
 > consequence, made explicit in the [results](#results), is that averting
-> deaths leaves more people **alive with (predominantly mild) RHD**, so
-> modelled *prevalent* cases can be slightly **higher** under the scale-up even
-> as deaths fall.
+> deaths leaves more people **alive with RHD (predominantly in the earlier
+> stages)**, so modelled *prevalent* cases can be slightly **higher** under the
+> scale-up even as deaths fall.
 
 ---
 
 # Model inputs
 
 The parameters below are consumed *upstream* of the runner by
-`05_build_baseline.R` (clinical, efficacy and coverage inputs) and by
-`08_economic_evaluation.R` (economic inputs). **Every value in the table is read
-programmatically from the artifacts** — the clinical/efficacy/coverage values
-from `data/baseline_state.rds` (`$states[[loc]]$clinical`, `$effects`,
+`05_build_baseline.R` (natural-history, effect, surgery-service and cascade
+inputs) and by `08_economic_evaluation.R` (economic inputs). **Every value in the
+table is read programmatically from the artifacts** — the natural-history,
+effect, surgery and coverage values from `data/baseline_state.rds`
+(`$states[[loc]]$transitions`, `$p_rhd_death`, `$effects`, `$surgery`,
 `$coverage`) and the economic values from
 `output/tables/rhd_economic_results.rds$params` — so the report can never drift
 from the model. Provenance tags follow the pipeline's own convention:
@@ -335,31 +384,52 @@ add_row <- function(g, p, v, prov)
   inp <<- rbind(inp, data.table(Group = g, Parameter = p, Value = v, Provenance = prov))
 
 if (have_bs) {
-  # Clinical transition probabilities (annual)
-  g <- "Clinical transition probabilities (per year)"
-  add_row(g, "Mild → severe progression ($p_{mv}$)",      fmt_pct(clin$p_mild_to_severe, 1), "[CALIBRATE]")
-  add_row(g, "Severe (HF) mortality, untreated ($p_{sv}$)", fmt_pct(clin$p_severe_death, 1),  "[LIT]")
-  add_row(g, "Operative mortality ($p_{op}$)",            fmt_pct(clin$p_surg_op_mortality, 1), "[PAPER]")
-  add_row(g, "Residual post-surgery RHD mortality ($p_{post}$)", fmt_pct(clin$p_post_death_rhd, 1), "[LIT]")
-  add_row(g, "Fraction of severe RHD surgery-eligible ($f_{elig}$)", fmt_pct(clin$frac_severe_surg_elig, 0), "[CALIBRATE]")
+  # A/B/C/D annual transition probabilities
+  g <- "A/B/C/D transition probabilities (per year)"
+  add_row(g, "A → No RHD (regression)", fmt_pct(tr$p_A_to_no_rhd, 1), "[CALIBRATE]")
+  add_row(g, "A → B (progression)",     fmt_pct(tr$p_A_to_B, 1),      "[CALIBRATE]")
+  add_row(g, "B → A (regression)",      fmt_pct(tr$p_B_to_A, 1),      "[CALIBRATE]")
+  add_row(g, "B → C (progression)",     fmt_pct(tr$p_B_to_C, 1),      "[CALIBRATE]")
+  add_row(g, "C → B (regression)",      fmt_pct(tr$p_C_to_B, 1),      "[CALIBRATE]")
+  add_row(g, "C → D (progression)",     fmt_pct(tr$p_C_to_D, 1),      "[CALIBRATE]")
+  add_row(g, "D → C (regression)",      fmt_pct(tr$p_D_to_C, 1),      "[CALIBRATE]")
 
-  # Intervention efficacies (relative risk reductions)
-  g <- "Intervention efficacies (relative risk reduction)"
-  add_row(g, "SAP in asymptomatic RHD ($e_{sap}$)", fmt_pct(eff$eff_sap_asymp, 0), "[PAPER]")
-  add_row(g, "Heart-failure management ($e_{hf}$)",  fmt_pct(eff$eff_hf_mgmt, 0),   "[PAPER]")
-  add_row(g, "Valve surgery ($e_{surg}$)",           fmt_pct(eff$eff_surgery, 0),   "[PAPER]")
+  # Per-stage RHD-specific mortality (untreated)
+  g <- "Per-stage RHD-specific mortality (per year, untreated)"
+  add_row(g, "Stage A ($p^{d}_{A}$)", fmt_pct(pdth[["A"]], 2), "[CALIBRATE]")
+  add_row(g, "Stage B ($p^{d}_{B}$)", fmt_pct(pdth[["B"]], 2), "[CALIBRATE]")
+  add_row(g, "Stage C ($p^{d}_{C}$)", fmt_pct(pdth[["C"]], 2), "[CALIBRATE]")
+  add_row(g, "Stage D ($p^{d}_{D}$)", fmt_pct(pdth[["D"]], 2), "[CALIBRATE]")
 
-  # Coverage schedule (realised trajectories; only SAP differs between arms)
-  g <- "Coverage schedule"
-  sap_ref0  <- cov$ref$sap[1]
-  sap_up_t  <- max(cov$sap$sap)
-  add_row(g, "SAP coverage — reference arm", fmt_pct(sap_ref0, 0), "[PAPER]")
-  add_row(g, "SAP coverage — scale-up target", fmt_pct(sap_up_t, 0), "[PAPER]")
-  add_row(g, "HF-management coverage (both arms)", fmt_pct(cov$ref$hf[1], 0), "[PAPER]")
-  add_row(g, "Surgery coverage (both arms)", fmt_pct(cov$ref$surg[1], 0), "[PAPER]")
-  add_row(g, "Echo-screening age window", sprintf("%d–%d years", cov$screen_age_lo, cov$screen_age_hi), "[LIT]")
+  # Intervention effects (relative risk reductions)
+  g <- "Intervention effects (relative risk reduction)"
+  add_row(g, "SAP on RHD-specific mortality, all stages ($\\rho_{sap}$)", fmt_pct(eff$sap_rrr_rhd_death, 0), "[PAPER]")
+  add_row(g, "Surgery on C → D progression ($\\rho^{surg}_{CD}$)",        fmt_pct(eff$eff_surgery_C_to_D, 0), "[LIT]")
+  add_row(g, "Surgery on D → RHD death ($\\rho^{surg}_{Dd}$)",            fmt_pct(eff$eff_surgery_D_to_rhd_death, 0), "[LIT]")
+
+  # Surgery service (held equal in both arms)
+  g <- "Surgery service (both arms)"
+  add_row(g, "Fraction of stage C requiring surgery / year", fmt_pct(srg$frac_C_requiring_surgery, 1), "[CALIBRATE]")
+  add_row(g, "Fraction of stage D requiring surgery / year", fmt_pct(srg$frac_D_requiring_surgery, 1), "[CALIBRATE]")
+  add_row(g, "Surgery coverage (both arms)", fmt_pct(cov$ref$surgery[1], 0), "[CALIBRATE]")
+
+  # Care cascade (cumulative population coverage; scale-up ramps, reference flat)
+  g <- "Care cascade (cumulative coverage)"
+  add_row(g, "Screening — baseline → 2050 target",
+          sprintf("%s → %s", fmt_pct(cov$ref$screen[1], 0),    fmt_pct(max(cov$sap$screen), 0)),    "[PAPER]")
+  add_row(g, "Diagnosis — baseline → 2050 target",
+          sprintf("%s → %s", fmt_pct(cov$ref$diagnosis[1], 0), fmt_pct(max(cov$sap$diagnosis), 0)), "[PAPER]")
+  add_row(g, "Optimal treatment (SAP) — baseline → 2050 target",
+          sprintf("%s → %s", fmt_pct(cov$ref$treatment[1], 0), fmt_pct(max(cov$sap$treatment), 0)), "[PAPER]")
   add_row(g, "Scale-up ramp window", sprintf("%d → %d", ramp_start, ramp_end), "[PAPER]")
   add_row(g, "Incidence secular trend (per year)", sprintf("%.3f", meta$incidence_trend), "[CALIBRATE]")
+
+  # Prevalent-pool stage split at the seed year
+  g <- "Prevalent-pool stage split (seed year)"
+  add_row(g, "Stage A share", fmt_pct(stage_split[["A"]], 1), "[LIT]")
+  add_row(g, "Stage B share", fmt_pct(stage_split[["B"]], 1), "[LIT]")
+  add_row(g, "Stage C share", fmt_pct(stage_split[["C"]], 1), "[LIT]")
+  add_row(g, "Stage D share (complicated-RHD fraction)", fmt_pct(stage_split[["D"]], 1), "[CALIBRATE]")
 }
 
 if (have_econ) {
@@ -369,10 +439,9 @@ if (have_econ) {
   add_row(g, "Real per-capita GDP growth", fmt_pct(eparams$gdp_growth, 0), "[CALIBRATE]")
   add_row(g, "Value of a statistical life (× GDP-pc)", sprintf("%g×", eparams$vsl_mult), "[PAPER]")
   add_row(g, "Undiscounted DALYs per RHD death", sprintf("%g", eparams$dalys_per_death), "[CALIBRATE]")
-  add_row(g, "Echo screening cost / person", fmt_usd(eparams$cost_screen_per_person), "[LIT]")
-  add_row(g, "SAP cost / person-year", fmt_usd(eparams$cost_sap_per_year), "[LIT]")
-  add_row(g, "HF-management cost / person-year", fmt_usd(eparams$cost_hf_per_year), "[LIT]")
-  add_row(g, "Valve surgery + first-year post-op cost", fmt_usd(eparams$cost_surgery), "[LIT]")
+  add_row(g, "Echo screening cost / person screened", fmt_usd(eparams$cost_screen_per_person), "[PAPER]")
+  add_row(g, "Optimal-treatment (SAP) cost / person-year", fmt_usd(eparams$cost_sap_per_year), "[PAPER]")
+  add_row(g, "Valve surgery + first-year post-op cost / surgery", fmt_usd(eparams$cost_surgery), "[LIT]")
   add_row(g, "Discount base year", sprintf("%d", disc_base), "[PAPER]")
 }
 
@@ -401,24 +470,31 @@ kbl
 ```
 
 ```{r fig-coverage, message=FALSE, warning=FALSE, echo=FALSE, fig.width=9, fig.height=4}
-# Realised SAP-coverage trajectories, both arms (the ONLY coverage that differs).
+# Realised care-cascade coverage: the scale-up ramps screening -> diagnosis ->
+# optimal treatment to their 2050 targets, while the reference arm holds every
+# metric flat at its baseline. Surgery coverage is held equal in both arms.
 if (have_bs) {
-  covdt <- rbind(
-    data.table(year = cov_years, coverage = cov$ref$sap, scenario = "ref"),
-    data.table(year = cov_years, coverage = cov$sap$sap, scenario = "sap"))
-  covdt[, scenario := factor(scenario, levels = scenario_levels)]
-  ggplot(covdt, aes(year, coverage, color = scenario)) +
-    geom_line(linewidth = 1.1) +
+  metric_lab <- c(screen = "Screening", diagnosis = "Diagnosis",
+                  treatment = "Optimal treatment (SAP)")
+  metric_col <- c(screen = "#4E79A7", diagnosis = "#59A14F", treatment = "#E15759")
+  covdt <- rbindlist(lapply(names(metric_lab), function(m)
+    rbindlist(list(
+      data.table(year = cov_years, coverage = cov$ref[[m]], metric = m, scenario = "ref"),
+      data.table(year = cov_years, coverage = cov$sap[[m]], metric = m, scenario = "sap")))))
+  covdt[, `:=`(metric = factor(metric, levels = names(metric_lab)),
+               scenario = factor(scenario, levels = scenario_levels))]
+  ggplot(covdt, aes(year, coverage, color = metric, linetype = scenario)) +
     annotate("rect", xmin = ramp_start, xmax = ramp_end, ymin = -Inf, ymax = Inf,
              alpha = 0.08, fill = "#2166ac") +
-    scale_color_manual(values = scenario_cols, labels = scenario_labels_short,
-                       name = NULL) +
+    geom_line(linewidth = 1.1) +
+    scale_color_manual(values = metric_col, labels = metric_lab, name = NULL) +
+    scale_linetype_manual(values = c(ref = "dashed", sap = "solid"),
+                          labels = scenario_labels_short, name = NULL) +
     scale_y_continuous(labels = percent, limits = c(0, NA)) +
-    labs(title = "Realised SAP coverage by scenario",
-         subtitle = paste0("Shaded band = scale-up ramp window (", ramp_start,
-                           "–", ramp_end, "); HF and surgery coverage are held ",
-                           "equal in both arms"),
-         x = "Year", y = "SAP coverage (asymptomatic RHD)") +
+    labs(title = "Realised care-cascade coverage",
+         subtitle = paste0("Solid = scale-up, dashed = reference (held flat); shaded band = ",
+                           "ramp window (", ramp_start, "–", ramp_end, ")"),
+         x = "Year", y = "Cumulative coverage") +
     base_theme() + theme(legend.position = "bottom")
 }
 ```
@@ -429,121 +505,155 @@ if (have_bs) {
 
 ## Overall structure
 
-```{r fig-model-schematic, echo=FALSE, out.width="100%", fig.align="center", fig.cap="Figure M1. Rheumatic heart disease secondary-prevention model structure. An age–sex structured annual cohort (Indonesia, 2026–2100). Incident mild RHD enters from the population; secondary antibiotic prophylaxis (SAP) slows the mild→severe progression; heart-failure management and surgery act on severe disease; competing (non-RHD) mortality and RHD mortality feed the absorbing Death state; survivors age one year per cycle. Acute rheumatic fever (ARF) is not represented as a health state."}
-schematic <- file.path(wd, "docs", "rhd_secondary_prevention_state_transition.png")
+```{r fig-model-schematic, echo=FALSE, out.width="100%", fig.align="center", fig.cap="Figure M1. Rheumatic heart disease A/B/C/D model structure. An age–sex structured annual cohort for Indonesia. Incident RHD enters at stage A; the four living stages progress and regress along A ↔ B ↔ C with forward progression C → D; stage D feeds RHD death; competing background (non-RHD) mortality acts on every living stage. Secondary antibiotic prophylaxis (SAP) reduces stage-specific RHD mortality; surgery is a clinical service that reduces C → D progression and D → RHD death (it does not remove patients from a stage). Survivors age one year per cycle, with an open terminal 100+ group. Acute rheumatic fever is not represented as a health state."}
+schematic <- file.path(wd, "docs", "rhd_abcd_state_transition.png")
 if (file.exists(schematic)) knitr::include_graphics(schematic)
 ```
 
 Let $t$ index calendar years over the horizon (`r proj_years`) and let each
 quantity be an **age × sex matrix** (single-year ages $0,\dots,100$ with an open
 terminal $100+$ group; sexes {Female, Male}). For the single location the model
-tracks a susceptible **Well** stock, a **Sick** stock resolved into three
-progressive **tunnel** sub-states — **Mild** (asymptomatic RHD), **Severe**
-(heart failure) and **Post-surgery** — and an absorbing **Dead** state. Markov
-cycles are implemented as elementwise ($\odot$) matrix operations, one per year.
+tracks a susceptible **No RHD** stock, four living RHD stocks — **A** (minimal /
+early), **B** (mild established), **C** (advanced without complications) and
+**D** (advanced with complications) — and two absorbing outcomes, **RHD death**
+and **other-cause death**. Markov cycles are implemented as elementwise
+($\odot$) matrix operations, one per year.
 
 Three data-fed rate arrays drive the dynamics: the **calibrated incidence
-probability** $IR_t$ (well → mild; from `04`, with a secular trend baked in),
-the **background (non-RHD) competing mortality** $\mu$ (held fixed at its
-base-year pattern), and the population $P_t$ (WPP2024 medium variant from `02`).
-Within-RHD mortality is carried by the clinical transition probabilities on the
-tunnel states (Table 1); the calibrated case-fatality from `04` is used only as
-a base-year anchor.
+probability** $IR_t$ (No RHD → A; from `04`, with a secular trend baked in), the
+**background (non-RHD) competing mortality** $\mu$ (held fixed at its base-year
+pattern, the same age–sex risk for every living stage), and the population $P_t$
+(WPP2024 medium variant from `02`). RHD-specific mortality is carried by the
+**per-stage death probabilities** $p^{d}_{A},\dots,p^{d}_{D}$ (Table 1); the
+calibrated case-fatality from `04` is used only as a base-year anchor.
 
 **Initialisation (seed year `r base_year`).** The prevalent RHD pool is seeded
-from GBD 2023 prevalence and split by severity into mild/severe/post using a
-tagged severity vector, so that $M_{0}+V_{0}+G_{0} = \text{PREV}\odot P_{0}$.
+from GBD 2023 prevalence and split across the four stages by the tagged
+`stage_split` vector (A/B/C from a multi-state severity study, normalised to the
+non-D share; D from the complicated-RHD fraction), so that
+$A_{0}+B_{0}+C_{0}+D_{0} = \text{PREV}\odot P_{0}$.
 
-**Annual recurrence.** Writing $M_t, V_t, G_t$ for the mild/severe/post stocks
-entering year $t$, and $c^{sap}_t, c^{hf}_t, c^{surg}_t$ for the (age-invariant)
-coverage levels, the transitions implemented in `06_run_prevention_model.R` are:
-
-$$
-\begin{aligned}
-S_t &= M_t + V_t + G_t, \qquad W_t = \max\!\left(P_t - S_t,\; 0\right) \\[4pt]
-N_t &= W_t \odot IR_t \qquad (\text{new incident mild RHD; } \text{eff\_ir}=1)\\[4pt]
-\text{eff\_cf}_t &= 1 - e_{\text{sap}}\, c^{sap}_t \\[4pt]
-F^{m\to v}_t &= (M_t + N_t)\; p_{mv}\;\text{eff\_cf}_t \\[4pt]
-M^{+}_t &= \max\!\Big( (M_t + N_t) - F^{m\to v}_t - (M_t + N_t)\odot\mu,\; 0 \Big)
-\end{aligned}
-$$
-
-Severe (heart-failure) RHD receives the progressing mild cases; a
-surgery-eligible share is operated on (with operative mortality), the survivors
-move to post-surgery, and the remainder face heart-failure mortality reduced by
-HF management:
+**Annual recurrence.** Writing $A_t, B_t, C_t, D_t$ for the stage stocks entering
+year $t$, $c^{tx}_t$ for the effective optimal-treatment coverage and
+$c^{surg}_t$ for surgery coverage, `06_run_prevention_model.R` first forms the
+incident inflow, the SAP mortality multiplier, and the surgery reach:
 
 $$
 \begin{aligned}
-V'_t &= V_t + F^{m\to v}_t, \qquad
-\text{Surg}_t = V'_t\, f_{\text{elig}}\, c^{surg}_t, \qquad
-\text{OpD}_t = \text{Surg}_t\, p_{op} \\[4pt]
-V^{+}_t &= \max\!\Big( (V'_t - \text{Surg}_t)\big(1 - p_{sv}(1 - e_{hf}\,c^{hf}_t)\big) - (V'_t - \text{Surg}_t)\odot\mu,\; 0 \Big) \\[4pt]
-G'_t &= G_t + (\text{Surg}_t - \text{OpD}_t), \qquad
-G^{+}_t = \max\!\Big( G'_t(1 - p_{post}) - G'_t\odot\mu,\; 0 \Big)
+S_t &= A_t + B_t + C_t + D_t, \qquad W_t = \max\!\left(P_t - S_t,\; 0\right) \\[4pt]
+N_t &= W_t \odot IR_t \qquad (\text{new incident RHD into A; } \text{eff\_ir}=1)\\[4pt]
+\text{eff\_cf}_t &= 1 - \rho_{\text{sap}}\, c^{tx}_t \qquad(\text{SAP: RHD-mortality multiplier, all stages})\\[4pt]
+r^{C}_t &= f_{C}\, c^{surg}_t, \qquad r^{D}_t = f_{D}\, c^{surg}_t \qquad(\text{population-average surgery reach})
 \end{aligned}
 $$
 
-Year-end RHD (cause-specific) and all-cause deaths are
+Surgery (a **service**, not a state) enters only through two risk multipliers —
+on $C\!\to\!D$ progression and on $D\!\to\!$ RHD death — combined
+multiplicatively with the SAP mortality effect on stage D:
+
+$$
+\tilde p_{CD} = p_{CD}\big(1 - \rho^{surg}_{CD}\, r^{C}_t\big), \qquad
+\tilde p^{d}_{D} = p^{d}_{D}\,\text{eff\_cf}_t\,\big(1 - \rho^{surg}_{Dd}\, r^{D}_t\big).
+$$
+
+The stage stocks then advance, each "stay" term floored at zero and every stage
+subject to competing background mortality $\mu$ (regression terms $p_{BA},p_{CB},
+p_{DC}$ and the No-RHD exit $p_{A0}$ included):
 
 $$
 \begin{aligned}
-D_t &= \text{OpD}_t \;+\; (V'_t - \text{Surg}_t)\,p_{sv}\,(1 - e_{hf}\,c^{hf}_t) \;+\; G'_t\,p_{post} \\[4pt]
-A_t &= D_t \;+\; \mu \odot P_t .
+A^{+}_t &= \max\!\big(A_t(1 - p_{A0} - p_{AB} - p^{d}_{A}\text{eff\_cf}_t - \mu),\,0\big) + B_t\,p_{BA} + N_t \\[4pt]
+B^{+}_t &= \max\!\big(B_t(1 - p_{BA} - p_{BC} - p^{d}_{B}\text{eff\_cf}_t - \mu),\,0\big) + A_t\,p_{AB} + C_t\,p_{CB} \\[4pt]
+C^{+}_t &= \max\!\big(C_t(1 - p_{CB} - \tilde p_{CD} - p^{d}_{C}\text{eff\_cf}_t - \mu),\,0\big) + B_t\,p_{BC} + D_t\,p_{DC} \\[4pt]
+D^{+}_t &= \max\!\big(D_t(1 - p_{DC} - \tilde p^{d}_{D} - \mu),\,0\big) + C_t\,\tilde p_{CD}
 \end{aligned}
 $$
 
-Finally the surviving stocks are **aged one year** ($M_{t+1} = \text{shift}(M^{+}_t)$,
-and likewise for $V, G$), with the terminal $100+$ group absorbing survivors who
-age past it. Every quantity is floored at zero. The aggregate reported "sick"
-stock is $S = M + V + G$ by construction, so the disaggregated tunnel table and
-the well-sick-dead aggregate reconcile exactly.
+The surgery trace is recorded on the start-of-cycle stocks,
+$\text{surg}^{C}_t = C_t f_{C} c^{surg}_t$ and $\text{surg}^{D}_t = D_t f_{D} c^{surg}_t$
+(with $\text{surg}^{C}_t \le C_t f_{C}$, and likewise for D): it feeds the cost
+model and the risk multipliers above but is **never subtracted from any stage
+stock**. Year-end RHD (cause-specific) and all-cause deaths are
+
+$$
+\begin{aligned}
+D^{\text{rhd}}_t &= \text{eff\_cf}_t\big(A_t\,p^{d}_{A} + B_t\,p^{d}_{B} + C_t\,p^{d}_{C}\big) + D_t\,\tilde p^{d}_{D} \\[4pt]
+A^{\text{mx}}_t &= D^{\text{rhd}}_t \;+\; \mu \odot P_t .
+\end{aligned}
+$$
+
+Finally the surviving stocks are **aged one year** ($A_{t+1} = \text{shift}(A^{+}_t)$,
+and likewise for $B, C, D$), with the terminal $100+$ group absorbing survivors
+who age past it. Every quantity is floored at zero. The aggregate reported "sick"
+stock is $S = A + B + C + D$ by construction, so the stage-and-flow table and the
+aggregate view reconcile exactly.
 
 ## What the interventions change
 
-Only **SAP coverage differs between the two arms**; HF-management and surgery
-coverage are held equal in both, to isolate the *secondary-prevention* effect.
-The two reported effect multipliers are, on the $[0,1]$ scale (1 = no reduction):
+Only the **care cascade differs between the two arms**; surgery coverage and its
+effects are held equal in both, so the incremental impact isolates *secondary
+prevention*. The reported effect multipliers are, on the $[0,1]$ scale (1 = no
+reduction):
 
 $$
 \boxed{\;\text{eff\_ir} = 1\;}\qquad\qquad
-\boxed{\;\text{eff\_cf}_t = 1 - e_{\text{sap}}\, c^{sap}_t\;}
+\boxed{\;\text{eff\_cf}_t = 1 - \rho_{\text{sap}}\, c^{tx}_t\;}
 $$
 
 - **`eff_ir` = 1 everywhere** — secondary prevention does **not** reduce RHD
-  *incidence*; new cases $N_t = W_t \odot IR_t$ are governed by the calibrated
-  incidence array alone. (In the outputs a negligible incidence difference
-  between arms arises only because the well pool $W_t = P_t - S_t$ shifts
-  slightly as survival improves.)
-- **`eff_cf`** — SAP acts on the *fatal* mild→severe progression $F^{m\to v}_t$,
-  scaling it by $1 - e_{\text{sap}} c^{sap}_t$. This is exactly the multiplier
-  the engine applies, so the reported `eff_cf` column is faithful to the
-  mechanics. In the reference arm ($c^{sap}=$ `r if (have_bs) fmt_pct(cov$ref$sap[1],0) else "5%"`)
-  `eff_cf` $\approx$ `r sprintf("%.4f", 1 - (if (have_bs) eff$eff_sap_asymp else .55) * (if (have_bs) cov$ref$sap[1] else .05))`;
+  *incidence*; new cases $N_t = W_t \odot IR_t$ enter stage A governed by the
+  calibrated incidence array alone. (A negligible incidence difference between
+  arms arises only because the No-RHD pool $W_t = P_t - S_t$ shifts slightly as
+  survival improves.)
+- **`eff_cf`** — SAP scales the RHD-specific death probability of **every living
+  stage** by $1 - \rho_{\text{sap}} c^{tx}_t$, where $c^{tx}_t$ is the *effective
+  optimal-treatment coverage* (the cascade minimum of screening, diagnosis and
+  treatment). This is exactly the multiplier the engine applies, so the reported
+  `eff_cf` column is faithful to the mechanics. In the reference arm
+  ($c^{tx}=$ `r if (have_bs) fmt_pct(cov$ref$eff_treatment[1],0) else "4%"`)
+  `eff_cf` $\approx$ `r sprintf("%.4f", 1 - (if (have_bs) eff$sap_rrr_rhd_death else .55) * (if (have_bs) cov$ref$eff_treatment[1] else .04))`;
   under the scale-up it falls to
-  `r sprintf("%.4f", 1 - (if (have_bs) eff$eff_sap_asymp else .55) * (if (have_bs) max(cov$sap$sap) else .40))`
+  `r sprintf("%.4f", 1 - (if (have_bs) eff$sap_rrr_rhd_death else .55) * (if (have_bs) max(cov$sap$eff_treatment) else .65))`
   at target coverage.
+- **Surgery** additionally reduces $C\!\to\!D$ progression and $D\!\to\!$ RHD
+  death in proportion to its population-average reach ($f\cdot c^{surg}$).
+  Because that reach is identical in both arms, surgery contributes to the level
+  of disease and death in each arm but **not** to the *incremental* effect.
 
 ## Causal chain
 
-```{r flow-diagram, message=FALSE, warning=FALSE, echo=FALSE, fig.width=11, fig.height=2.7}
+```{r flow-diagram, message=FALSE, warning=FALSE, echo=FALSE, fig.width=11, fig.height=3.1}
+# No RHD -> A <-> B <-> C -> D -> RHD death, with the intervention levers labelled.
 boxes <- data.table(
-  x = 1:5,
-  label = c("Well\n(susceptible)", "Mild\n(asymptomatic)", "Severe\n(heart failure)",
-            "Post-surgery", "Dead\n(RHD + background)"))
-arrows <- data.table(x = (1:4) + 0.46, xend = (2:5) - 0.46, y = 1, yend = 1,
-  lab = c("incidence\nIR", "progression\n× (1−e_sap·cov)", "surgery\n(e_surg)", "mortality"))
+  x = 1:6, y = 1,
+  fill = c("#eef2f7", "#8CBFDA", "#4E97C7", "#E4A93C", "#B2182B", "#5b5b5b"),
+  label = c("No RHD", "A\nminimal", "B\nmild", "C\nadvanced", "D\ncomplicated",
+            "RHD\ndeath"))
+fwd <- data.table(x = (1:5) + 0.47, xend = (2:6) - 0.47, y = 1.03, yend = 1.03,
+  lab = c("incident RHD\n(IR)", "progression", "progression",
+          "progression\nsurgery ↓ C→D", "RHD mortality\nSAP ↓ · surgery ↓ (D)"))
+reg <- data.table(x = (3:4) + 0.30, xend = (2:3) + 0.70, y = 0.86, yend = 0.86,
+  lab = c("regression", "regression"))
 ggplot() +
-  geom_tile(data = boxes, aes(x = x, y = 1), width = 0.9, height = 0.62,
-            fill = "#e8eef4", color = "#2166ac", linewidth = 0.6) +
-  geom_text(data = boxes, aes(x = x, y = 1, label = label), size = 3.0, lineheight = 0.95) +
-  geom_segment(data = arrows, aes(x = x, xend = xend, y = y, yend = yend),
+  geom_tile(data = boxes, aes(x = x, y = y, fill = fill), width = 0.92, height = 0.58,
+            color = "grey30", linewidth = 0.6, alpha = 0.85) +
+  scale_fill_identity() +
+  geom_text(data = boxes, aes(x = x, y = y, label = label), size = 3.0, lineheight = 0.95) +
+  # forward progression + incidence + death
+  geom_segment(data = fwd, aes(x = x, xend = xend, y = y, yend = yend),
                arrow = arrow(length = unit(0.16, "cm"), type = "closed"),
                linewidth = 0.5, color = "grey30") +
-  geom_text(data = arrows, aes(x = (x + xend) / 2, y = 1.22, label = lab),
-            size = 2.5, lineheight = 0.9, color = "grey30") +
-  coord_cartesian(xlim = c(0.5, 5.5), ylim = c(0.6, 1.4)) +
-  labs(title = "Well → Mild → Severe → Post-surgery → Dead (secondary-prevention levers labelled)") +
+  geom_text(data = fwd, aes(x = (x + xend) / 2, y = 1.26, label = lab),
+            size = 2.35, lineheight = 0.9, color = "grey30") +
+  # regression A <- B, B <- C (bidirectional A<->B<->C)
+  geom_segment(data = reg, aes(x = x, xend = xend, y = y, yend = yend),
+               arrow = arrow(length = unit(0.13, "cm"), type = "closed"),
+               linewidth = 0.4, color = "#6a51a3", linetype = "22") +
+  geom_text(data = reg, aes(x = (x + xend) / 2, y = 0.74, label = lab),
+            size = 2.2, color = "#6a51a3") +
+  coord_cartesian(xlim = c(0.5, 6.5), ylim = c(0.68, 1.42)) +
+  labs(title = paste0("No RHD → A ↔ B ↔ C → D → RHD death",
+                      "  (SAP reduces stage mortality; surgery is a service)")) +
   theme_void(base_size = 12) +
   theme(plot.title = element_text(face = "bold", hjust = 0.5, size = 11))
 ```
@@ -553,14 +663,19 @@ ggplot() +
 ```{r tbl-scenarios, message=FALSE, warning=FALSE, echo=FALSE}
 scn_tbl <- data.table(
   Scenario = scenario_labels[scenario_levels],
-  `SAP coverage` = c(
-    if (have_bs) sprintf("held at %s", fmt_pct(cov$ref$sap[1], 0)) else "held at baseline",
-    if (have_bs) sprintf("%s → %s (by %d)", fmt_pct(cov$sap$sap[1], 0),
-                         fmt_pct(max(cov$sap$sap), 0), ramp_end) else "scaled up to target"),
-  `HF / surgery coverage` = "held equal in both arms",
+  `Care cascade (screening / diagnosis / optimal treatment)` = c(
+    if (have_bs) sprintf("held at baseline (%s / %s / %s)",
+                         fmt_pct(cov$ref$screen[1], 0), fmt_pct(cov$ref$diagnosis[1], 0),
+                         fmt_pct(cov$ref$treatment[1], 0)) else "held at baseline",
+    if (have_bs) sprintf("%s / %s / %s → %s / %s / %s (by %d)",
+                         fmt_pct(cov$sap$screen[1], 0), fmt_pct(cov$sap$diagnosis[1], 0),
+                         fmt_pct(cov$sap$treatment[1], 0),
+                         fmt_pct(max(cov$sap$screen), 0), fmt_pct(max(cov$sap$diagnosis), 0),
+                         fmt_pct(max(cov$sap$treatment), 0), ramp_end) else "scaled up to targets"),
+  `Surgery coverage` = "held equal in both arms",
   `In outputs` = fifelse(scenario_levels %in% scenarios_present, "yes", "no"))
 kable(scn_tbl,
-      caption = "Table 2. The two modelled arms. Only SAP coverage differs.",
+      caption = "Table 2. The two modelled arms. Only the care cascade differs; surgery is held equal.",
       align = c("l", "l", "l", "c")) |>
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
                 full_width = TRUE, font_size = 13) |>
@@ -853,12 +968,12 @@ cat(sprintf(
 (`eff_ir = 1`): the incident-RHD panels overlap and the relative reduction is
 ~0%%. SAP bites on **mortality** — by %d the scale-up averts about **%s RHD
 deaths in that single year** (a **%s** reduction in the RHD death rate). Because
-those averted deaths mean more people remain alive with (predominantly mild)
-RHD, modelled **prevalent cases are slightly *higher* under the scale-up** (a
-%s change in the prevalence rate by %d), which appears as a small *negative*
-reduction in the prevalent-RHD panel. No probabilistic uncertainty bands are
-shown: the pipeline is deterministic and runs no probabilistic sensitivity
-analysis, so none are available.",
+those averted deaths mean more people remain alive with RHD (predominantly in
+the earlier stages), modelled **prevalent cases are slightly *higher* under the
+scale-up** (a %s change in the prevalence rate by %d), which appears as a small
+*negative* reduction in the prevalent-RHD panel. No probabilistic uncertainty
+bands are shown: the pipeline is deterministic and runs no probabilistic
+sensitivity analysis, so none are available.",
   year_max, fmt_n(red_d_end), fmt_pct(pct_d_end/100, 1),
   fmt_pct(pct_p_end/100, 1), year_max))
 ```
@@ -936,6 +1051,54 @@ datatable(annual_dt, rownames = FALSE,
                 "Cumulative averted"), digits = 0)
 ```
 
+## RHD stage composition and the surgery service
+
+Living RHD is resolved into the four WHF stages. The stacked areas below show how
+the prevalent pool is distributed across **A** (minimal), **B** (mild), **C**
+(advanced without complications) and **D** (advanced with complications) over the
+horizon, in each arm; the compiled stage table `rhd_stage_model_long` provides
+these per-stage prevalences directly.
+
+```{r fig-stage-composition, message=FALSE, warning=FALSE, echo=FALSE, fig.width=11, fig.height=4.6}
+stage_ty <- stage_long[, .(cases = sum(cases)), by = .(scenario, year, stage)]
+ggplot(stage_ty[year >= base_year], aes(year, cases, fill = stage)) +
+  geom_area(alpha = 0.9, colour = "white", linewidth = 0.1) +
+  facet_wrap(~ scenario, ncol = 2, labeller = as_labeller(scenario_labels_short)) +
+  scale_fill_manual(values = stage_cols, labels = stage_labels, name = "WHF stage") +
+  scale_y_continuous(labels = comma) +
+  labs(title = "Prevalent RHD by WHF stage (A/B/C/D)",
+       subtitle = paste0(loc1, ", ", proj_years,
+                         "; the living RHD pool resolved into the four stages"),
+       x = "Year", y = "Prevalent RHD cases") +
+  base_theme(12) + theme(legend.position = "bottom")
+```
+
+Surgery is modelled as a **clinical service**: each year a fixed fraction of the
+stage C and D stocks requiring surgery is operated on (at the prevailing surgery
+coverage). The service volume enters the cost model and reduces C → D progression
+and D → RHD death, but it never removes patients from a stage. The trace below
+comes from the annual-flow table `rhd_annual_flows`.
+
+```{r fig-surgery-trace, message=FALSE, warning=FALSE, echo=FALSE, fig.width=11, fig.height=4}
+surg_ty <- flows[, .(surgeries_C = sum(surgeries_C), surgeries_D = sum(surgeries_D)),
+                 by = .(scenario, year)]
+surg_lg <- melt(surg_ty[scenario == "sap"], id.vars = c("scenario", "year"),
+                measure.vars = c("surgeries_C", "surgeries_D"),
+                variable.name = "stage", value.name = "n")
+surg_lg[, stage := factor(fifelse(stage == "surgeries_C", "C", "D"), levels = c("C", "D"))]
+ggplot(surg_lg[year >= base_year], aes(year, n, fill = stage)) +
+  geom_area(alpha = 0.9, colour = "white", linewidth = 0.1) +
+  scale_fill_manual(values = c(C = stage_cols[["C"]], D = stage_cols[["D"]]),
+                    labels = c(C = "Surgeries in stage C", D = "Surgeries in stage D"),
+                    name = NULL) +
+  scale_y_continuous(labels = comma) +
+  labs(title = "Surgical volume delivered per year (a service, not a state)",
+       subtitle = paste0("SAP arm; surgery coverage is held equal in both arms, so the ",
+                         "reference volume is near-identical"),
+       x = "Year", y = "Surgeries delivered per year") +
+  base_theme() + theme(legend.position = "bottom")
+```
+
 ---
 
 # Economic evaluation {#economic-evaluation}
@@ -950,9 +1113,14 @@ if (!have_econ)
 All economics are produced by `08_economic_evaluation.R` and read here from
 `rhd_economic_results.rds` (`$summary`, `$budget_impact`, `$incremental`,
 `$params`); the same values are mirrored in `rhd_economic_summary.csv` and
-`rhd_budget_impact.csv`. Costs are applied to the model's tunnel-state volumes
-(echo screening, SAP person-years, HF management, surgeries) and RHD deaths;
-**incidence is not costed**.
+`rhd_budget_impact.csv`. Costs are applied to the model's stage-and-flow
+volumes — **echo screening** on the total population screened, **optimal
+treatment (SAP)** on the living-RHD stock on treatment, and **surgery** on the
+annual surgery trace — with RHD deaths driving the monetised benefit;
+**incidence is not costed**. Formally the annual programme cost is
+$c_{\text{screen}} = \sum n_{\text{screened}}\times \text{cost}_{\text{screen}}$,
+$c_{\text{sap}} = \sum n_{\text{on optimal treatment}}\times \text{cost}_{\text{sap}}$,
+$c_{\text{surgery}} = \sum n_{\text{surgeries}}\times \text{cost}_{\text{surgery}}$.
 
 ## Method and discounting
 
@@ -1046,14 +1214,14 @@ if (have_econ) {
                     `Incremental` = round(incremental),
                     `Deaths averted` = round(deaths_avert, 1),
                     `Screen` = round(c_screen), `SAP` = round(c_sap),
-                    `HF` = round(c_hf), `Surgery` = round(c_surg))]
+                    `Surgery` = round(c_surgery))]
   datatable(bdt, rownames = FALSE,
             caption = paste0("Full annual budget-impact table (", proj_years,
-                             "). Cost columns in base-year US$; Screen/SAP/HF/Surgery ",
+                             "). Cost columns in base-year US$; Screen/SAP/Surgery ",
                              "are the SAP-arm component costs."),
             options = list(pageLength = 12, scrollX = TRUE,
                            order = list(list(0, "asc")))) |>
-    formatCurrency(c("Cost ref", "Cost sap", "Incremental", "Screen", "SAP", "HF", "Surgery"),
+    formatCurrency(c("Cost ref", "Cost sap", "Incremental", "Screen", "SAP", "Surgery"),
                    currency = "$", digits = 0) |>
     formatRound("Deaths averted", digits = 1)
 }
@@ -1064,12 +1232,11 @@ if (have_econ) {
 ```{r fig3-cost-by-source, message=FALSE, warning=FALSE, echo=FALSE, fig.width=11, fig.height=5}
 if (have_econ) {
   cost_src <- melt(
-    budget[, .(year, c_screen, c_sap, c_hf, c_surg)],
+    budget[, .(year, c_screen, c_sap, c_surgery)],
     id.vars = "year", variable.name = "component", value.name = "cost")
   comp_lab <- c(c_screen = "Echo screening", c_sap = "Secondary prophylaxis (SAP)",
-                c_hf = "HF management", c_surg = "Valve surgery")
-  comp_col <- c(c_screen = "#4E79A7", c_sap = "#F28E2B",
-                c_hf = "#59A14F", c_surg = "#E15759")
+                c_surgery = "Valve surgery")
+  comp_col <- c(c_screen = "#4E79A7", c_sap = "#F28E2B", c_surgery = "#E15759")
   cost_src[, component := factor(component, levels = names(comp_lab))]
 
   ggplot(cost_src, aes(year, cost / 1e6, fill = component)) +
@@ -1130,11 +1297,12 @@ if (have_econ) {
   scenario per arm with no probabilistic sensitivity analysis, so no uncertainty
   intervals are available; all clinical, efficacy, coverage and economic inputs
   (Table 1) are point values.
-- **Deaths averted, not just delayed.** Because SAP acts on the fatal
-  mild→severe progression (case fatality), it genuinely removes RHD deaths from
-  the horizon. A direct corollary is that **prevalent RHD rises slightly** under
-  the scale-up (survivors live longer with, mostly mild, disease); this is a
-  benefit, not a harm, and incidence is unchanged by design (`eff_ir = 1`).
+- **Deaths averted, not just delayed.** Because SAP acts on RHD-specific
+  mortality in every living stage (case fatality), it genuinely removes RHD
+  deaths from the horizon. A direct corollary is that **prevalent RHD rises
+  slightly** under the scale-up (survivors live longer, predominantly in the
+  earlier stages); this is a benefit, not a harm, and incidence is unchanged by
+  design (`eff_ir = 1`).
 - **Single location.** Only Indonesia is currently run; the engine and tables
   are location-general, but all results here are national.
 - **Calibration and held-fixed structure.** Incidence and case fatality were
@@ -1142,10 +1310,31 @@ if (have_econ) {
   (non-RHD) mortality and the GBD age–sex rate pattern are **held fixed** at
   their base-year levels, with an explicit incidence secular trend
   (`r if (exists("meta")) sprintf("%.1f%%/year", 100*(1-meta$incidence_trend)) else "≈1.5%/year"`).
-- **Severity split assumed.** GBD reports *total* RHD prevalence only; the
-  mild/severe/post seed split is a tagged literature/calibrated assumption, and
-  within-RHD mortality is carried by the clinical transition probabilities
-  rather than the calibrated case fatality (used only as a base-year anchor).
+- **Stage split and stage parameters assumed.** GBD reports *total* RHD
+  prevalence only; the A/B/C/D seed split (a multi-state severity study for
+  A/B/C, normalised to the non-D share, plus the complicated-RHD fraction for D)
+  is a tagged assumption. Within-RHD mortality is carried by the per-stage
+  RHD-death probabilities rather than the calibrated case fatality (used only as
+  a base-year anchor). The A/B/C/D transition, regression and per-stage mortality
+  probabilities are `[CALIBRATE]` values and **stage-transition calibration
+  against local echocardiographic prevalence targets is pending**, so absolute
+  stage-specific levels are best read as structural illustrations rather than
+  calibrated estimates.
+- **SAP acts on stage-specific mortality, not incidence.** The modelled benefit
+  operates entirely through reduced RHD-specific case fatality across the four
+  stages; the intervention does not alter RHD incidence (`eff_ir = 1`), so it
+  reduces deaths and shifts the prevalent stage mix rather than preventing new
+  disease.
+- **Surgery as a population-average service.** Surgery is represented as a fixed
+  fraction of the stage C and D stocks operated on each year, reducing C → D
+  progression and D → RHD-death risk in proportion to its coverage, rather than
+  moving patients into a distinct post-operative stock; operative mortality is
+  not modelled separately. Because surgery coverage and effects are held equal in
+  both arms, surgery does not drive the incremental result.
+- **Four-stage annual discretisation.** The continuous course of valve disease is
+  discretised into four A/B/C/D stages advanced on a one-year cycle, with an open
+  terminal 100+ age group that accumulates survivors; sub-annual dynamics,
+  within-stage heterogeneity and very-old-age dynamics are approximate.
 - **Economic assumptions.** The monetised benefit uses a VSL of
   `r if (have_econ) eparams$vsl_mult else 30`× GDP per capita plus a GDP-per-capita
   productivity term and `r if (have_econ) eparams$dalys_per_death else 30` DALYs
@@ -1170,6 +1359,8 @@ cat("Scenarios:         ", paste(scenarios_present, collapse = ", "), "\n")
 cat("Model horizon:     ", proj_years, "(seed / jump-off year:", base_year, ")\n")
 cat("Artifacts loaded:\n")
 cat("   baseline_state.rds        :", have_bs,   "\n")
+cat("   rhd_stage_model_long.rds  :", have_stage_tab, "\n")
+cat("   rhd_annual_flows.rds      :", have_flow_tab,  "\n")
 cat("   rhd_economic_results.rds  :", have_econ, "\n")
 cat("   GBD 2023 epi (historical) :", have_gbd,  if (have_gbd) paste0("  [", gbd_path, "]") else "", "\n")
 cat("   pop_observed_1990_2024    :", have_pop,  "\n\n")

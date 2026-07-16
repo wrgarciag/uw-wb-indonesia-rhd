@@ -11,11 +11,19 @@
 #   01 prepare inputs  -> data-raw/temp_baseline_rates_gbd.rds
 #   02 demography      -> data/pop_observed_1990_2024.rds, pop_projection_2025_2100.rds
 #   03 disease inputs  -> data/disease_model_inputs.rds            (builder, not runner)
-#   04 calibration     -> data/adjusted_searo_part*.rds            (calibrated IR/CF, 2000-2019)
+#   04 calibration     -> data/calibrated_rhd_parameters.rds       (calibrated IR/CF, 2000-2019)
 #   05 initial state   -> data/baseline_state.rds                  (assembles 02+03+04)
 #   06 run model       -> output/out_model/<location>.rds          (parallel by location)
-#   07 make outputs    -> output/tables/rhd_model_long.csv/.rds    (standard long table)
+#   07 make outputs    -> output/tables/rhd_model_long.csv/.rds    (+ stage + flow tables)
 #   08 economics       -> output/tables/rhd_economic_summary.csv, rhd_budget_impact.csv
+#
+# DISEASE STRUCTURE: World Heart Federation RHD stages A/B/C/D (living states)
+#   No RHD -> A <-> B <-> C -> D -> RHD death, with competing other-cause death
+#   from every living state. Incident RHD enters stage A (no separate ARF state).
+#   SURGERY is a clinical SERVICE flow (fraction of C/D receiving surgery each
+#   cycle), NOT a health state: it modifies C->D and D->RHD-death risk only.
+#   Secondary antibiotic prophylaxis (SAP) reduces RHD-specific MORTALITY (55%
+#   RRR) among people on optimal treatment; it does not reduce incidence here.
 #
 # PARAMETER TAGS: [PAPER] article main text; [LIT] literature value; [CALIBRATE]
 #   tune to setting/appendix. All economic/monetary values live ONLY in block J
@@ -67,8 +75,8 @@ CAL_YEAR_END   <- 2019L
 #===============================================================================
 # D. INTERVENTION SCALE-UP RAMP WINDOW  (03/05)
 #===============================================================================
-ramp_start <- 2026L              # first year coverage begins rising
-ramp_end   <- 2030L              # year target coverage is reached (then held)
+ramp_start <- 2026L              # first year cascade coverage begins rising (baseline year)
+ramp_end   <- 2050L              # year target cascade coverage is reached (then held to 2100)
 
 #===============================================================================
 # E. INCIDENCE SECULAR TREND  (03/05)
@@ -89,34 +97,77 @@ W_PREV              <- 1         # objective weight on RHD prevalence
 # (calibration age range is the full 0-95+; see AGE_LO/AGE_HI defaults in 04)
 
 #===============================================================================
-# G. DISEASE / CLINICAL PARAMETERS  (03) — annual transition probabilities
-#    RHD-specific progression/mortality that the interventions act on.
+# G. A/B/C/D NATURAL HISTORY  (03) — annual transition probabilities
+#    Stages: A minimal/early, B mild established, C advanced w/o complications,
+#    D advanced WITH complications (HF, requiring surgery). Adjacent regression
+#    (A->No-RHD, B->A, C->B, D->C) is permitted; set any to 0 for an
+#    irreversible specification. Competing OTHER-cause mortality is data-fed
+#    (age x sex GBD background, 03/05) and NOT set here. Per-stage RHD-specific
+#    death probabilities ARE the lever SAP (and, for D, surgery) act on.
+#    Starting values from the standalone A/B/C/D prototype; all [CALIBRATE].
 #===============================================================================
-p_mild_to_severe      <- 0.010   # [CALIBRATE] asymptomatic -> heart failure /yr
-p_severe_death        <- 0.09    # [LIT] untreated severe RHD (HF) mortality /yr
-p_surg_op_mortality   <- 0.03    # [PAPER] operative mortality
-p_post_death_rhd      <- 0.020   # [LIT] residual RHD mortality after valve surgery
-frac_severe_surg_elig <- 0.50    # [CALIBRATE] share of severe RHD surgery-eligible
+p_A_to_no_rhd <- 0.005   # [CALIBRATE] A regression to No RHD /yr
+p_A_to_B      <- 0.020   # [CALIBRATE] A -> B progression /yr
+p_B_to_A      <- 0.010   # [CALIBRATE] B -> A regression /yr
+p_B_to_C      <- 0.030   # [CALIBRATE] B -> C progression /yr
+p_C_to_B      <- 0.005   # [CALIBRATE] C -> B regression /yr
+p_C_to_D      <- 0.060   # [CALIBRATE] C -> D progression /yr (surgery lowers this)
+p_D_to_C      <- 0.000   # [CALIBRATE] D -> C regression /yr (default 0)
+
+# annual UNTREATED RHD-specific death probability by stage -- [CALIBRATE]
+p_rhd_death_A <- 0.0005  # [CALIBRATE]
+p_rhd_death_B <- 0.0020  # [CALIBRATE]
+p_rhd_death_C <- 0.0200  # [CALIBRATE]
+p_rhd_death_D <- 0.0800  # [CALIBRATE]
+
+# Stage-D share of prevalent RHD at the seed year. GBD gives only TOTAL RHD
+# prevalence; A/B/C come from Cannon et al (56.5/27.2/16.2, normalised to the
+# non-D share in 03) and D is this Indonesia RHD-with-heart-failure fraction.
+rhd_d_fraction <- 0.10   # [CALIBRATE] complicated-RHD / RHD-with-HF fraction
 
 #===============================================================================
-# H. INTERVENTION EFFECT SIZES + SEED SPLIT  (03) — relative risk reductions
+# H. INTERVENTION EFFECTS  (03) — relative risk reductions
 #===============================================================================
-eff_sap_asymp <- 0.55            # [PAPER] SAP in asymptomatic RHD (55%)
-eff_hf_mgmt   <- 0.60            # [PAPER] HF management (60%)
-eff_surgery   <- 0.85            # [PAPER] surgery (85%)
+# Secondary prevention (SAP / optimal treatment): 55% RRR on the transition
+# from EACH living RHD stage to RHD-specific death. It does NOT reduce incidence.
+sap_rrr_rhd_death <- 0.55   # [PAPER] SAP RRR on RHD-specific mortality (55%)
 
-# prevalent RHD severity split at the seed year (must sum to 1) -- [LIT]/[CALIBRATE]
-seed_split <- c(mild = 0.96, severe = 0.03, post = 0.01)
+# Surgery effects (applied to C and D only; parameterised separately so either
+# can be set to 0). Scaled in the engine by effective surgery reach = fraction
+# requiring surgery x surgery coverage.
+eff_surgery_C_to_D        <- 0.85  # [LIT]/[CALIBRATE] surgery RRR on C -> D progression
+eff_surgery_D_to_rhd_death <- 0.85 # [LIT]/[CALIBRATE] surgery RRR on D -> RHD death
 
 #===============================================================================
-# I. COVERAGE TARGETS  (03) — only SAP differs between reference and scale-up
+# I. CARE CASCADE + SURGERY SERVICE  (03/05)
+#    Three cascade metrics (screening / diagnosis / optimal treatment) as
+#    CUMULATIVE population coverages. Reference holds baselines flat; scale-up
+#    ramps each linearly from the 2026 baseline to the 2050 target (held to 2100).
+#    Effective diagnosis/treatment are capped by the earlier cascade stages (05).
 #===============================================================================
-cov_sap_ref    <- 0.05           # [PAPER] baseline SAP-in-asymptomatic coverage (reference)
-cov_sap_target <- 0.40           # [PAPER] SAP coverage under scale-up (reached by ramp_end)
-cov_hf         <- 0.08           # [PAPER] HF management coverage (held in both arms)
-cov_surg       <- 0.05           # [PAPER] surgery coverage (held in both arms)
-screen_age_lo  <- 5L             # [LIT] school-based echo screening age window (low)
-screen_age_hi  <- 15L            # [LIT] school-based echo screening age window (high)
+screen_base    <- 0.05   # [PAPER] 2026 baseline screened
+diagnosis_base <- 0.05   # [PAPER] 2026 baseline diagnosed
+treatment_base <- 0.04   # [PAPER] 2026 baseline on optimal treatment
+
+screen_target    <- 0.80 # [PAPER] 2050 screening target
+diagnosis_target <- 0.80 # [PAPER] 2050 diagnosis target
+treatment_target <- 0.65 # [PAPER] 2050 optimal-treatment target
+
+# SURGERY as a clinical service (NOT a health state). A fixed fraction of the
+# prevalent C / D stock requires surgery each cycle; surgery coverage is the
+# share actually delivered. Held equal in both arms (tertiary care fixed) so
+# surgery is a background cost, not a driver of incremental program cost.
+frac_C_requiring_surgery <- 0.03  # [CALIBRATE] share of stage C needing surgery /yr
+frac_D_requiring_surgery <- 0.20  # [CALIBRATE] share of stage D needing surgery /yr
+cov_surgery_ref      <- 0.05      # [CALIBRATE] surgery coverage, reference arm
+cov_surgery_scale_up <- 0.05      # [CALIBRATE] surgery coverage, scale-up arm
+
+# Optional school-age-only screening mask (RETIRED from the primary spec:
+# screening cost now applies to the TOTAL population screened). Kept OFF by
+# default for a sensitivity analysis only.
+screen_age_restrict <- FALSE      # [CALIBRATE] TRUE => restrict screening to [lo,hi]
+screen_age_lo       <- 5L         # [LIT] school-based echo screening window (low)
+screen_age_hi       <- 15L        # [LIT] school-based echo screening window (high)
 
 #===============================================================================
 # J. ECONOMIC PARAMETERS  (08 ONLY) — the only monetary values in the pipeline
@@ -129,11 +180,10 @@ vsl_mult         <- 30           # [PAPER] value of a statistical life = 30 x GD
 dalys_per_death  <- 30           # [CALIBRATE] undiscounted DALYs per RHD death
 discount_base_year <- 2025L      # discount to this year (default = first model year)
 
-# unit costs (base-year US$) -- [LIT]/[CALIBRATE]
-cost_screen_per_person <- 12     # echo screening cost per person
-cost_sap_per_year      <- 45     # annual SAP cost per person
-cost_hf_per_year       <- 120    # annual HF management cost per person
-cost_surgery           <- 9000   # valve surgery + first-year post-op cost per person
+# unit costs (base-year US$) -- [PAPER]/[LIT]
+cost_screen_per_person <- 1.10   # [PAPER] echo screening cost per person screened
+cost_sap_per_year      <- 110    # [PAPER] annual optimal secondary-prevention cost per person
+cost_surgery           <- 9000   # [LIT] valve surgery + first-year post-op cost per surgery
 
 #===============================================================================
 # K. PARALLEL / CORE SETTINGS

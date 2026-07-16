@@ -1,56 +1,59 @@
 # ==============================================================================
-# RHD secondary-prevention investment case: MODEL RUNNER
+# RHD secondary-prevention investment case: MODEL RUNNER (A/B/C/D)
 # scripts/06_run_prevention_model.R
 #
-# Structure after: Coates et al., Lancet Glob Health 2021 (PMC9087136).
-# Focus: scale-up of SECONDARY PREVENTION = echo screening + secondary antibiotic
-#   prophylaxis (SAP) for asymptomatic (mild) RHD.
+# Disease structure: WHF RHD stages A/B/C/D.
+#   No RHD -> A <-> B <-> C -> D -> RHD death, competing other-cause death from
+#   every living stage. Incident RHD enters stage A (no separate ARF state).
+# Intervention package: echo screening + diagnosis + secondary antibiotic
+#   prophylaxis (SAP / optimal treatment), which cuts RHD-specific MORTALITY.
 #
 # ------------------------------------------------------------------------------
 # ROLE OF THIS SCRIPT (the actual model runner)
 # ------------------------------------------------------------------------------
-# This script RUNS the reference and SAP scale-up scenarios starting from the
-# initial state assembled by 05. It does NOT recompute any inputs and it contains
-# NO monetary / cost values (economics are in 08 only). The former hard-coded
-# Australia scalars (pop_2021, au_pop, prev_rhd_2021, seed_frac, rhd_incident_2021,
-# ...) are gone; everything comes from data/baseline_state.rds.
+# Runs the reference and SAP scale-up scenarios starting from the initial state
+# assembled by 05. It does NOT recompute inputs and contains NO monetary values
+# (economics are in 08 only).
 #
 #   INPUT : data/baseline_state.rds                      (from 05)
 #   OUTPUT: output/out_model/<location>.rds              (one RDS per location)
 #
-# THE ENGINE  (matrix form: age x sex arrays, Markov cycles as matrix ops)
-#   A well-sick-dead Markov model whose "sick" compartment is resolved into three
-#   TUNNEL states — mild (asymptomatic) -> severe (heart failure) -> post-surgery:
-#     * new incident (mild) RHD enters via  newcases = well x IR   (CALIBRATED IR);
-#     * SAP acts on the mild -> severe PROGRESSION (the fatal pathway);
-#     * HF management reduces severe RHD mortality; surgery moves severe -> post;
-#     * competing (non-RHD) background mortality is data-fed and held fixed;
-#     * cohorts age one year per cycle (age_shift); the terminal age is an open 100+.
-#   Only SAP coverage differs between the reference and SAP arms.
+# THE ENGINE  (matrix form: [age x sex] arrays; Markov cycles as matrix ops)
+#   Four LIVING stocks A, B, C, D advance annually by elementwise matrix
+#   arithmetic (zero_mat/age_shift/melt_year, extended from three to four stocks):
+#     * new incident RHD enters stage A via  new_rhd_A = no_rhd x IR (CALIBRATED IR);
+#     * SAP reduces the RHD-specific DEATH probability of EVERY stage by
+#         (1 - sap_rrr_rhd_death x effective_treatment_coverage);
+#     * SURGERY is a clinical SERVICE (not a state): a fraction of the C/D stock
+#       is operated each cycle; its only epidemiological effect is a risk
+#       reduction on C->D progression and D->RHD-death (population-average form).
+#       Surgery NEVER removes people from C or D;
+#     * competing (other-cause) background mortality is data-fed and held fixed,
+#       the SAME age x sex risk for every stage;
+#     * cohorts age one year per cycle (age_shift); the terminal age is open 100+.
+#   Only the care-cascade coverage differs between the reference and SAP arms
+#   (surgery coverage/effects are held equal in both -> surgery is a background
+#   cost, not a driver of incremental cost).
 #
-# TWO OUTPUT TABLES PER LOCATION  (this is a model WITH TUNNEL STATES)
-#   (1) $wsd    — the WELL-SICK-DEAD aggregate table, reference and SAP scenarios
-#                 row-bound and distinguished by a `scenario` column. Here
-#                 sick = mild + severe + post (all RHD cases collapsed). This is the
-#                 table 07_make_outputs.R consumes to emit the standard long table.
-#   (2) $tunnel — the SECOND, TUNNEL-STATE table required by the tunnel structure:
-#                 the SAME rows but with the "sick" compartment DISAGGREGATED into
-#                 its tunnel sub-states (mild / severe / post) plus the intervention
-#                 FLOW volumes (newcases, mild_to_severe, surgeries, op_deaths,
-#                 n_on_sap, n_screened, rhd_deaths) and the coverage levels. This is
-#                 the companion table the tunnel decomposition produces; 08 uses its
-#                 volumes for costing. (Collapsing $tunnel's mild+severe+post exactly
-#                 reproduces $wsd's `sick`, by construction.)
+#   Population-average surgery formulation (documented):
+#     effective_surgery_reach_C = frac_C_requiring_surgery x surgery_coverage
+#     effective_surgery_reach_D = frac_D_requiring_surgery x surgery_coverage
+#     p_C_to_D_eff       = p_C_to_D      x (1 - eff_surgery_C_to_D        x reach_C)
+#     p_D_to_rhd_death_eff = p_rhd_death_D x sap_mult x (1 - eff_surgery_D_to_rhd_death x reach_D)
 #
-# eff_ir / eff_cf  (reported RRR multipliers on [0,1]; 1 = no reduction):
-#   eff_ir = 1 everywhere — secondary prevention does NOT reduce RHD INCIDENCE.
-#   eff_cf = 1 - eff_sap_asymp * cov_sap — SAP acts on the fatal mild->severe
-#            progression, i.e. the case-fatality lever in the WSD reduction. This is
-#            exactly the multiplier the engine applies, so the reported column is
-#            faithful to the mechanics.
+# TWO OUTPUT TABLES PER LOCATION
+#   (1) $wsd    — WELL-SICK-DEAD aggregate (ref + sap row-bound, `scenario` col).
+#                 sick = A + B + C + D. Consumed by 07 for the standard long table.
+#                 eff_ir = 1 (no incidence effect); eff_cf = SAP RHD-mortality
+#                 multiplier = 1 - sap_rrr_rhd_death x effective_treatment_coverage.
+#   (2) $stages — the A/B/C/D stock-and-flow table: four stocks, every transition
+#                 flow, incident inflow, per-stage RHD & other-cause deaths, the
+#                 stated + effective cascade coverages, screening/diagnosis/
+#                 treatment volumes, and the surgery TRACE (C/D requiring surgery,
+#                 surgeries delivered to C/D, total surgeries, effective reach).
+#                 Collapsing A+B+C+D reproduces $wsd `sick` exactly.
 #
-# PARALLELISM: by LOCATION (foreach/doParallel). Workers call setDTthreads(1). The
-#   loop is location-general (Indonesia only for now).
+# PARALLELISM: by LOCATION (foreach/doParallel). Workers call setDTthreads(1).
 # ==============================================================================
 
 library(data.table)
@@ -74,7 +77,7 @@ baseline_state <- readRDS(IN_FILE)
 LOCATIONS <- baseline_state$locations
 SCENARIOS <- baseline_state$meta$scenarios
 
-message(sprintf("── 06_run_prevention_model.R : %d location(s), scenarios %s ──",
+message(sprintf("── 06_run_prevention_model.R (A/B/C/D) : %d location(s), scenarios %s ──",
                 length(LOCATIONS), paste(SCENARIOS, collapse = ", ")))
 
 # ==============================================================================
@@ -90,7 +93,8 @@ run_location <- function(loc, baseline_state) {
   ilab  <- meta$intervention_labels
   CAUSE <- "Rheumatic heart disease"                 # defined inside (worker-safe)
 
-  clin <- st$clinical; eff <- st$effects; oth <- st$oth_mort
+  tr  <- st$transitions; pd <- st$p_rhd_death; eff <- st$effects
+  surg <- st$surgery;    oth <- st$oth_mort
 
   zero_mat  <- function() matrix(0, n_age, n_sex, dimnames = list(AGES, SEXES))
   age_shift <- function(M) {                         # advance age a -> a+1; 100 open
@@ -99,10 +103,14 @@ run_location <- function(loc, baseline_state) {
     N[n_age,  ]  <- N[n_age, ] + M[n_age, ]          # accumulate terminal 100+ group
     N
   }
-  # screening age mask (structural: who is echo-screened)
-  screen_mask <- zero_mat()
-  screen_ages <- as.character(st$coverage$screen_age_lo:st$coverage$screen_age_hi)
-  screen_mask[intersect(screen_ages, rownames(screen_mask)), ] <- 1
+  # optional school-age screening mask (OFF by default; sensitivity only)
+  restrict_screen <- isTRUE(st$coverage$screen_age_restrict)
+  screen_mask <- zero_mat() + 1                      # default: whole population screened
+  if (restrict_screen) {
+    screen_mask <- zero_mat()
+    screen_ages <- as.character(st$coverage$screen_age_lo:st$coverage$screen_age_hi)
+    screen_mask[intersect(screen_ages, rownames(screen_mask)), ] <- 1
+  }
 
   # melt a named list of [age x sex] matrices into a tidy DT (adds age/sex/year)
   melt_year <- function(iy, mats) {
@@ -115,91 +123,153 @@ run_location <- function(loc, baseline_state) {
 
   run_one <- function(scenario) {
     covs <- st$coverage[[scenario]]
-    mild <- severe <- post <- zero_mat()
-    wsd_l <- vector("list", n_years); tun_l <- vector("list", n_years)
+    A <- B <- C <- D <- zero_mat()
+    wsd_l <- vector("list", n_years); stg_l <- vector("list", n_years)
 
     for (iy in seq_len(n_years)) {
       popm <- st$pop[, , iy]
       irm  <- st$ir[, , iy]                          # CALIBRATED incidence, trended
-      cs <- covs$sap[iy]; ch <- covs$hf[iy]; cg <- covs$surg[iy]
+      c_screen <- covs$screen[iy]
+      c_dx     <- covs$eff_diagnosis[iy]             # effective diagnosis coverage
+      c_tx     <- covs$eff_treatment[iy]             # effective (optimal) treatment coverage
+      c_surg   <- covs$surgery[iy]
 
-      if (iy == 1L) { mild <- st$seed$mild; severe <- st$seed$severe; post <- st$seed$post }
+      if (iy == 1L) { A <- st$seed$A; B <- st$seed$B; C <- st$seed$C; D <- st$seed$D }
 
-      # susceptible ("well") = population minus the prevalent RHD (sick) stock
-      sick_start <- mild + severe + post
-      well       <- pmax(popm - sick_start, 0)
+      # start-of-cycle prevalent RHD and susceptible ("No RHD") pools
+      rhd_start <- A + B + C + D
+      no_rhd    <- pmax(popm - rhd_start, 0)
 
-      # --- new incident asymptomatic (mild) RHD: well x IR (eff_ir = 1) ---------
-      eff_ir   <- 1                                  # secondary prevention: no incidence effect
-      newcases <- well * irm * eff_ir
-      mild_pool <- mild + newcases
+      # --- new incident RHD -> stage A (eff_ir = 1: no incidence effect) --------
+      eff_ir    <- 1
+      new_rhd_A <- no_rhd * irm * eff_ir
 
-      # --- mild -> severe progression, slowed by SAP (the case-fatality lever) --
-      eff_cf_mult    <- 1 - eff$eff_sap_asymp * cs   # = eff_cf reported below
-      prog           <- clin$p_mild_to_severe * eff_cf_mult
-      mild_to_severe <- mild_pool * prog
-      mild_death_oth <- mild_pool * oth
-      mild_next      <- pmax(mild_pool - mild_to_severe - mild_death_oth, 0)
+      # --- intervention multipliers --------------------------------------------
+      # SAP: 55% RRR on RHD-specific mortality, scaled by effective treatment cov.
+      sap_mult <- 1 - eff$sap_rrr_rhd_death * c_tx                 # scalar in [0,1]
+      # Surgery (population-average reach); applied to C->D and D->RHD-death only.
+      reach_C <- surg$frac_C_requiring_surgery * c_surg
+      reach_D <- surg$frac_D_requiring_surgery * c_surg
+      eff_C_to_D_surg   <- 1 - eff$eff_surgery_C_to_D         * reach_C
+      eff_D_death_surg  <- 1 - eff$eff_surgery_D_to_rhd_death * reach_D
 
-      # --- severe RHD (heart failure): surgery, operative death, HF mortality ---
-      severe_pool   <- severe + mild_to_severe
-      surg_cand     <- severe_pool * clin$frac_severe_surg_elig
-      surgeries     <- surg_cand * cg
-      op_deaths     <- surgeries * clin$p_surg_op_mortality
-      to_post       <- surgeries - op_deaths
-      remain_severe <- severe_pool - surgeries
-      sev_death_rhd <- remain_severe * clin$p_severe_death * (1 - eff$eff_hf_mgmt * ch)
-      sev_death_oth <- remain_severe * oth
-      severe_next   <- pmax(remain_severe - sev_death_rhd - sev_death_oth, 0)
+      # effective per-stage death / C->D probabilities (scalars)
+      pA_death <- pd[["A"]] * sap_mult
+      pB_death <- pd[["B"]] * sap_mult
+      pC_death <- pd[["C"]] * sap_mult
+      pD_death <- pd[["D"]] * sap_mult * eff_D_death_surg
+      pC_to_D  <- tr$p_C_to_D * eff_C_to_D_surg
 
-      # --- post-surgery ---------------------------------------------------------
-      post_pool      <- post + to_post
-      post_death_rhd <- post_pool * clin$p_post_death_rhd
-      post_death_oth <- post_pool * oth
-      post_next      <- pmax(post_pool - post_death_rhd - post_death_oth, 0)
+      # --- stage A --------------------------------------------------------------
+      A_to_no_rhd <- A * tr$p_A_to_no_rhd
+      A_to_B      <- A * tr$p_A_to_B
+      A_death_rhd <- A * pA_death
+      A_death_oth <- A * oth
+      A_stay      <- pmax(A - A_to_no_rhd - A_to_B - A_death_rhd - A_death_oth, 0)
 
-      # --- year-end quantities --------------------------------------------------
-      rhd_deaths <- op_deaths + sev_death_rhd + post_death_rhd     # RHD cause-specific
-      sick_end   <- mild_next + severe_next + post_next
-      well_end   <- pmax(popm - sick_end, 0)
-      # all-cause deaths = RHD deaths + background mortality of the whole population
-      all_mx     <- rhd_deaths + oth * popm
-      # intervention volumes (counts; costed in 08)
-      n_on_sap   <- mild_pool * cs                                # SAP person-years
-      n_screened <- popm * screen_mask * cs                       # echo screening volume
+      # --- stage B --------------------------------------------------------------
+      B_to_A      <- B * tr$p_B_to_A
+      B_to_C      <- B * tr$p_B_to_C
+      B_death_rhd <- B * pB_death
+      B_death_oth <- B * oth
+      B_stay      <- pmax(B - B_to_A - B_to_C - B_death_rhd - B_death_oth, 0)
+
+      # --- stage C (surgery lowers C->D) ---------------------------------------
+      C_to_B      <- C * tr$p_C_to_B
+      C_to_D      <- C * pC_to_D
+      C_death_rhd <- C * pC_death
+      C_death_oth <- C * oth
+      C_stay      <- pmax(C - C_to_B - C_to_D - C_death_rhd - C_death_oth, 0)
+
+      # --- stage D (surgery + SAP lower D->RHD-death) --------------------------
+      D_to_C      <- D * tr$p_D_to_C
+      D_death_rhd <- D * pD_death
+      D_death_oth <- D * oth
+      D_stay      <- pmax(D - D_to_C - D_death_rhd - D_death_oth, 0)
+
+      # --- next-cycle stocks (year-end, pre-ageing) ----------------------------
+      A_next <- A_stay + B_to_A + new_rhd_A
+      B_next <- B_stay + A_to_B + C_to_B
+      C_next <- C_stay + B_to_C + D_to_C
+      D_next <- D_stay + C_to_D
+
+      # --- surgery TRACE (service; on START stocks; does NOT move stock) --------
+      C_req_surg  <- C * surg$frac_C_requiring_surgery
+      D_req_surg  <- D * surg$frac_D_requiring_surgery
+      surgeries_C <- C_req_surg * c_surg
+      surgeries_D <- D_req_surg * c_surg
+      total_surg  <- surgeries_C + surgeries_D
+
+      # --- deaths ---------------------------------------------------------------
+      rhd_deaths   <- A_death_rhd + B_death_rhd + C_death_rhd + D_death_rhd
+      other_deaths <- A_death_oth + B_death_oth + C_death_oth + D_death_oth  # among RHD
+      # all-cause deaths of the WHOLE population = RHD deaths + background of pop
+      all_mx       <- rhd_deaths + oth * popm
+
+      # --- aggregate stocks -----------------------------------------------------
+      sick_end <- A_next + B_next + C_next + D_next
+      well_end <- pmax(popm - sick_end, 0)
+
+      # --- program volumes (counts; costed in 08) ------------------------------
+      n_screened <- popm * screen_mask * c_screen                  # total pop (default)
+      n_diagnosed <- rhd_start * c_dx                              # effective diagnosis
+      n_on_optimal_treatment <- rhd_start * c_tx                   # effective treatment
 
       # --- (1) WSD aggregate row set -------------------------------------------
       wsd_l[[iy]] <- melt_year(iy, list(
-        well = well_end, sick = sick_end, newcases = newcases,
+        well = well_end, sick = sick_end, newcases = new_rhd_A,
         dead = rhd_deaths, pop = popm, all.mx = all_mx))[
-          , `:=`(eff_ir = eff_ir, eff_cf = eff_cf_mult)]
+          , `:=`(eff_ir = eff_ir, eff_cf = sap_mult)]
 
-      # --- (2) tunnel-state row set (disaggregated sick + flow volumes) ---------
-      tun_l[[iy]] <- melt_year(iy, list(
-        mild = mild_next, severe = severe_next, post = post_next,
-        newcases = newcases, mild_to_severe = mild_to_severe,
-        surgeries = surgeries, op_deaths = op_deaths,
-        n_on_sap = n_on_sap, n_screened = n_screened,
-        rhd_deaths = rhd_deaths))[
-          , `:=`(cov_sap = cs, cov_hf = ch, cov_surg = cg)]
+      # --- (2) A/B/C/D stock-and-flow row set -----------------------------------
+      #  living_rhd_start = start-of-cycle prevalent RHD (the denominator for
+      #  diagnosis/treatment volumes and for surgery need in THIS cycle).
+      stg_l[[iy]] <- melt_year(iy, list(
+        A = A_next, B = B_next, C = C_next, D = D_next, pop = popm,
+        living_rhd_start = rhd_start,
+        new_rhd_A = new_rhd_A,
+        A_to_no_rhd = A_to_no_rhd, A_to_B = A_to_B,
+        B_to_A = B_to_A, B_to_C = B_to_C,
+        C_to_B = C_to_B, C_to_D = C_to_D,
+        D_to_C = D_to_C,
+        rhd_deaths_A = A_death_rhd, rhd_deaths_B = B_death_rhd,
+        rhd_deaths_C = C_death_rhd, rhd_deaths_D = D_death_rhd,
+        other_deaths_A = A_death_oth, other_deaths_B = B_death_oth,
+        other_deaths_C = C_death_oth, other_deaths_D = D_death_oth,
+        rhd_deaths = rhd_deaths, other_deaths = other_deaths,
+        n_screened = n_screened, n_diagnosed = n_diagnosed,
+        n_on_optimal_treatment = n_on_optimal_treatment,
+        C_requiring_surgery = C_req_surg, D_requiring_surgery = D_req_surg,
+        surgeries_C = surgeries_C, surgeries_D = surgeries_D,
+        total_surgeries = total_surg))[
+          , `:=`(screen_coverage = c_screen,
+                 diagnosis_coverage = covs$diagnosis[iy],
+                 effective_diagnosis_coverage = c_dx,
+                 optimal_treatment_coverage = covs$treatment[iy],
+                 effective_treatment_coverage = c_tx,
+                 surgery_coverage = c_surg,
+                 effective_surgery_reach_C = reach_C,
+                 effective_surgery_reach_D = reach_D,
+                 eff_cf = sap_mult,
+                 eff_C_to_D_surgery = eff_C_to_D_surg,
+                 eff_D_to_rhd_death_surgery = eff_D_death_surg)]
 
       # --- age the surviving stocks one year for the next cycle -----------------
-      mild   <- age_shift(mild_next)
-      severe <- age_shift(severe_next)
-      post   <- age_shift(post_next)
+      A <- age_shift(A_next); B <- age_shift(B_next)
+      C <- age_shift(C_next); D <- age_shift(D_next)
     }
 
-    wsd <- rbindlist(wsd_l); tun <- rbindlist(tun_l)
+    wsd <- rbindlist(wsd_l); stg <- rbindlist(stg_l)
     wsd[, `:=`(scenario = scenario, location = loc, cause = CAUSE,
                intervention = unname(ilab[[scenario]]))]
-    tun[, `:=`(scenario = scenario, location = loc, cause = CAUSE,
+    stg[, `:=`(scenario = scenario, location = loc, cause = CAUSE,
                intervention = unname(ilab[[scenario]]))]
-    list(wsd = wsd, tunnel = tun)
+    list(wsd = wsd, stages = stg)
   }
 
   runs <- lapply(SCEN, run_one)
   wsd_all <- rbindlist(lapply(runs, `[[`, "wsd"))
-  tun_all <- rbindlist(lapply(runs, `[[`, "tunnel"))
+  stg_all <- rbindlist(lapply(runs, `[[`, "stages"))
 
   # -------------------- per-location SANITY CHECKS --------------------------
   fail <- function(cond, msg) if (isTRUE(cond)) stop("[", loc, "] ", msg, call. = FALSE)
@@ -207,13 +277,16 @@ run_location <- function(loc, baseline_state) {
   # completeness: scenarios x years x ages x sexes
   exp_rows <- length(SCEN) * n_years * n_age * n_sex
   fail(nrow(wsd_all) != exp_rows, "WSD table has an incomplete scenario/age/year grid.")
-  fail(nrow(tun_all) != exp_rows, "tunnel table has an incomplete scenario/age/year grid.")
+  fail(nrow(stg_all) != exp_rows, "stage table has an incomplete scenario/age/year grid.")
 
   num_wsd <- wsd_all[, .SD, .SDcols = is.numeric]
   fail(anyNA(num_wsd), "WSD table contains NA.")
   fail(any(vapply(num_wsd, function(x) any(x < -1e-6), logical(1))),
        "WSD table contains negative values.")
-  fail(anyNA(tun_all[, .SD, .SDcols = is.numeric]), "tunnel table contains NA.")
+  num_stg <- stg_all[, .SD, .SDcols = is.numeric]
+  fail(anyNA(num_stg), "stage table contains NA.")
+  fail(any(vapply(num_stg, function(x) any(x < -1e-6), logical(1))),
+       "stage table contains negative values.")
 
   # WSD identities: well + sick <= pop ; all.mx >= dead ; eff_* in [0,1]
   fail(wsd_all[, any(well + sick > pop + 1e-3)], "well + sick exceeds pop somewhere.")
@@ -221,13 +294,21 @@ run_location <- function(loc, baseline_state) {
   fail(wsd_all[, any(eff_ir < 0 | eff_ir > 1 | eff_cf < 0 | eff_cf > 1)],
        "eff_ir / eff_cf outside [0,1].")
 
-  # tunnel must reconstruct WSD sick exactly (mild+severe+post == sick)
+  # stages must reconstruct WSD sick exactly (A+B+C+D == sick)
   chk <- merge(
-    tun_all[, .(sick_tun = mild + severe + post), by = .(scenario, sex, age, year)],
+    stg_all[, .(sick_stg = A + B + C + D), by = .(scenario, sex, age, year)],
     wsd_all[, .(scenario, sex, age, year, sick)],
     by = c("scenario", "sex", "age", "year"))
-  fail(chk[, max(abs(sick_tun - sick))] > 1e-6,
-       "tunnel mild+severe+post does not reconstruct WSD sick.")
+  fail(chk[, max(abs(sick_stg - sick))] > 1e-6,
+       "stage A+B+C+D does not reconstruct WSD sick.")
+
+  # surgery is a service, not a stock: volumes never exceed the number requiring
+  fail(stg_all[, any(surgeries_C > C_requiring_surgery + 1e-6)],
+       "surgeries_C exceeds C_requiring_surgery.")
+  fail(stg_all[, any(surgeries_D > D_requiring_surgery + 1e-6)],
+       "surgeries_D exceeds D_requiring_surgery.")
+  fail(stg_all[, any(total_surgeries > C_requiring_surgery + D_requiring_surgery + 1e-6)],
+       "total_surgeries exceeds total requiring surgery.")
 
   # intervention effect direction: SAP averts RHD deaths vs reference (cumulative)
   d_ref <- wsd_all[scenario == "ref", sum(dead)]
@@ -243,8 +324,7 @@ run_location <- function(loc, baseline_state) {
   fail(allc_d < 5e5 || allc_d > 4e6, sprintf("base-year all-cause deaths %.0f outside band 5e5-4e6.", allc_d))
 
   attr(wsd_all, "deaths_averted_cum") <- d_ref - d_sap
-  attr(wsd_all, "anchor_rhd_deaths_base") <- rhd_d
-  list(wsd = wsd_all, tunnel = tun_all,
+  list(wsd = wsd_all, stages = stg_all,
        diag = list(deaths_averted_cum = d_ref - d_sap,
                    rhd_deaths_base = rhd_d, allcause_deaths_base = allc_d))
 }
@@ -274,7 +354,7 @@ names(results) <- LOCATIONS
 # ==============================================================================
 for (loc in LOCATIONS) {
   res <- results[[loc]]
-  out <- list(wsd = res$wsd, tunnel = res$tunnel, diag = res$diag,
+  out <- list(wsd = res$wsd, stages = res$stages, diag = res$diag,
               meta = baseline_state$meta)
   fn  <- paste0(OUT_DIR, gsub("[^A-Za-z0-9]+", "_", loc), ".rds")
   saveRDS(out, file = fn)
@@ -285,5 +365,6 @@ for (loc in LOCATIONS) {
 }
 
 message("── 06_run_prevention_model.R complete ─────────────────")
-message(sprintf("  Wrote %d file(s) to %s", length(LOCATIONS), OUT_DIR))
-message("  Next: 07_make_outputs.R (tidy long table), 08_economic_evaluation.R (economics)")
+message(sprintf("  Wrote %d file(s) to %s ($wsd aggregate + $stages A/B/C/D + surgery trace)",
+                length(LOCATIONS), OUT_DIR))
+message("  Next: 07_make_outputs.R (tidy long tables), 08_economic_evaluation.R (economics)")

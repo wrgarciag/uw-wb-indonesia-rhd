@@ -1,16 +1,31 @@
 #===============================================================================
 # 04_calibration_random_tp.R
 #-------------------------------------------------------------------------------
-# RANDOM-SEARCH TP CALIBRATION FOR THE INDONESIA RHD WELL-SICK-DEAD MARKOV MODEL
+# TWO-LAYER CALIBRATION FOR THE INDONESIA RHD A/B/C/D STATE-TRANSITION MODEL
 #
-# PURPOSE (reaffirmed): this script does NOT run the model and does NOT run the
-# interventions. Its SOLE objective is to CALIBRATE / IMPROVE the transition-
-# probability INPUTS (IR incidence and CF case-fatality) within the in-sample
-# window 2000-2019, so the well-sick-dead model reproduces the GBD targets BETTER
-# than the raw GBD-rate-implied values. The OUTPUT is the calibrated, improved
-# transition probabilities (adjusted_searo_part*.rds). The forward projection and
-# the reference/SAP scenarios are run downstream (05 prepares the state, 06 runs
-# the model). Background mortality is held fixed; only IR and CF are calibrated.
+# The A/B/C/D structure cannot be fully identified from GBD alone (GBD supplies
+# TOTAL RHD prevalence + mortality, not stage-specific prevalence). Calibration
+# is therefore split into two layers:
+#
+#   LAYER 1  (RUN HERE — random search on IR/CF vs GBD)
+#     Calibrates overall RHD incidence (IR) and total RHD case-fatality (CF)
+#     within 2000-2019 against GBD RHD prevalence + all-cause deaths, exactly as
+#     the well-sick-dead calibration always did. Calibrated IR drives the incident
+#     inflow into stage A in 06; calibrated CF is carried as a total-RHD-mortality
+#     ANCHOR. Background mortality is held fixed; only IR and CF are calibrated.
+#
+#   LAYER 2  (INTERFACE — A/B/C/D stage calibration vs LOCAL echo targets)
+#     Defines the target-table schema and a weighted squared-log-error loss for
+#     stage-specific prevalence, plus the list of calibratable stage parameters.
+#     It runs ONLY if a local A/B/C/D echocardiographic target file is supplied.
+#     No such file exists yet, so this layer FALLS BACK to Layer 1 (total RHD
+#     prevalence + mortality), PRESERVES the uncalibrated stage parameters from
+#     00_run_all.R (03's bundle), writes the expected target-file TEMPLATE, and
+#     issues a prominent message that stage-transition calibration is PENDING
+#     local echo targets. It does NOT fabricate stage-specific observations.
+#
+# This script does NOT run the model or the interventions (05 prepares the state,
+# 06 runs the model).
 #
 # WHAT THIS SCRIPT DOES
 # ---------------------
@@ -61,17 +76,25 @@
 #               W_DEATHS * ((AllDeaths_model - AllDeaths_gbd)/(AllDeaths_gbd + EPS))^2
 #             + W_PREV   * ((Prev_model      - Prev_gbd     )/(Prev_gbd      + EPS))^2 ]
 #
-# OUTPUT CONTRACT (unchanged)
-# ---------------------------
-#   * adjusted_searo_part{1..10}.rds in wd_data  -- calibrated TP rows, input schema.
-#   * calibration_factors_random_tp.csv          -- per-combo(-age.group) IR/CF multipliers.
-#   * calibration_diagnostics_random_tp.csv      -- baseline-vs-calibrated RMSE
-#       (RMSE_deaths_* now measure ALL-CAUSE deaths), weighted error, % improvement.
+# OUTPUT CONTRACT (single self-describing bundle — replaces 10 chunk files)
+# -------------------------------------------------------------------------
+#   * data/calibrated_rhd_parameters.rds  -- named list:
+#       $tp                : calibrated TP data.table (IR, CF, BG.mx, ... by
+#                            location x sex x cause x year x age) — the Layer-1 result.
+#       $factors           : per-combo(-age.group) IR/CF multipliers.
+#       $diagnostics       : baseline-vs-calibrated RMSE + weighted error + % improvement.
+#       $stage_calibration : Layer-2 interface — $status, $targets_template,
+#                            $targets_file, $calibratable_params, uncalibrated
+#                            $stage_params (passthrough from 03), $loss_note.
+#       $meta              : window, calib_last_year, granularity, ...
+#   * data/calibration_targets_stage_template.csv  -- expected Layer-2 target schema.
+#   * calibration_factors_random_tp.csv             -- per-combo IR/CF multipliers.
+#   * calibration_diagnostics_random_tp.csv         -- baseline-vs-calibrated RMSE.
 #
 # AVOID DOUBLE-CALIBRATION: this script bakes the calibrated multipliers directly
-#   into IR/CF. Downstream scripts (05 prepares state, 06 runs the model) must
-#   consume these calibrated TPs AS-IS and must NOT re-apply any further
-#   adjustment/multiplier on top.
+#   into IR/CF. Downstream scripts (05 prepares state, 06 runs the model) consume
+#   the calibrated IR/CF AS-IS and must NOT re-apply any further adjustment. Stage
+#   parameters are read by 05 from 03's bundle (uncalibrated until Layer 2 runs).
 #
 # Source AFTER 01_prepare_inputs.R and 02_build_demography.R.
 #===============================================================================
@@ -117,11 +140,20 @@ ALL_CAUSE <- "All causes"
 ## --- execution --------------------------------------------------------------
 RUN_PAR   <- if (exists("run_calibration_par")) isTRUE(run_calibration_par) else TRUE
 MAX_CORES <- as.integer(getp("MAX_CORES", 14L))
-N_OUT_CHUNKS <- 10
 
 ## --- paths (honour 00_run_all.R globals; else here()) -----------------------
 if (!exists("wd_raw"))  wd_raw  <- paste0(here::here("data-raw"), "/")
 if (!exists("wd_data")) wd_data <- paste0(here::here("data"), "/")
+
+## --- output bundle + Layer-2 stage-target file ------------------------------
+OUT_BUNDLE  <- paste0(wd_data, "calibrated_rhd_parameters.rds")
+STAGE_TMPL  <- paste0(wd_data, "calibration_targets_stage_template.csv")
+# A local A/B/C/D echo target file activates Layer 2 if present (first hit wins).
+STAGE_TARGET_CANDIDATES <- c(
+  paste0(wd_data, "calibration_targets_stage.csv"),
+  paste0(wd_raw,  "calibration_targets_stage.csv")
+)
+DISEASE_INPUTS_FILE <- paste0(wd_data, "disease_model_inputs.rds")
 
 #===============================================================================
 # 1. BUILD RHD-NATIVE BASELINE TP TABLE  (replaces tps_inpt_part*.rds)
@@ -567,22 +599,7 @@ err_out     <- rbindlist(lapply(results, `[[`, "err"),     use.names = TRUE, fil
 
 setcolorder(calibrated, intersect(tps_input_cols, names(calibrated)))
 
-#===============================================================================
-# 5. WRITE OUTPUTS  (adjusted_searo_part{1..10}.rds in wd_data)
-#===============================================================================
-
-n     <- nrow(calibrated)
-chunk <- ceiling(n / N_OUT_CHUNKS)
-for (i in 1:N_OUT_CHUNKS) {
-  start <- (i - 1) * chunk + 1
-  end   <- min(i * chunk, n)
-  if (start > n) {
-    saveRDS(calibrated[0], file = paste0(wd_data, "adjusted_searo_part", i, ".rds"))
-    next
-  }
-  saveRDS(calibrated[start:end], file = paste0(wd_data, "adjusted_searo_part", i, ".rds"))
-}
-
+## --- Layer-1 diagnostics CSV --------------------------------------------------
 fwrite(factors_out, paste0(wd_data, "calibration_factors_random_tp.csv"))
 
 err_pct <- copy(err_out[, .(location, sex, cause, base_err, cal_err,
@@ -590,6 +607,124 @@ err_pct <- copy(err_out[, .(location, sex, cause, base_err, cal_err,
 err_pct[, pct_improvement := 100 * (base_err - cal_err) / pmax(base_err, EPS_REL)]
 diag_full <- merge(diag_out, err_pct, by = c("location", "sex", "cause"), all.x = TRUE)
 fwrite(diag_full, paste0(wd_data, "calibration_diagnostics_random_tp.csv"))
+
+#===============================================================================
+# 5. LAYER-2 INTERFACE — A/B/C/D STAGE CALIBRATION vs LOCAL ECHO TARGETS
+#    Documented schema + loss; runs only if a local target file is supplied.
+#    Otherwise fall back to Layer 1 and preserve the uncalibrated stage params.
+#===============================================================================
+
+## expected target-table schema (self-documenting; ZERO rows — no fabrication).
+calibration_targets_stage_template <- data.table(
+  location          = character(),  # e.g. "Indonesia"
+  year              = integer(),    # target year
+  sex               = character(),  # "Female" | "Male" | "Both"
+  age_lo            = integer(),    # inclusive lower age of the target band
+  age_hi            = integer(),    # inclusive upper age of the target band
+  stage             = character(),  # "A" | "B" | "C" | "D"
+  target_prevalence = numeric(),    # observed stage prevalence (see target_type)
+  target_type       = character(),  # "proportion" (of population) | "per_1000" | "rate"
+  weight            = numeric()     # relative weight in the loss (>= 0)
+)
+fwrite(calibration_targets_stage_template, STAGE_TMPL)
+
+## weighted squared-log-error loss for stage-specific prevalence (robust,
+## relative). predicted/target are data.tables keyed by (year, sex band, stage);
+## epsilon guards log(0). Documented here; invoked only when targets are present.
+stage_calibration_loss <- function(predicted, targets, epsilon = 1e-8) {
+  req <- c("year", "stage", "target_prevalence", "weight")
+  miss <- setdiff(req, names(targets))
+  if (length(miss)) stop("calibration_targets_stage is missing: ",
+                         paste(miss, collapse = ", "), call. = FALSE)
+  j <- merge(targets, predicted, by = intersect(names(targets), names(predicted)),
+             all.x = TRUE)
+  if (anyNA(j$predicted_prevalence))
+    stop("A stage target has no matching model prediction.", call. = FALSE)
+  j[, sum(weight * (log(predicted_prevalence + epsilon) -
+                    log(target_prevalence   + epsilon))^2, na.rm = TRUE)]
+}
+
+## parameters Layer 2 would calibrate once local echo targets exist.
+calibratable_stage_params <- c(
+  "p_A_to_B", "p_B_to_C", "p_C_to_D",          # forward progression
+  "p_A_to_no_rhd", "p_B_to_A", "p_C_to_B",     # regression
+  "rhd_d_fraction"                             # initial D share
+)
+
+## uncalibrated stage parameters (passthrough from 03) for a self-describing bundle.
+stage_params_uncalibrated <- if (file.exists(DISEASE_INPUTS_FILE)) {
+  dmi_ <- readRDS(DISEASE_INPUTS_FILE)
+  list(transitions = dmi_$transitions, p_rhd_death = dmi_$p_rhd_death,
+       stage_split = dmi_$stage_split, rhd_d_fraction = dmi_$meta$rhd_d_fraction)
+} else NULL
+
+## detect a local target file; fall back loudly if absent.
+stage_target_file <- STAGE_TARGET_CANDIDATES[file.exists(STAGE_TARGET_CANDIDATES)][1]
+stage_targets_present <- !is.na(stage_target_file)
+
+if (stage_targets_present) {
+  stage_status <- "targets_present_not_yet_optimised"
+  cat(sprintf(paste0("\nLAYER 2: local A/B/C/D target file found (%s). The stage-",
+      "calibration loss/interface is defined; wire the optimiser to these targets\n",
+      "to calibrate %s. Stage params remain at their 00_run_all.R values until then.\n"),
+      stage_target_file, paste(calibratable_stage_params, collapse = ", ")))
+} else {
+  stage_status <- "pending_local_echo_targets"
+  cat(strrep("!", 70), "\n", sep = "")
+  cat("LAYER 2 (A/B/C/D STAGE CALIBRATION) IS PENDING LOCAL ECHO TARGETS.\n")
+  cat("  No local stage-prevalence target file was found at either of:\n")
+  for (p in STAGE_TARGET_CANDIDATES) cat("    - ", p, "\n", sep = "")
+  cat("  Falling back to LAYER 1 (total RHD prevalence + mortality via IR/CF).\n")
+  cat("  A/B/C/D transition/regression probabilities and rhd_d_fraction are used\n")
+  cat("  AS-IS from 00_run_all.R (03's bundle); they are NOT stage-calibrated.\n")
+  cat("  A blank target-table TEMPLATE was written to:\n    ", STAGE_TMPL, "\n", sep = "")
+  cat("  Populate it with local echocardiographic stage prevalence (no fabricated\n")
+  cat("  values) to activate stage calibration.\n")
+  cat(strrep("!", 70), "\n", sep = "")
+}
+
+stage_calibration <- list(
+  status              = stage_status,
+  targets_file        = if (stage_targets_present) stage_target_file else NA_character_,
+  targets_template    = calibration_targets_stage_template,
+  template_file       = STAGE_TMPL,
+  calibratable_params = calibratable_stage_params,
+  stage_params        = stage_params_uncalibrated,   # uncalibrated passthrough (from 03)
+  loss_note = paste("Weighted squared-log-error on stage prevalence;",
+                    "see stage_calibration_loss() in 04_calibration_random_tp.R.")
+)
+
+#===============================================================================
+# 5b. WRITE THE SINGLE CALIBRATED-PARAMETER BUNDLE  (replaces 10 chunk files)
+#===============================================================================
+calibrated_rhd_parameters <- list(
+  tp          = calibrated,     # Layer-1 calibrated IR/CF table (input schema)
+  factors     = factors_out,
+  diagnostics = diag_full,
+  stage_calibration = stage_calibration,
+  meta = list(
+    location        = locs,
+    calib_year_start = CAL_YEAR_START,
+    calib_year_end   = CAL_YEAR_END,
+    calib_last_year  = max(calibrated$year),
+    granularity      = GRANULARITY,
+    search_halfwidth = SEARCH_HALFWIDTH,
+    n_iter           = N_ITER,
+    tp_schema        = tps_input_cols,
+    built_from       = c("data-raw/temp_baseline_rates_gbd.rds",
+                         "pop_observed_1990_2024.rds", basename(DISEASE_INPUTS_FILE))
+  )
+)
+saveRDS(calibrated_rhd_parameters, file = OUT_BUNDLE)
+
+## retire the obsolete 10-chunk output so downstream can't read stale files.
+old_chunks <- list.files(wd_data, pattern = "^adjusted_searo_part[0-9]+\\.rds$",
+                         full.names = TRUE)
+if (length(old_chunks)) {
+  file.remove(old_chunks)
+  cat(sprintf("Removed %d obsolete adjusted_searo_part*.rds chunk file(s).\n",
+              length(old_chunks)))
+}
 
 #===============================================================================
 # 6. VALIDATION  (hard failures; identify the offending combo/age on violation)
@@ -661,7 +796,9 @@ if (any(err_out$hit_bound, na.rm = TRUE))
       "SEARCH_HALFWIDTH.\n", sep = "")
 
 cat("\nWrote:\n")
-cat(sprintf("  %sadjusted_searo_part{1..%d}.rds\n", wd_data, N_OUT_CHUNKS))
+cat(sprintf("  %scalibrated_rhd_parameters.rds   (single bundle: $tp/$factors/$diagnostics/$stage_calibration/$meta)\n", wd_data))
+cat(sprintf("  %scalibration_targets_stage_template.csv   (Layer-2 target schema)\n", wd_data))
 cat(sprintf("  %scalibration_factors_random_tp.csv\n", wd_data))
 cat(sprintf("  %scalibration_diagnostics_random_tp.csv\n", wd_data))
-cat("\nReminder: 05/06 consume these calibrated TPs AS-IS (no further adjustment).\n")
+cat(sprintf("\nLayer-2 stage calibration status: %s\n", stage_status))
+cat("Reminder: 05/06 consume the calibrated IR/CF AS-IS; stage params come from 03 (uncalibrated).\n")
