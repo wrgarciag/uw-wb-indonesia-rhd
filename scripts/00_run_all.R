@@ -114,11 +114,27 @@ p_C_to_B      <- 0.005   # [CALIBRATE] C -> B regression /yr
 p_C_to_D      <- 0.060   # [CALIBRATE] C -> D progression /yr (surgery lowers this)
 p_D_to_C      <- 0.000   # [CALIBRATE] D -> C regression /yr (default 0)
 
-# annual UNTREATED RHD-specific death probability by stage -- [CALIBRATE]
-p_rhd_death_A <- 0.0005  # [CALIBRATE]
-p_rhd_death_B <- 0.0020  # [CALIBRATE]
-p_rhd_death_C <- 0.0200  # [CALIBRATE]
-p_rhd_death_D <- 0.0800  # [CALIBRATE]
+# # annual UNTREATED RHD-specific death probability by stage -- [CALIBRATE]
+# p_rhd_death_A <- 0.0005  # [CALIBRATE]
+# p_rhd_death_B <- 0.0020  # [CALIBRATE]
+# p_rhd_death_C <- 0.0200  # [CALIBRATE]
+# p_rhd_death_D <- 0.0800  # [CALIBRATE]
+
+
+# Temporal hard coded fix to calibrate the RHD-specific mortality rates to match the observed GBD 2023 mortality rates.
+#The calibration multiplier is set to 1/2.5, 
+#which means that the original mortality rates are scaled down by a factor of 2.5 to better align with the observed data.
+rhd_mortality_calibration_mult <- 1 / 2.5
+
+scale_probability <- function(p, multiplier) {
+  1 - (1 - p)^multiplier
+}
+
+p_rhd_death_A <- scale_probability(0.0005, rhd_mortality_calibration_mult)
+p_rhd_death_B <- scale_probability(0.0020, rhd_mortality_calibration_mult)
+p_rhd_death_C <- scale_probability(0.0200, rhd_mortality_calibration_mult)
+p_rhd_death_D <- scale_probability(0.0800, rhd_mortality_calibration_mult)
+
 
 # Stage-D share of prevalent RHD at the seed year. GBD gives only TOTAL RHD
 # prevalence; A/B/C come from Cannon et al (56.5/27.2/16.2, normalised to the
