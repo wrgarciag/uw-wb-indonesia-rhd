@@ -1,45 +1,11 @@
-location,sex,cause,age.group,ir_mult,cf_mult,granularity
-Uganda,Female,Rheumatic heart disease,<1 year,1.17297807708383,1.34869036241435,age_group
-Uganda,Female,Rheumatic heart disease,10-14 years,0.873738610651344,0.542235495522618,age_group
-Uganda,Female,Rheumatic heart disease,12-23 months,1.24587029754184,0.627718310803175,age_group
-Uganda,Female,Rheumatic heart disease,15-19 years,0.513348566135392,1.01080214045942,age_group
-Uganda,Female,Rheumatic heart disease,2-4 years,0.524021944729611,0.699247386073694,age_group
-Uganda,Female,Rheumatic heart disease,20-24 years,0.746946026803926,0.766331341816112,age_group
-Uganda,Female,Rheumatic heart disease,25-29 years,0.939017563359812,1.38612559763715,age_group
-Uganda,Female,Rheumatic heart disease,30-34 years,0.811917388113216,1.11755555961281,age_group
-Uganda,Female,Rheumatic heart disease,35-39 years,1.11033261031844,1.47076414525509,age_group
-Uganda,Female,Rheumatic heart disease,40-44 years,1.00292921904475,0.829246712382883,age_group
-Uganda,Female,Rheumatic heart disease,45-49 years,0.979435166809708,0.657156497938559,age_group
-Uganda,Female,Rheumatic heart disease,5-9 years,0.59382084547542,1.06646707933396,age_group
-Uganda,Female,Rheumatic heart disease,50-54 years,1.04255848121829,0.761910306056961,age_group
-Uganda,Female,Rheumatic heart disease,55-59 years,1.15391929121688,0.882823510328308,age_group
-Uganda,Female,Rheumatic heart disease,60-64 years,1.24423372419551,0.936885256320238,age_group
-Uganda,Female,Rheumatic heart disease,65-69 years,0.853061247849837,0.848835050826892,age_group
-Uganda,Female,Rheumatic heart disease,70-74 years,1.11620598216541,1.29099210444838,age_group
-Uganda,Female,Rheumatic heart disease,75-79 years,1.38515609828755,0.782564788125455,age_group
-Uganda,Female,Rheumatic heart disease,80-84 years,0.710140370531008,1.3959008003585,age_group
-Uganda,Female,Rheumatic heart disease,85-89 years,0.669415038777515,0.794142575236037,age_group
-Uganda,Female,Rheumatic heart disease,90-94 years,1.01067158975638,1.03936477075331,age_group
-Uganda,Female,Rheumatic heart disease,95+ years,1.01384795410559,1.46992396190763,age_group
-Uganda,Male,Rheumatic heart disease,<1 year,0.888576799072325,0.911920637823641,age_group
-Uganda,Male,Rheumatic heart disease,10-14 years,0.652764143189415,0.921508877072483,age_group
-Uganda,Male,Rheumatic heart disease,12-23 months,1.42454285896383,1.23047935194336,age_group
-Uganda,Male,Rheumatic heart disease,15-19 years,0.757122633513063,0.701835245359689,age_group
-Uganda,Male,Rheumatic heart disease,2-4 years,0.623906407039613,0.680758785223588,age_group
-Uganda,Male,Rheumatic heart disease,20-24 years,1.02379061467946,1.08308779937215,age_group
-Uganda,Male,Rheumatic heart disease,25-29 years,0.622605226933956,0.586702788015828,age_group
-Uganda,Male,Rheumatic heart disease,30-34 years,0.773513468215242,1.38838410354219,age_group
-Uganda,Male,Rheumatic heart disease,35-39 years,0.798364141024649,0.900736092822626,age_group
-Uganda,Male,Rheumatic heart disease,40-44 years,0.78216486913152,1.48963391804136,age_group
-Uganda,Male,Rheumatic heart disease,45-49 years,0.553343922598288,1.32174680498429,age_group
-Uganda,Male,Rheumatic heart disease,5-9 years,0.502881698776037,0.561779069481418,age_group
-Uganda,Male,Rheumatic heart disease,50-54 years,1.48775117704645,0.762912769336253,age_group
-Uganda,Male,Rheumatic heart disease,55-59 years,0.998665209161118,0.777152565307915,age_group
-Uganda,Male,Rheumatic heart disease,60-64 years,0.779373208526522,1.3050421087537,age_group
-Uganda,Male,Rheumatic heart disease,65-69 years,0.791911149863154,1.42193094850518,age_group
-Uganda,Male,Rheumatic heart disease,70-74 years,0.922518810490146,1.17612866871059,age_group
-Uganda,Male,Rheumatic heart disease,75-79 years,0.601256202440709,1.04173457762226,age_group
-Uganda,Male,Rheumatic heart disease,80-84 years,1.44567025126889,0.914723510155454,age_group
-Uganda,Male,Rheumatic heart disease,85-89 years,1.21972690569237,0.995893229031935,age_group
-Uganda,Male,Rheumatic heart disease,90-94 years,0.637908751610667,0.826799242058769,age_group
-Uganda,Male,Rheumatic heart disease,95+ years,1.44392481632531,1.05381376389414,age_group
+location,sex,cause,band,band_lo,alpha,beta
+Uganda,Female,Rheumatic heart disease,0-14,0,0.915684472118879,0.973242712005319
+Uganda,Female,Rheumatic heart disease,15-24,15,0.948519363030294,0.977414554266875
+Uganda,Female,Rheumatic heart disease,25-44,25,0.964365115082647,0.96642000999832
+Uganda,Female,Rheumatic heart disease,45-64,45,0.98473618915324,0.956180840329724
+Uganda,Female,Rheumatic heart disease,65+,65,1.00199011715466,0.962017643564048
+Uganda,Male,Rheumatic heart disease,0-14,0,0.914756443276213,0.9717649766641
+Uganda,Male,Rheumatic heart disease,15-24,15,0.940539880860968,0.972468103590412
+Uganda,Male,Rheumatic heart disease,25-44,25,0.955963047746671,0.964059974972864
+Uganda,Male,Rheumatic heart disease,45-64,45,0.981565314501855,0.962872574089337
+Uganda,Male,Rheumatic heart disease,65+,65,1.00282216452982,0.978668980695181

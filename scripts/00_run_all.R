@@ -118,42 +118,59 @@ incidence_trend <- switch(COUNTRY,
                                               # [TODO: confirm for Uganda] trend may differ from Indonesia's
 
 #===============================================================================
-# F. CALIBRATION SETTINGS  (04) — pure random search
+# F. CALIBRATION SETTINGS  (04) — Layer-1 aggregate, hazard-based, prior-anchored
+#    (REPLACES the former pure random search on IR/CF vs GBD all-cause deaths.)
+#    Layer 1 now calibrates, per location x sex, a low-dimensional set of
+#    log-scale multipliers — one INCIDENCE correction (alpha) and one aggregate
+#    RHD-MORTALITY correction (beta) per broad AGE BAND — for a well-sick-dead
+#    proxy with hazard competing risks, against GBD RHD-SPECIFIC incidence,
+#    prevalence and DEATHS (all-cause deaths are retained for VALIDATION only).
+#    The loss is log-scale + priors + 2nd-difference smoothness; the optimiser is
+#    a bounded multi-start local search (see CALIB_OPTIMIZER). Calibrated IR feeds
+#    the inflow into stage A (06); calibrated aggregate CF is the RHD-mortality
+#    anchor consumed by the Stage-2 structural stage calibration.
 #===============================================================================
-# run_calibration_par <- TRUE      # parallelise calibration across combos
-# SEARCH_HALFWIDTH    <- 0.50      # IR/CF multipliers sampled in [1-hw, 1+hw]
-# GRANULARITY         <- "age_group"  # "combo" | "age_group"
-# N_ITER              <- 400       # i.i.d. candidates per combo (candidate 0 = baseline)
-# CONVERGE_TOL        <- 1e-4      # early stop when best weighted error < tol
-# SEED                <- 42        # master RNG seed (reproducible)
-# W_DEATHS            <- 2         # objective weight on (all-cause) deaths
-# W_PREV              <- 1         # objective weight on RHD prevalence
-# # (calibration age range is the full 0-95+; see AGE_LO/AGE_HI defaults in 04)
+run_calibration_par <- switch(COUNTRY, Indonesia = TRUE, Uganda = TRUE)
+SEED                <- switch(COUNTRY, Indonesia = 42L,  Uganda = 42L)  # master RNG
 
-run_calibration_par <- switch(COUNTRY,
-                              Indonesia = TRUE,
-                              Uganda    = TRUE)
-SEARCH_HALFWIDTH <- switch(COUNTRY,
-                           Indonesia = 0.50,
-                           Uganda    = 0.50)
-GRANULARITY <- switch(COUNTRY,
-                      Indonesia = "age_group",
-                      Uganda    = "age_group")
-N_ITER <- switch(COUNTRY,
-                 Indonesia = 400L,
-                 Uganda    = 400L)
-CONVERGE_TOL <- switch(COUNTRY,
-                       Indonesia = 1e-4,
-                       Uganda    = 1e-4)
-SEED <- switch(COUNTRY,
-               Indonesia = 42L,
-               Uganda    = 42L)
-W_DEATHS <- switch(COUNTRY,
-                   Indonesia = 2,
-                   Uganda    = 2)
-W_PREV <- switch(COUNTRY,
-                 Indonesia = 1,
-                 Uganda    = 1)
+## --- objective weights (log-scale, normalized loss terms) -------------------
+W_INC   <- switch(COUNTRY, Indonesia = 1, Uganda = 1)   # weight on RHD INCIDENCE fit
+W_PREV  <- switch(COUNTRY, Indonesia = 1, Uganda = 1)   # weight on RHD PREVALENCE fit
+W_DEATH <- switch(COUNTRY, Indonesia = 2, Uganda = 2)   # weight on RHD-SPECIFIC DEATHS fit
+# Inverse-variance weight the log-residuals using GBD 95% UIs when present
+# (01 now retains upper/lower); FALSE => unit weights.
+USE_IV_WEIGHTS <- switch(COUNTRY, Indonesia = TRUE, Uganda = TRUE)
+# Drop target cells whose GBD Number is below this floor from the LOSS (they are
+# still reported for validation); guards divide-by-tiny in the relative fit.
+TARGET_MIN_COUNT <- switch(COUNTRY, Indonesia = 1, Uganda = 1)
+
+## --- incidence calibration mode + broad age bands ---------------------------
+# "fixed"    : IR held exactly at the GBD age-sex pattern (alpha = 1, not estimated)
+# "anchored" : IR = IR_GBD x exp(f_band(a)), f low-dim & prior-anchored to 0 (DEFAULT)
+# "free"     : same parameterisation but weak prior (alpha free to move)
+INCIDENCE_CALIBRATION_MODE <- switch(COUNTRY, Indonesia = "anchored", Uganda = "anchored")
+# Lower edges of the broad calibration age bands (last band is open-ended).
+# Default 0-14 / 15-24 / 25-44 / 45-64 / 65+ — one alpha & one beta per band x sex.
+CALIB_AGE_BANDS <- c(0L, 15L, 25L, 45L, 65L)
+
+## --- priors + smoothness (all on the log-multiplier scale) ------------------
+SIGMA_ALPHA   <- switch(COUNTRY, Indonesia = 0.75, Uganda = 0.75)  # incidence prior sd (GENEROUS:
+                                                                   #   let incidence breathe so the
+                                                                   #   GBD-incidence >> prevalence
+                                                                   #   tension does NOT re-enter)
+SIGMA_BETA    <- switch(COUNTRY, Indonesia = 0.50, Uganda = 0.50)  # RHD-mortality prior sd
+LAMBDA_PRIOR  <- switch(COUNTRY, Indonesia = 1.0,  Uganda = 1.0)   # weight on the prior penalty
+LAMBDA_SMOOTH <- switch(COUNTRY, Indonesia = 1.0,  Uganda = 1.0)   # weight on 2nd-diff smoothness
+MULT_LO       <- 0.2    # multiplier lower bound (log bounds = log(MULT_LO/HI))
+MULT_HI       <- 5.0    # multiplier upper bound
+
+## --- optimiser --------------------------------------------------------------
+# "multistart" : bounded multi-start L-BFGS-B (base R optim; DEFAULT, no extra deps)
+# "nloptr"     : global CRS2 -> L-BFGS-B polish (needs the installed nloptr)
+# "deoptim"    : DEoptim global -> L-BFGS-B polish (only if DEoptim is installed)
+CALIB_OPTIMIZER <- "multistart"
+N_STARTS        <- 8L     # reproducible random starts (+ the baseline start-0), multistart/deoptim
+CONVERGE_TOL    <- 1e-8   # optimiser convergence tolerance
 
 #===============================================================================
 # G. A/B/C/D NATURAL HISTORY  (03) — annual transition probabilities

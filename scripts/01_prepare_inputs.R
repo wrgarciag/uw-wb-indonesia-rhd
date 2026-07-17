@@ -23,8 +23,14 @@ dt_23 <- rbindlist(lapply(files, fread), use.names = TRUE, fill = TRUE)
 
 dt<-data.table(dt_23)
 
-dt[, upper:=NULL]
-dt[, lower:=NULL]
+# RETAIN upper/lower (GBD 95% uncertainty interval) on the epidemiology file: the
+# calibration (04) uses them for OPTIONAL inverse-variance weighting of the
+# log-scale residuals (Part D). They are dropped from the population file below
+# (not needed there). Guarded so 01 still runs if a source CSV lacks them.
+if (!all(c("upper", "lower") %in% names(dt))) {
+  if (!"upper" %in% names(dt)) dt[, upper := NA_real_]
+  if (!"lower" %in% names(dt)) dt[, lower := NA_real_]
+}
 
 unique(dt$year)
 unique(dt$location_name)

@@ -1,0 +1,11 @@
+location,sex,cause,band,band_lo,alpha,beta
+Indonesia,Female,Rheumatic heart disease,0-14,0,0.976837437240809,0.992991640572349
+Indonesia,Female,Rheumatic heart disease,15-24,15,0.982589521658422,0.992995509990769
+Indonesia,Female,Rheumatic heart disease,25-44,25,0.988151206737917,0.988437717728783
+Indonesia,Female,Rheumatic heart disease,45-64,45,0.995647923737722,0.978466640121615
+Indonesia,Female,Rheumatic heart disease,65+,65,1.00115218805374,0.959796426446237
+Indonesia,Male,Rheumatic heart disease,0-14,0,0.974912487719891,0.99363640990479
+Indonesia,Male,Rheumatic heart disease,15-24,15,0.976868808226678,0.990738961054582
+Indonesia,Male,Rheumatic heart disease,25-44,25,0.982189719279648,0.98385331851098
+Indonesia,Male,Rheumatic heart disease,45-64,45,0.993110798883485,0.976637881940554
+Indonesia,Male,Rheumatic heart disease,65+,65,1.00150404382507,0.968877078835565
