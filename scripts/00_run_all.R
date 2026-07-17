@@ -233,37 +233,37 @@ W_PREV <- switch(COUNTRY,
 p_A_to_no_rhd <- switch(
   COUNTRY,
   Indonesia = 0.005,
-  Uganda    = 0.08
+  Uganda    = 0.2
 )
 
 p_A_to_B <- switch(
   COUNTRY,
   Indonesia = 0.020,
-  Uganda    = 0.040
+  Uganda    = 0.038
 )
 
 p_B_to_A <- switch(
   COUNTRY,
   Indonesia = 0.010,
-  Uganda    = 0.100
+  Uganda    = 0.110
 )
 
 p_B_to_C <- switch(
   COUNTRY,
   Indonesia = 0.030,
-  Uganda    = 0.030
+  Uganda    = 0.03
 )
 
 p_C_to_B <- switch(
   COUNTRY,
   Indonesia = 0.005,
-  Uganda    = 0.030
+  Uganda    = 0.060
 )
 
 p_C_to_D <- switch(
   COUNTRY,
   Indonesia = 0.060,
-  Uganda    = 0.09
+  Uganda    = 0.05
 )
 
 p_D_to_C <- switch(
@@ -277,7 +277,7 @@ p_D_to_C <- switch(
 # mortality inputs are used without further scaling by default (multiplier = 1).
 rhd_mortality_calibration_mult <- switch(COUNTRY,
                                          Indonesia = 1 / 2.5,
-                                         Uganda    = 1 / 10)
+                                         Uganda    = 1 / 8)
 
 scale_probability <- function(p, multiplier) {
   1 - (1 - p)^multiplier
@@ -289,22 +289,22 @@ scale_probability <- function(p, multiplier) {
 p_rhd_death_A <- switch(
   COUNTRY,
   Indonesia = scale_probability(0.0005, rhd_mortality_calibration_mult),
-  Uganda    = scale_probability(0.0005, rhd_mortality_calibration_mult)
+  Uganda    = scale_probability(0.0000, rhd_mortality_calibration_mult)
 )
 p_rhd_death_B <- switch(
   COUNTRY,
   Indonesia = scale_probability(0.0020, rhd_mortality_calibration_mult),
-  Uganda    = scale_probability(0.0020, rhd_mortality_calibration_mult)
+  Uganda    = scale_probability(0.0000, rhd_mortality_calibration_mult)
 )
 p_rhd_death_C <- switch(
   COUNTRY,
   Indonesia = scale_probability(0.0200, rhd_mortality_calibration_mult),
-  Uganda    = scale_probability(0.0080, rhd_mortality_calibration_mult)
+  Uganda    = scale_probability(0.0100, rhd_mortality_calibration_mult)
 )
 p_rhd_death_D <- switch(
   COUNTRY,
   Indonesia = scale_probability(0.0800, rhd_mortality_calibration_mult),
-  Uganda    = scale_probability(0.0328, rhd_mortality_calibration_mult)
+  Uganda    = scale_probability(0.0750, rhd_mortality_calibration_mult)
 )
 
 # Stage-D share of prevalent RHD at the seed year.
@@ -382,10 +382,10 @@ treatment_target <- switch(COUNTRY,
 
 frac_C_requiring_surgery <- switch(COUNTRY,
                                    Indonesia = 0.03,
-                                   Uganda    = 0.03)
+                                   Uganda    = 0.1)
 frac_D_requiring_surgery <- switch(COUNTRY,
                                    Indonesia = 0.20,
-                                   Uganda    = 0.20)
+                                   Uganda    = 0.4)
 cov_surgery_ref <- switch(COUNTRY,
                           Indonesia = 0.05,
                           Uganda    = 0.03)
@@ -451,7 +451,7 @@ cost_sap_per_year <- switch(COUNTRY,
                             Uganda    = 40)
 cost_surgery <- switch(COUNTRY,
                        Indonesia = 9000,
-                       Uganda    = 7000)
+                       Uganda    = 5000)
 
 #===============================================================================
 # K. PARALLEL / CORE SETTINGS
@@ -474,3 +474,4 @@ source(paste0(wd_code, "07_make_outputs.R"))          # standard long table
 source(paste0(wd_code, "08_economic_evaluation.R"))   # benefit-cost & cost-effectiveness
 
 message("\n================ PIPELINE COMPLETE (01 -> 08) ================")
+
