@@ -392,22 +392,23 @@ add_row <- function(g, p, v, prov)
   inp <<- rbind(inp, data.table(Group = g, Parameter = p, Value = v, Provenance = prov))
 
 if (have_bs) {
-  # A/B/C/D annual transition probabilities
-  g <- "A/B/C/D transition probabilities (per year)"
-  add_row(g, "A → No RHD (regression)", fmt_pct(tr$p_A_to_no_rhd, 1), "[CALIBRATE]")
-  add_row(g, "A → B (progression)",     fmt_pct(tr$p_A_to_B, 1),      "[CALIBRATE]")
-  add_row(g, "B → A (regression)",      fmt_pct(tr$p_B_to_A, 1),      "[CALIBRATE]")
-  add_row(g, "B → C (progression)",     fmt_pct(tr$p_B_to_C, 1),      "[CALIBRATE]")
-  add_row(g, "C → B (regression)",      fmt_pct(tr$p_C_to_B, 1),      "[CALIBRATE]")
-  add_row(g, "C → D (progression)",     fmt_pct(tr$p_C_to_D, 1),      "[CALIBRATE]")
-  add_row(g, "D → C (regression)",      fmt_pct(tr$p_D_to_C, 1),      "[CALIBRATE]")
+  # A/B/C/D annual transition probabilities (calibrated by 04b against GBD)
+  g <- "A/B/C/D transition probabilities (per year, calibrated by 04b)"
+  add_row(g, "A → No RHD (regression)", fmt_pct(tr$p_A_to_no_rhd, 1), "[CALIBRATED]")
+  add_row(g, "A → B (progression)",     fmt_pct(tr$p_A_to_B, 1),      "[CALIBRATED]")
+  add_row(g, "B → A (regression)",      fmt_pct(tr$p_B_to_A, 1),      "[CALIBRATED]")
+  add_row(g, "B → C (progression)",     fmt_pct(tr$p_B_to_C, 1),      "[CALIBRATED]")
+  add_row(g, "C → B (regression)",      fmt_pct(tr$p_C_to_B, 1),      "[CALIBRATED]")
+  add_row(g, "C → D (progression)",     fmt_pct(tr$p_C_to_D, 1),      "[CALIBRATED]")
+  add_row(g, "D → C (regression)",      fmt_pct(tr$p_D_to_C, 1),      "[CALIBRATED]")
 
-  # Per-stage RHD-specific mortality (untreated)
-  g <- "Per-stage RHD-specific mortality (per year, untreated)"
-  add_row(g, "Stage A ($p^{d}_{A}$)", fmt_pct(pdth[["A"]], 2), "[CALIBRATE]")
-  add_row(g, "Stage B ($p^{d}_{B}$)", fmt_pct(pdth[["B"]], 2), "[CALIBRATE]")
-  add_row(g, "Stage C ($p^{d}_{C}$)", fmt_pct(pdth[["C"]], 2), "[CALIBRATE]")
-  add_row(g, "Stage D ($p^{d}_{D}$)", fmt_pct(pdth[["D"]], 2), "[CALIBRATE]")
+  # Per-stage RHD-specific mortality — calibrated by 04b (effective; residual baked in),
+  # near tight clinical priors and severity-ordered A <= B < C < D.
+  g <- "Per-stage RHD-specific mortality (per year; calibrated by 04b, effective)"
+  add_row(g, "Stage A ($m_{A}$)", fmt_pct(pdth[["A"]], 2), "[CALIBRATED]")
+  add_row(g, "Stage B ($m_{B}$)", fmt_pct(pdth[["B"]], 2), "[CALIBRATED]")
+  add_row(g, "Stage C ($m_{C}$)", fmt_pct(pdth[["C"]], 2), "[CALIBRATED]")
+  add_row(g, "Stage D ($m_{D}$)", fmt_pct(pdth[["D"]], 2), "[CALIBRATED]")
 
   # Intervention effects (relative risk reductions)
   g <- "Intervention effects (relative risk reduction)"
@@ -515,7 +516,9 @@ if (have_bs) {
 
 ```{r fig-model-schematic, echo=FALSE, out.width="100%", fig.align="center", fig.cap=paste0("Figure M1. Rheumatic heart disease A/B/C/D model structure. An age–sex structured annual cohort for ", CTRY, ". Incident RHD enters at stage A; the four living stages progress and regress along A ↔ B ↔ C with forward progression C → D; stage D feeds RHD death; competing background (non-RHD) mortality acts on every living stage. Secondary antibiotic prophylaxis (SAP) reduces stage-specific RHD mortality; surgery is a clinical service that reduces C → D progression and D → RHD death (it does not remove patients from a stage). Survivors age one year per cycle, with an open terminal 100+ group. Acute rheumatic fever is not represented as a health state.")}
 schematic <- file.path(wd, "docs", "rhd_abcd_state_transition.png")
-if (file.exists(schematic)) knitr::include_graphics(schematic)
+# tryCatch so a path/rendering hiccup (e.g. CLI knit from a different cwd) degrades
+# gracefully rather than halting the whole report.
+if (file.exists(schematic)) try(knitr::include_graphics(schematic), silent = TRUE)
 ```
 
 Let $t$ index calendar years over the horizon (`r proj_years`) and let each
@@ -528,12 +531,14 @@ and **other-cause death**. Markov cycles are implemented as elementwise
 ($\odot$) matrix operations, one per year.
 
 Three data-fed rate arrays drive the dynamics: the **calibrated incidence
-probability** $IR_t$ (No RHD → A; from `04`, with a secular trend baked in), the
-**background (non-RHD) competing mortality** $\mu$ (held fixed at its base-year
-pattern, the same age–sex risk for every living stage), and the population $P_t$
-(WPP2024 medium variant from `02`). RHD-specific mortality is carried by the
-**per-stage death probabilities** $p^{d}_{A},\dots,p^{d}_{D}$ (Table 1); the
-calibrated case-fatality from `04` is used only as a base-year anchor.
+probability** $IR_t$ (No RHD → A; from Layer 1 of the calibration, anchored to the
+GBD RHD-incidence age–sex pattern with a secular trend baked in), the **background
+(non-RHD) competing mortality** $\mu$ (held fixed at its base-year pattern, the
+same age–sex risk for every living stage), and the population $P_t$ (WPP2024 medium
+variant from `02`). RHD-specific mortality is carried by the **per-stage death
+probabilities** $p^{d}_{A},\dots,p^{d}_{D}$, which are **calibrated by Layer 2**
+(the structural A/B/C/D calibration, `04b`) against GBD RHD-specific deaths and
+prevalence — not by a hand-tuned scalar (see [Calibration](#calibration)).
 
 **Initialisation (seed year `r base_year`).** The prevalent RHD pool is seeded
 from GBD 2023 prevalence and split across the four stages by the tagged
@@ -564,37 +569,96 @@ $$
 \tilde p^{d}_{D} = p^{d}_{D}\,\text{eff\_cf}_t\,\big(1 - \rho^{surg}_{Dd}\, r^{D}_t\big).
 $$
 
-The stage stocks then advance, each "stay" term floored at zero and every stage
-subject to competing background mortality $\mu$ (regression terms $p_{BA},p_{CB},
-p_{DC}$ and the No-RHD exit $p_{A0}$ included):
-
+The stage stocks then advance via **competing risks on the hazard scale**, so each
+"stay" term is a proper residual (never a floored subtraction). For a stage facing
+per-event annual probabilities $p_1,\dots,p_k$ — progression, regression, RHD death
+($p^{d}\,\text{eff\_cf}_t$, with the surgery multiplier on $D$) and other-cause
+death $\mu$ — write $h_i=-\log(1-p_i)$ and $H=\sum_i h_i$; then
+$$
+p^{\text{stay}} = e^{-H}, \qquad
+p^{\text{out}}_i = \big(1-e^{-H}\big)\,\frac{h_i}{H},
+$$
+so $\sum_i p^{\text{out}}_i + p^{\text{stay}} = 1$ exactly and every outflow is
+non-negative without clipping. The next-cycle stocks collect each stage's surviving
+residual plus its inflows (incident $N_t$ into $A$; regression and progression
+between adjacent stages; $\tilde p_{CD}$ the surgery-reduced $C\!\to\!D$):
 $$
 \begin{aligned}
-A^{+}_t &= \max\!\big(A_t(1 - p_{A0} - p_{AB} - p^{d}_{A}\text{eff\_cf}_t - \mu),\,0\big) + B_t\,p_{BA} + N_t \\[4pt]
-B^{+}_t &= \max\!\big(B_t(1 - p_{BA} - p_{BC} - p^{d}_{B}\text{eff\_cf}_t - \mu),\,0\big) + A_t\,p_{AB} + C_t\,p_{CB} \\[4pt]
-C^{+}_t &= \max\!\big(C_t(1 - p_{CB} - \tilde p_{CD} - p^{d}_{C}\text{eff\_cf}_t - \mu),\,0\big) + B_t\,p_{BC} + D_t\,p_{DC} \\[4pt]
-D^{+}_t &= \max\!\big(D_t(1 - p_{DC} - \tilde p^{d}_{D} - \mu),\,0\big) + C_t\,\tilde p_{CD}
+A^{+}_t &= A_t\,p^{\text{stay}}_{A} + B_t\,p^{\text{out}}_{B\to A} + N_t \\[4pt]
+B^{+}_t &= B_t\,p^{\text{stay}}_{B} + A_t\,p^{\text{out}}_{A\to B} + C_t\,p^{\text{out}}_{C\to B} \\[4pt]
+C^{+}_t &= C_t\,p^{\text{stay}}_{C} + B_t\,p^{\text{out}}_{B\to C} + D_t\,p^{\text{out}}_{D\to C} \\[4pt]
+D^{+}_t &= D_t\,p^{\text{stay}}_{D} + C_t\,p^{\text{out}}_{C\to D}
 \end{aligned}
 $$
+This hazard construction (shared engine `R/abcd_engine.R`, used by both the runner
+`06` and the structural calibration `04b`) guarantees the competing-risk sums are
+valid without the additive-probability clipping used previously.
 
 The surgery trace is recorded on the start-of-cycle stocks,
 $\text{surg}^{C}_t = C_t f_{C} c^{surg}_t$ and $\text{surg}^{D}_t = D_t f_{D} c^{surg}_t$
 (with $\text{surg}^{C}_t \le C_t f_{C}$, and likewise for D): it feeds the cost
 model and the risk multipliers above but is **never subtracted from any stage
-stock**. Year-end RHD (cause-specific) and all-cause deaths are
-
-$$
-\begin{aligned}
-D^{\text{rhd}}_t &= \text{eff\_cf}_t\big(A_t\,p^{d}_{A} + B_t\,p^{d}_{B} + C_t\,p^{d}_{C}\big) + D_t\,\tilde p^{d}_{D} \\[4pt]
-A^{\text{mx}}_t &= D^{\text{rhd}}_t \;+\; \mu \odot P_t .
-\end{aligned}
-$$
+stock**. Year-end RHD (cause-specific) deaths are the sum over stages of the
+RHD-death competing-risk outflow, $D^{\text{rhd}}_t = \sum_{s\in\{A,B,C,D\}} s_t\,
+p^{\text{out}}_{s\to\text{RHD death}}$, and all-cause deaths add the background of
+the whole population, $A^{\text{mx}}_t = D^{\text{rhd}}_t + \mu \odot P_t$.
 
 Finally the surviving stocks are **aged one year** ($A_{t+1} = \text{shift}(A^{+}_t)$,
 and likewise for $B, C, D$), with the terminal $100+$ group absorbing survivors
-who age past it. Every quantity is floored at zero. The aggregate reported "sick"
-stock is $S = A + B + C + D$ by construction, so the stage-and-flow table and the
-aggregate view reconcile exactly.
+who age past it. The aggregate reported "sick" stock is $S = A + B + C + D$ by
+construction, so the stage-and-flow table and the aggregate view reconcile exactly,
+and stage RHD deaths sum exactly to the aggregate RHD deaths.
+
+## Calibration {#calibration}
+
+Calibration is **two-layer** and targets **GBD RHD-specific** epidemiology
+(incidence, prevalence, RHD deaths); GBD **all-cause** deaths are retained for
+*validation only* and never enter the objective. This replaces an earlier scheme
+that fit a well–sick–dead case-fatality against GBD *all-cause* deaths (which the
+A/B/C/D engine never read) and reconciled deaths with a hand-tuned scalar
+(`1/2.5` Indonesia, `1/8` Uganda). Both are gone.
+
+**Layer 1 — aggregate incidence + case-fatality (`04`).** For each location × sex,
+a low-dimensional, prior-anchored, hazard-based calibration estimates one
+incidence ($\alpha_g$) and one aggregate RHD-mortality ($\beta_g$) log-multiplier
+per broad age band $g$ (default 0–14 / 15–24 / 25–44 / 45–64 / 65+). Incidence is
+**anchored** to the GBD age–sex pattern, $IR = IR_{\text{GBD}}\,e^{f_s(a)}$ with
+$f_s$ smooth and centred at zero, so the calibrated incidence is smooth rather than
+ragged. Competing risks are combined on the hazard scale. The loss is normalised
+log-scale squared error (optionally inverse-variance weighted by GBD uncertainty
+intervals) plus Gaussian priors and second-difference smoothness:
+$$
+L_X=\tfrac1{N_X}\sum_j\!\big[\log(X_j^{\text{mod}}\!+\varepsilon)-\log(X_j^{\text{GBD}}\!+\varepsilon)\big]^2,\quad
+L=\;w_I L_I + w_P L_P + w_D L_D \;+\; \lambda_{\text{pr}}\!\sum_g\!\Big[\tfrac{(\log\alpha_g)^2}{\sigma_\alpha^2}+\tfrac{(\log\beta_g)^2}{\sigma_\beta^2}\Big] + \lambda_{\text{sm}}\!\sum_g\!\big[(\Delta^2\!\log\alpha_g)^2+(\Delta^2\!\log\beta_g)^2\big],
+$$
+optimised sequentially (mortality → incidence → joint) by a bounded multi-start
+L-BFGS-B search whose baseline (all multipliers $=1$) is always evaluated, so the
+penalised objective is never worse than baseline.
+
+**Layer 2 — structural A/B/C/D (`04b`).** The **actual production engine**
+(`R/abcd_engine.R`, the same one-cycle update `06` runs) is placed inside the
+objective. Projecting each sex from a zero-start burn-in to the transition-implied
+**equilibrium** (so prevalence is *generated* from incidence + natural history, not
+seeded to match), it fits, aggregated to GBD age groups and years,
+$$
+A+B+C+D \approx P^{\text{GBD}}_{\text{RHD}}, \qquad
+\textstyle\sum_{s} s\cdot m_s \approx D^{\text{GBD}}_{\text{RHD}},
+$$
+with the same log-scale loss. It estimates the transitions
+$p_{A\to\text{no}}, p_{AB}, p_{BA}, p_{BC}, p_{CB}, p_{CD}$ and a **parsimonious
+severity-ratio mortality** — an overall level $m_D$ with ratios
+$m_C=\rho_C m_D,\ m_B=\rho_B m_D,\ m_A=\rho_A m_D$ constructed so the clinical
+ordering $0\le m_A\le m_B<m_C<m_D$ holds by construction — plus a bounded residual
+multiplier. Crucially, **mortality carries tight clinical priors while the
+transition/stock parameters carry looser priors**, so the penalised objective
+reconciles GBD RHD deaths by moving the *stock/progression* (Part-10 rule), not by
+suppressing mortality. Because GBD gives only *total* prevalence and deaths (no
+stage-specific echo targets), the stage split is **partially identified**: the
+near-optimal parameter sets and a per-parameter identifiability sweep are saved,
+and the seed distribution for `06` is the calibrated equilibrium (its per-age
+A/B/C/D shares applied to GBD prevalence). The former `1/8`/`1/2.5` scalar is
+removed; a solution that pushed the residual multiplier to its bound would be a
+validation failure.
 
 ## What the interventions change
 
@@ -891,6 +955,113 @@ ggplot(prof_mort, aes(age_mid, value, color = sex)) +
        subtitle = "RHD deaths per 100,000; GBD (≤2023) and model-projected (≥ jump-off)",
        x = "Age (years)", y = "RHD deaths per 100,000") +
   base_theme(12) + theme(legend.position = "bottom")
+```
+
+---
+
+# Calibration diagnostics {#calibration-diagnostics}
+
+These panels are produced by the two-layer calibration (`04` Layer 1, `04b`
+Layer 2) and read from `data/<COUNTRY>/calibrated_rhd_parameters.rds`. They show
+how well the model reproduces **GBD RHD-specific** incidence, prevalence and
+deaths, the calibrated A/B/C/D stage structure, and — because GBD supplies no
+stage-specific echo targets — the **partial-identification** of the stage split.
+
+```{r load-calib, message=FALSE, warning=FALSE, echo=FALSE}
+calib_path <- paste0(wd_data, "calibrated_rhd_parameters.rds")
+have_calib <- file.exists(calib_path)
+if (have_calib) {
+  calibb <- readRDS(calib_path)
+  L1  <- calibb$layer1
+  SC  <- calibb$stage_calibration
+  BP  <- SC$best_parameters
+  EDA <- SC$excess_death_attribution
+}
+```
+
+## Layer-1 fit — GBD vs model (RHD incidence, prevalence, deaths)
+
+```{r calib-fit, message=FALSE, warning=FALSE, echo=FALSE, fig.width=11, fig.height=3.8}
+if (have_calib && !is.null(L1$fit_by_group_year)) {
+  fbt <- as.data.table(L1$fit_by_group_year)
+  agg <- fbt[measure %in% c("Incidence","Prevalence","Deaths"),
+             .(value = sum(value)), by = .(measure, source, year)]
+  agg[, measure := factor(measure, levels = c("Incidence","Prevalence","Deaths"))]
+  agg[, source  := factor(source, levels = c("gbd","model"),
+                          labels = c("GBD (target)","Model (calibrated)"))]
+  ggplot(agg, aes(year, value, color = source)) +
+    geom_line(linewidth = 1.1) +
+    facet_wrap(~ measure, scales = "free_y", ncol = 3) +
+    scale_color_manual(values = c("GBD (target)" = "#b2182b",
+                                  "Model (calibrated)" = "#2166ac"), name = NULL) +
+    scale_y_continuous(labels = comma) +
+    labs(title = "Calibration fit: GBD vs model, RHD-specific (both sexes, calibration window)",
+         subtitle = paste0(loc1, "; counts summed over age groups. Deaths are the RHD-SPECIFIC ",
+                           "target (all-cause is validation-only)."),
+         x = "Year", y = "Count") +
+    base_theme(12) + theme(legend.position = "bottom")
+} else cat("Layer-1 fit table unavailable in the bundle.")
+```
+
+## Calibrated A/B/C/D stage structure, implied case fatality, and the excess-death attribution
+
+```{r calib-stage, message=FALSE, warning=FALSE, echo=FALSE}
+if (have_calib && !is.null(BP)) {
+  sh  <- BP$aggregate_stage_shares
+  pdd <- BP$p_rhd_death            # effective (residual baked in)
+  pdu <- BP$p_rhd_death_untreated
+  st_tab <- data.table(
+    Stage = c("A · minimal","B · mild","C · advanced","D · advanced+HF"),
+    `Equilibrium share` = fmt_pct(as.numeric(sh[c("A","B","C","D")]), 1),
+    `Mortality m_s (untreated)` = fmt_pct(as.numeric(pdu[c("A","B","C","D")]), 3),
+    `Mortality m_s (effective)` = fmt_pct(as.numeric(pdd[c("A","B","C","D")]), 3))
+  kable(st_tab, caption = paste0("Table C1. Calibrated equilibrium stage split and ",
+        "severity-ordered stage mortality (04b). Residual multiplier = ",
+        sprintf("%.3f", BP$residual_mortality_mult), " (bounds ",
+        paste(SC$bounds$residual_mult, collapse = "–"), "; at bound: ",
+        EDA$residual_at_bound, ")."),
+        align = c("l","r","r","r")) |>
+    kable_styling(bootstrap_options = c("striped","hover","condensed"),
+                  full_width = FALSE, font_size = 12) |>
+    row_spec(0, bold = TRUE)
+}
+```
+
+```{r calib-cf, echo=FALSE, results='asis'}
+if (have_calib && !is.null(EDA)) {
+  l1cf <- if (!is.null(calibb$tp)) mean(as.data.table(calibb$tp)[year == max(year), CF], na.rm = TRUE) else NA_real_
+  cat(sprintf(
+"**Implied total case fatality** $CF_{\\text{impl}} = D^{\\text{RHD}}_{\\text{model}}/(A{+}B{+}C{+}D) = %.5f$/yr, versus the GBD-implied aggregate case fatality **%.5f**/yr and the Layer-1 mortality anchor **%.5f**/yr. At the last calibration year the model reproduces **%.2f×** GBD prevalence and **%.2f×** GBD RHD deaths.\n\n",
+    EDA$cf_implied, EDA$gbd_cf, l1cf, EDA$prev_ratio, EDA$death_ratio))
+  cat("> **Excess-death attribution.** ", EDA$classification, "\n", sep = "")
+}
+```
+
+## Partial identification — parameter identifiability and near-optimal sets
+
+```{r calib-ident, message=FALSE, warning=FALSE, echo=FALSE}
+if (have_calib && !is.null(SC$identifiability)) {
+  idt <- as.data.table(SC$identifiability)
+  idisp <- data.table(Parameter = idt$parameter,
+                      `Flatness (frac. of range near-optimal)` = sprintf("%.2f", idt$flatness),
+                      Status = idt$status)
+  kable(idisp, caption = paste0("Table C2. Per-parameter identifiability. Low flatness = ",
+        "data-identified (objective rises sharply off the optimum); high flatness = ",
+        "prior-dominated. Status: ", SC$status, "."),
+        align = c("l","r","l")) |>
+    kable_styling(bootstrap_options = c("striped","hover","condensed"),
+                  full_width = FALSE, font_size = 12) |>
+    row_spec(0, bold = TRUE)
+}
+```
+
+```{r calib-nearopt, echo=FALSE, results='asis'}
+if (have_calib && !is.null(SC$accepted_parameter_sets)) {
+  nse <- as.data.table(SC$accepted_parameter_sets)
+  cat(sprintf(
+"Because GBD supplies no stage-specific echocardiographic targets, the stage split is **partially identified**: **%d** near-optimal parameter set(s) lie within the accepted objective band, and the seed distribution for `06` is the calibrated equilibrium rather than one matrix presented as identified. Supplying a local `calibration_targets_stage.csv` would pin the split further.\n",
+    nrow(nse)))
+}
 ```
 
 ---
@@ -1314,21 +1485,35 @@ if (have_econ) {
 - **Single location.** Results here are for `r CTRY`; the engine and tables are
   location-general (run per country via the `COUNTRY` switch in `00_run_all.R`),
   but all results here are national.
-- **Calibration and held-fixed structure.** Incidence and case fatality were
-  calibrated (2000–2019) against GBD prevalence and all-cause deaths; background
-  (non-RHD) mortality and the GBD age–sex rate pattern are **held fixed** at
-  their base-year levels, with an explicit incidence secular trend
+- **Calibration and held-fixed structure.** Calibration is two-layer and targets
+  **GBD RHD-specific** epidemiology (all-cause deaths are used for validation
+  only). *Layer 1* fixes the incidence age–sex pattern (anchored to GBD RHD
+  incidence, with a low-dimensional, prior-anchored smooth age adjustment) and an
+  aggregate RHD case-fatality; *Layer 2* runs the **actual A/B/C/D engine** inside
+  the objective to calibrate the stage transitions and a parsimonious
+  severity-ratio stage mortality against GBD RHD prevalence and RHD deaths.
+  Background (non-RHD) mortality and the GBD age–sex rate pattern are **held
+  fixed** at their base-year levels, with an explicit incidence secular trend
   (`r if (exists("meta")) sprintf("%.1f%%/year", 100*(1-meta$incidence_trend)) else "≈1.5%/year"`).
-- **Stage split and stage parameters assumed.** GBD reports *total* RHD
-  prevalence only; the A/B/C/D seed split (a multi-state severity study for
-  A/B/C, normalised to the non-D share, plus the complicated-RHD fraction for D)
-  is a tagged assumption. Within-RHD mortality is carried by the per-stage
-  RHD-death probabilities rather than the calibrated case fatality (used only as
-  a base-year anchor). The A/B/C/D transition, regression and per-stage mortality
-  probabilities are `[CALIBRATE]` values and **stage-transition calibration
-  against local echocardiographic prevalence targets is pending**, so absolute
-  stage-specific levels are best read as structural illustrations rather than
-  calibrated estimates.
+- **Stage split and stage parameters — partially identified.** GBD reports *total*
+  RHD prevalence and *total* RHD deaths only (no stage-specific echocardiographic
+  targets), so the A/B/C/D split is **partially identified**. Rather than fabricate
+  stage prevalences, Layer 2 holds the per-stage mortalities near tight clinical
+  priors (severity-ordered $m_A\le m_B<m_C<m_D$) while the looser-prior transition
+  and regression parameters move the *stock* to reproduce GBD RHD deaths; the seed
+  stage distribution is the transition-implied equilibrium (not a fixed clinical
+  split), and the near-optimal parameter sets and a per-parameter identifiability
+  diagnostic are saved. The former hand-tuned mortality scalar (`1/2.5` Indonesia,
+  `1/8` Uganda) has been **removed**; any residual mortality multiplier is bounded
+  and does not sit at its bound. Absolute stage-specific levels remain
+  prior-informed until local echo targets are supplied.
+- **GBD prevalence–mortality tension (setting-specific).** Where GBD reports a very
+  high echo-detected RHD prevalence relative to few recorded RHD deaths (a very low
+  implied case fatality — pronounced for `r CTRY` if it applies), clinically-plausible
+  stage mortality implies *more* RHD deaths than GBD records. The model does **not**
+  suppress mortality below clinical plausibility to force a match; the excess-death
+  attribution diagnostic names the responsible driver (total prevalence / stage
+  distribution), and the gap is reported rather than hidden.
 - **SAP acts on stage-specific mortality, not incidence.** The modelled benefit
   operates entirely through reduced RHD-specific case fatality across the four
   stages; the intervention does not alter RHD incidence (`eff_ir = 1`), so it
