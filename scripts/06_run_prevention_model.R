@@ -62,6 +62,12 @@ library(foreach)
 if (!exists("wd_data")) wd_data <- paste0(here::here("data"), "/")
 if (!exists("wd_outp")) wd_outp <- paste0(here::here("output"), "/")
 
+# Shared one-cycle A/B/C/D engine (single source of truth; also used by 04b).
+if (!exists("abcd_one_cycle")) {
+  eng <- if (exists("wd")) paste0(wd, "R/abcd_engine.R") else here::here("R", "abcd_engine.R")
+  source(eng)
+}
+
 RUN_PAR   <- if (exists("run_model_par")) isTRUE(run_model_par) else TRUE
 MAX_CORES <- if (exists("MAX_CORES")) MAX_CORES else 14L
 
@@ -136,79 +142,30 @@ run_location <- function(loc, baseline_state) {
 
       if (iy == 1L) { A <- st$seed$A; B <- st$seed$B; C <- st$seed$C; D <- st$seed$D }
 
-      # start-of-cycle prevalent RHD and susceptible ("No RHD") pools
-      rhd_start <- A + B + C + D
-      no_rhd    <- pmax(popm - rhd_start, 0)
+      # --- ONE annual A/B/C/D cycle via the shared hazard engine ---------------
+      #  Single source of truth (R/abcd_engine.R), also used by the structural
+      #  calibration (04b). Competing risks are combined on the HAZARD scale, so
+      #  each stage "stay" is a proper residual, not a floored subtraction.
+      cyc <- abcd_one_cycle(A, B, C, D, popm, irm, oth, tr, pd, eff, surg,
+                            cov = list(treatment = c_tx, surgery = c_surg))
 
-      # --- new incident RHD -> stage A (eff_ir = 1: no incidence effect) --------
-      eff_ir    <- 1
-      new_rhd_A <- no_rhd * irm * eff_ir
-
-      # --- intervention multipliers --------------------------------------------
-      # SAP: 55% RRR on RHD-specific mortality, scaled by effective treatment cov.
-      sap_mult <- 1 - eff$sap_rrr_rhd_death * c_tx                 # scalar in [0,1]
-      # Surgery (population-average reach); applied to C->D and D->RHD-death only.
-      reach_C <- surg$frac_C_requiring_surgery * c_surg
-      reach_D <- surg$frac_D_requiring_surgery * c_surg
-      eff_C_to_D_surg   <- 1 - eff$eff_surgery_C_to_D         * reach_C
-      eff_D_death_surg  <- 1 - eff$eff_surgery_D_to_rhd_death * reach_D
-
-      # effective per-stage death / C->D probabilities (scalars)
-      pA_death <- pd[["A"]] * sap_mult
-      pB_death <- pd[["B"]] * sap_mult
-      pC_death <- pd[["C"]] * sap_mult
-      pD_death <- pd[["D"]] * sap_mult * eff_D_death_surg
-      pC_to_D  <- tr$p_C_to_D * eff_C_to_D_surg
-
-      # --- stage A --------------------------------------------------------------
-      A_to_no_rhd <- A * tr$p_A_to_no_rhd
-      A_to_B      <- A * tr$p_A_to_B
-      A_death_rhd <- A * pA_death
-      A_death_oth <- A * oth
-      A_stay      <- pmax(A - A_to_no_rhd - A_to_B - A_death_rhd - A_death_oth, 0)
-
-      # --- stage B --------------------------------------------------------------
-      B_to_A      <- B * tr$p_B_to_A
-      B_to_C      <- B * tr$p_B_to_C
-      B_death_rhd <- B * pB_death
-      B_death_oth <- B * oth
-      B_stay      <- pmax(B - B_to_A - B_to_C - B_death_rhd - B_death_oth, 0)
-
-      # --- stage C (surgery lowers C->D) ---------------------------------------
-      C_to_B      <- C * tr$p_C_to_B
-      C_to_D      <- C * pC_to_D
-      C_death_rhd <- C * pC_death
-      C_death_oth <- C * oth
-      C_stay      <- pmax(C - C_to_B - C_to_D - C_death_rhd - C_death_oth, 0)
-
-      # --- stage D (surgery + SAP lower D->RHD-death) --------------------------
-      D_to_C      <- D * tr$p_D_to_C
-      D_death_rhd <- D * pD_death
-      D_death_oth <- D * oth
-      D_stay      <- pmax(D - D_to_C - D_death_rhd - D_death_oth, 0)
-
-      # --- next-cycle stocks (year-end, pre-ageing) ----------------------------
-      A_next <- A_stay + B_to_A + new_rhd_A
-      B_next <- B_stay + A_to_B + C_to_B
-      C_next <- C_stay + B_to_C + D_to_C
-      D_next <- D_stay + C_to_D
-
-      # --- surgery TRACE (service; on START stocks; does NOT move stock) --------
-      C_req_surg  <- C * surg$frac_C_requiring_surgery
-      D_req_surg  <- D * surg$frac_D_requiring_surgery
-      surgeries_C <- C_req_surg * c_surg
-      surgeries_D <- D_req_surg * c_surg
-      total_surg  <- surgeries_C + surgeries_D
-
-      # --- deaths ---------------------------------------------------------------
-      rhd_deaths   <- A_death_rhd + B_death_rhd + C_death_rhd + D_death_rhd
-      other_deaths <- A_death_oth + B_death_oth + C_death_oth + D_death_oth  # among RHD
-      # all-cause deaths of the WHOLE population = RHD deaths + background of pop
-      all_mx       <- rhd_deaths + oth * popm
-
-      # --- aggregate stocks -----------------------------------------------------
-      sick_end <- A_next + B_next + C_next + D_next
-      well_end <- pmax(popm - sick_end, 0)
+      rhd_start <- cyc$rhd_start
+      eff_ir <- cyc$eff_ir; new_rhd_A <- cyc$new_rhd_A
+      sap_mult <- cyc$sap_mult; reach_C <- cyc$reach_C; reach_D <- cyc$reach_D
+      eff_C_to_D_surg <- cyc$eff_C_to_D_surg; eff_D_death_surg <- cyc$eff_D_death_surg
+      A_next <- cyc$A; B_next <- cyc$B; C_next <- cyc$C; D_next <- cyc$D
+      A_to_no_rhd <- cyc$A_to_no_rhd; A_to_B <- cyc$A_to_B
+      B_to_A <- cyc$B_to_A; B_to_C <- cyc$B_to_C
+      C_to_B <- cyc$C_to_B; C_to_D <- cyc$C_to_D; D_to_C <- cyc$D_to_C
+      A_death_rhd <- cyc$rhd_deaths_A; B_death_rhd <- cyc$rhd_deaths_B
+      C_death_rhd <- cyc$rhd_deaths_C; D_death_rhd <- cyc$rhd_deaths_D
+      A_death_oth <- cyc$other_deaths_A; B_death_oth <- cyc$other_deaths_B
+      C_death_oth <- cyc$other_deaths_C; D_death_oth <- cyc$other_deaths_D
+      rhd_deaths <- cyc$rhd_deaths; other_deaths <- cyc$other_deaths; all_mx <- cyc$all_mx
+      sick_end <- cyc$sick_end; well_end <- cyc$well_end
+      C_req_surg <- cyc$C_requiring_surgery; D_req_surg <- cyc$D_requiring_surgery
+      surgeries_C <- cyc$surgeries_C; surgeries_D <- cyc$surgeries_D
+      total_surg <- cyc$total_surgeries
 
       # --- program volumes (counts; costed in 08) ------------------------------
       n_screened <- popm * screen_mask * c_screen                  # total pop (default)
@@ -345,7 +302,8 @@ if (use_par) {
   cl <- makeCluster(n_cores); registerDoParallel(cl)
   on.exit(stopCluster(cl), add = TRUE)
   results <- foreach(loc = LOCATIONS, .packages = "data.table",
-                     .export = c("run_location", "baseline_state")) %dopar% {
+                     .export = c("run_location", "baseline_state",
+                                 "abcd_one_cycle", "abcd_compete")) %dopar% {
     run_location(loc, baseline_state)
   }
 } else {

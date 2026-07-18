@@ -1,0 +1,12 @@
+parameter,flatness,status
+p_A_to_no_rhd,0.0952380952380952,data-identified
+p_A_to_B,0.19047619047619,data-identified
+p_B_to_A,0.380952380952381,data-identified
+p_B_to_C,0.428571428571429,data-identified
+p_C_to_B,0.523809523809524,prior-dominated
+p_C_to_D,0.523809523809524,prior-dominated
+log_mD,0.19047619047619,data-identified
+ratio_C,0.0476190476190476,data-identified
+ratio_B,0.0476190476190476,data-identified
+ratio_A,0.0952380952380952,data-identified
+log_resid,0.380952380952381,data-identified
