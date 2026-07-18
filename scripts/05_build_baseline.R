@@ -92,6 +92,32 @@ message(sprintf("  Loaded: pop(%d rows) | disease inputs(horizon %d-%d) | calibr
                 calib$stage_calibration$status))
 
 # ------------------------------------------------------------------------------
+# 1b. CHOOSE STAGE PARAMETERS: 04b CALIBRATED (baked once) or 03 priors (fallback)
+#     04b (structural) writes $stage_calibration$best_parameters when it runs; we
+#     consume them AS-IS (no further scaling — the former 1/2.5//1/8 mortality
+#     scalars are gone). If absent, fall back to 03's clinical priors.
+# ------------------------------------------------------------------------------
+sc <- calib$stage_calibration
+use_calibrated_stages <- !is.null(sc$best_parameters) &&
+  isTRUE(grepl("^calibrated", as.character(sc$status)))
+if (use_calibrated_stages) {
+  bp <- sc$best_parameters
+  stage_transitions <- bp$transitions
+  stage_p_rhd_death <- bp$p_rhd_death
+  stage_split_use   <- bp$stage_split
+  rhd_d_fraction_use <- bp$rhd_d_fraction
+  message(sprintf("  Stage params: CALIBRATED by 04b (status %s) | p_rhd_death A/B/C/D = %s",
+                  sc$status, paste(sprintf("%.4f", stage_p_rhd_death[c("A","B","C","D")]), collapse="/")))
+} else {
+  stage_transitions <- dmi$transitions
+  stage_p_rhd_death <- dmi$p_rhd_death
+  stage_split_use   <- dmi$stage_split
+  rhd_d_fraction_use <- dmi$meta$rhd_d_fraction
+  message(sprintf("  Stage params: UNCALIBRATED from 03 (status %s) -- 04b did not bake stage params.",
+                  sc$status))
+}
+
+# ------------------------------------------------------------------------------
 # 2. HELPERS  (tidy long -> [age x sex] matrix / coverage ramp)
 # ------------------------------------------------------------------------------
 empty_mat <- function() matrix(0, n_age, n_sex, dimnames = list(AGES, SEXES))
@@ -166,14 +192,26 @@ build_location_state <- function(loc) {
   prev_seed <- dmi$rates_by_year$prev_seed         # [age x sex] prevalence fraction
 
   ## 3e. seed the prevalent pool at year 1, split across A/B/C/D --------------
+  ##     Prefer 04b's CALIBRATED, dynamically self-consistent PER-AGE stage
+  ##     fractions (so base-year deaths reflect the calibrated distribution, not
+  ##     the Cannon clinical-cohort split); fall back to the uniform split.
   prev_pool <- prev_seed * pop_arr[, , 1]
-  ss <- dmi$stage_split
-  seed <- list(
-    A = prev_pool * ss[["A"]],
-    B = prev_pool * ss[["B"]],
-    C = prev_pool * ss[["C"]],
-    D = prev_pool * ss[["D"]]
-  )
+  ssa <- if (use_calibrated_stages) sc$best_parameters$stage_shares_by_age else NULL
+  if (!is.null(ssa)) {
+    ssa <- as.data.table(ssa)
+    cal_age <- pmin(AGES, max(ssa$age))                 # ages beyond 95 inherit the 95+ fractions
+    fmat <- function(col) {
+      m <- empty_mat()
+      for (s in SEXES) { ds <- ssa[sex == s]; m[, s] <- ds[[col]][match(cal_age, ds$age)] }
+      m[is.na(m)] <- 0; m
+    }
+    seed <- list(A = prev_pool * fmat("fracA"), B = prev_pool * fmat("fracB"),
+                 C = prev_pool * fmat("fracC"), D = prev_pool * fmat("fracD"))
+  } else {
+    ss <- stage_split_use
+    seed <- list(A = prev_pool * ss[["A"]], B = prev_pool * ss[["B"]],
+                 C = prev_pool * ss[["C"]], D = prev_pool * ss[["D"]])
+  }
 
   ## 3f. realised cascade + surgery coverage trajectories per scenario --------
   #  Reference holds baselines flat; scale-up ramps to the 2050 targets.
@@ -203,7 +241,7 @@ build_location_state <- function(loc) {
 
   list(pop = pop_arr, ir = ir_arr, cf = cf_base, oth_mort = oth_mort,
        seed = seed,
-       transitions = dmi$transitions, p_rhd_death = dmi$p_rhd_death,
+       transitions = stage_transitions, p_rhd_death = stage_p_rhd_death,
        effects = dmi$effects, surgery = surg,
        coverage = coverage)
 }
@@ -297,8 +335,8 @@ baseline_state <- list(
     stages = c("A", "B", "C", "D"),
     ramp_start = cov$ramp_start, ramp_end = cov$ramp_end,
     incidence_trend = dmi$meta$incidence_trend,
-    rhd_d_fraction  = dmi$meta$rhd_d_fraction,
-    stage_split     = dmi$stage_split,
+    rhd_d_fraction  = rhd_d_fraction_use,
+    stage_split     = stage_split_use,
     calib_last_year = calib_last_year,
     stage_calibration_status = calib$stage_calibration$status,
     RATE_BASE_YEAR  = dmi$meta$RATE_BASE_YEAR,

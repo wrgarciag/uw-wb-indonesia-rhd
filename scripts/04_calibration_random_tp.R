@@ -1,154 +1,118 @@
 #===============================================================================
 # 04_calibration_random_tp.R
 #-------------------------------------------------------------------------------
-# TWO-LAYER CALIBRATION FOR THE INDONESIA RHD A/B/C/D STATE-TRANSITION MODEL
+# LAYER-1 (AGGREGATE) CALIBRATION FOR THE RHD A/B/C/D STATE-TRANSITION MODEL
 #
-# The A/B/C/D structure cannot be fully identified from GBD alone (GBD supplies
-# TOTAL RHD prevalence + mortality, not stage-specific prevalence). Calibration
-# is therefore split into two layers:
+# This script calibrates the aggregate well-sick-dead PROXY that feeds the
+# A/B/C/D engine (06): it fixes the incidence age-sex pattern (drives the inflow
+# into stage A) and an aggregate RHD case-fatality anchor (consumed by the
+# Stage-2 structural stage calibration). It REPLACES the former pure random
+# search (400 i.i.d. uniform multipliers) against GBD ALL-CAUSE deaths with a
+# low-dimensional, prior-anchored, hazard-based calibration against GBD
+# RHD-SPECIFIC incidence, prevalence and deaths.
 #
-#   LAYER 1  (RUN HERE — random search on IR/CF vs GBD)
-#     Calibrates overall RHD incidence (IR) and total RHD case-fatality (CF)
-#     within 2000-2019 against GBD RHD prevalence + all-cause deaths, exactly as
-#     the well-sick-dead calibration always did. Calibrated IR drives the incident
-#     inflow into stage A in 06; calibrated CF is carried as a total-RHD-mortality
-#     ANCHOR. Background mortality is held fixed; only IR and CF are calibrated.
+# WHAT CHANGED vs the old random search (root cause it fixes)
+# -----------------------------------------------------------
+#   * TARGET   : GBD RHD-SPECIFIC deaths (not all-cause). All-cause deaths are
+#                retained for VALIDATION only, never in the loss.
+#   * LOSS     : normalized log-scale squared error on incidence + prevalence +
+#                RHD deaths, with OPTIONAL inverse-variance weights (GBD 95% UIs),
+#                plus Gaussian priors and 2nd-difference smoothness on the
+#                (log-scale) multipliers.
+#   * RISK     : competing risks are combined on the HAZARD scale
+#                (p_any = 1 - exp[-(h_a+h_b)]; split by hazard share), so
+#                probabilities never need clipping and survival is a proper
+#                residual.
+#   * DIM      : instead of ~52 independent per-age-group multipliers found by
+#                random draws, ONE incidence correction (alpha) and ONE aggregate
+#                RHD-mortality correction (beta) per BROAD AGE BAND x sex, so the
+#                calibrated IR is smooth (not ragged).
+#   * ANCHOR   : incidence is anchored to the GBD age-sex pattern,
+#                IR_model = IR_GBD x exp(f_band(a)), f prior-anchored to 0.
+#   * OPTIMISER: bounded multi-start L-BFGS-B (base R; DEfault), or nloptr/DEoptim
+#                if selected/installed — NOT 400 i.i.d. random vectors. The
+#                baseline (all multipliers = 1) is always evaluated so the
+#                penalized objective is never worse than baseline.
+#   * SEQUENCE : (1) mortality-only vs GBD RHD deaths -> (2) incidence-only vs GBD
+#                incidence + prevalence -> (3) joint refinement, each with saved
+#                diagnostics.
 #
-#   LAYER 2  (INTERFACE — A/B/C/D stage calibration vs LOCAL echo targets)
-#     Defines the target-table schema and a weighted squared-log-error loss for
-#     stage-specific prevalence, plus the list of calibratable stage parameters.
-#     It runs ONLY if a local A/B/C/D echocardiographic target file is supplied.
-#     No such file exists yet, so this layer FALLS BACK to Layer 1 (total RHD
-#     prevalence + mortality), PRESERVES the uncalibrated stage parameters from
-#     00_run_all.R (03's bundle), writes the expected target-file TEMPLATE, and
-#     issues a prominent message that stage-transition calibration is PENDING
-#     local echo targets. It does NOT fabricate stage-specific observations.
+# LAYER 2 (A/B/C/D STRUCTURAL / STAGE calibration) is the Stage-2 concern and
+# lives in 04b_calibrate_structural.R; this script preserves its interface
+# ($stage_calibration) so the pipeline runs whether or not 04b has been wired.
 #
-# This script does NOT run the model or the interventions (05 prepares the state,
-# 06 runs the model).
+# OUTPUT CONTRACT (single self-describing bundle — schema PRESERVED for 05/tests)
+# ------------------------------------------------------------------------------
+#   data/<COUNTRY>/calibrated_rhd_parameters.rds  — named list:
+#     $tp                : calibrated TP data.table (IR, CF, BG.mx, ... by
+#                          location x sex x cause x year x age) — same schema as
+#                          before; IR = IR_GBD x alpha, CF = CF_GBD x beta.
+#     $factors           : per-combo x band alpha/beta multipliers (+ age.group map).
+#     $diagnostics       : baseline-vs-calibrated loss + RMSE per combo.
+#     $stage_calibration : Layer-2 interface (unchanged; Stage-2 fills it).
+#     $layer1            : NEW — incidence_parameters, mortality_parameters,
+#                          objective_components, optimizer_diagnostics, validation,
+#                          mass_balance, fit_by_group_year.
+#     $meta              : window, calib_last_year, bands, weights, optimiser, ...
+#   plus human-readable CSVs (factors / diagnostics / fit / mass-balance).
 #
-# WHAT THIS SCRIPT DOES
-# ---------------------
-# 1. BUILDS an RHD-native baseline transition-probability (TP) table from
-#    upstream, rather than reading the parent NCD model's tps_inpt_part*.rds
-#    (which do not exist in this repo). For the FULL 0-95+ age range (paediatric
-#    and adult), both sexes, LOCATION, years 2000-2019 it derives, per single
-#    age x sex x year:
-#        IR        RHD incidence probability (well -> sick)      = GBD RHD Incidence Rate/1e5
-#        CF        RHD case-fatality (sick -> dead)              = RHD Deaths / RHD Prevalence
-#        PREVt0    prevalent RHD fraction (seed)                 = GBD RHD Prevalence Rate/1e5
-#        DIS.mx.t0 RHD death rate per capita                     = GBD RHD Deaths Rate/1e5
-#        ALL.mx    all-cause death rate per capita               = GBD All-causes Deaths Rate/1e5
-#        BG.mx     background (non-RHD) mortality of the sick     = ALL.mx - DIS.mx.t0  (>=0)
-#        BG.mx.all background (non-RHD) mortality of the pool     = ALL.mx - DIS.mx.t0  (>=0)
-#        Nx        population                                     = 02's pop_observed table
-#    INPUTS:  data/<COUNTRY>/temp_baseline_rates_gbd.rds  (from 01_prepare_inputs.R)
-#             data/pop_observed_1990_2024.rds        (from 02_build_demography.R)
-#
-# 2. CALIBRATES the structural IR and CF (per location-sex-cause, at GRANULARITY)
-#    by PURE RANDOM SEARCH over multiplicative adjustment factors, projecting the
-#    well-sick-dead cohort 2000 -> 2019 and minimising a weighted RELATIVE squared
-#    error against GBD counts. Candidate 0 = baseline (all multipliers = 1), so the
-#    calibrated fit is never worse than baseline. The argmin over i.i.d. uniform
-#    draws is kept (no Gaussian step / restart -- those are hill-climb constructs).
-#
-# CALIBRATION TARGETS  (GBD 2023 "Number", aggregated to GBD age groups: the
-#                        paediatric groups <1/12-23mo/2-4/5-9/10-14/15-19 plus the
-#                        5-year groups 20-24..90-94 and 95+)
-# ------------------------------------------------------------------------
-#   * PREVALENCE : GBD RHD Prevalence  vs the model sick stock          (RHD-specific)
-#   * DEATHS     : GBD ALL-CAUSES Deaths vs the model's DECOMPOSED
-#                  all-cause deaths = (RHD case-fatality deaths, sick->dead via CF)
-#                                   + (background mortality of the pool, BG.mx.all).
-#     i.e. model all-cause deaths = model RHD deaths + background deaths, and THAT
-#     sum is compared to the GBD All-causes target (not RHD deaths in isolation).
-#
-#   BACKGROUND MORTALITY IS HELD FIXED. Only IR and CF are calibrated. BG.mx /
-#   BG.mx.all are exogenous (= observed all-cause minus observed RHD deaths) and
-#   are NOT free parameters, consistent with enforce_tp_constraints() which
-#   PRESERVES BG.mx and treats IR/CF/BG.mx as competing risks summing to <= 1.
-#   Consequence (documented): because background is pinned to (all-cause - RHD),
-#   the all-cause death term chiefly validates the mortality envelope while the
-#   RHD PREVALENCE term drives the IR/CF fit. This is the "RHD deaths + fixed BG
-#   must sum to observed all-cause" option.
-#
-#   error = sum_{year, age.group} [
-#               W_DEATHS * ((AllDeaths_model - AllDeaths_gbd)/(AllDeaths_gbd + EPS))^2
-#             + W_PREV   * ((Prev_model      - Prev_gbd     )/(Prev_gbd      + EPS))^2 ]
-#
-# OUTPUT CONTRACT (single self-describing bundle — replaces 10 chunk files)
-# -------------------------------------------------------------------------
-#   * data/calibrated_rhd_parameters.rds  -- named list:
-#       $tp                : calibrated TP data.table (IR, CF, BG.mx, ... by
-#                            location x sex x cause x year x age) — the Layer-1 result.
-#       $factors           : per-combo(-age.group) IR/CF multipliers.
-#       $diagnostics       : baseline-vs-calibrated RMSE + weighted error + % improvement.
-#       $stage_calibration : Layer-2 interface — $status, $targets_template,
-#                            $targets_file, $calibratable_params, uncalibrated
-#                            $stage_params (passthrough from 03), $loss_note.
-#       $meta              : window, calib_last_year, granularity, ...
-#   * data/calibration_targets_stage_template.csv  -- expected Layer-2 target schema.
-#   * calibration_factors_random_tp.csv             -- per-combo IR/CF multipliers.
-#   * calibration_diagnostics_random_tp.csv         -- baseline-vs-calibrated RMSE.
-#
-# AVOID DOUBLE-CALIBRATION: this script bakes the calibrated multipliers directly
-#   into IR/CF. Downstream scripts (05 prepares state, 06 runs the model) consume
-#   the calibrated IR/CF AS-IS and must NOT re-apply any further adjustment. Stage
-#   parameters are read by 05 from 03's bundle (uncalibrated until Layer 2 runs).
+# AVOID DOUBLE-CALIBRATION: the calibrated multipliers are baked ONCE into IR/CF.
+#   05 prepares the state and 06 runs the model consuming calibrated IR/CF AS-IS.
 #
 # Source AFTER 01_prepare_inputs.R and 02_build_demography.R.
 #===============================================================================
 
 library(data.table)
-library(foreach)
-library(doParallel)
-library(parallel)
 
 #===============================================================================
 # 0. TUNABLE PARAMETERS  (all honour 00_run_all.R globals via getp(); else default)
 #===============================================================================
 getp <- function(nm, default) if (exists(nm, inherits = TRUE)) get(nm, inherits = TRUE) else default
 
-## --- search SPACE -----------------------------------------------------------
-SEARCH_HALFWIDTH <- getp("SEARCH_HALFWIDTH", 0.50)  # IR/CF sampled in [1-hw, 1+hw] = [0.5, 1.5]
-GRANULARITY <- getp("GRANULARITY", "age_group")     # "combo" (primary) | "age_group" (sensitivity)
+## --- objective weights + numerics -------------------------------------------
+W_INC   <- getp("W_INC",   1)      # weight on RHD incidence fit
+W_PREV  <- getp("W_PREV",  1)      # weight on RHD prevalence fit
+W_DEATH <- getp("W_DEATH", 2)      # weight on RHD-SPECIFIC deaths fit (all-cause is validation-only)
+USE_IV_WEIGHTS   <- isTRUE(getp("USE_IV_WEIGHTS", TRUE))
+TARGET_MIN_COUNT <- getp("TARGET_MIN_COUNT", 1)   # drop cells below this GBD Number from the LOSS
+EPS_LOG <- 1e-3                    # floor inside log() for the relative log-loss
 
-## --- search ALGORITHM (PURE RANDOM SEARCH) ----------------------------------
-N_ITER       <- getp("N_ITER",       400)           # i.i.d. uniform candidates/combo (baseline = cand 0)
-CONVERGE_TOL <- getp("CONVERGE_TOL", 1e-4)          # early stop if best weighted error < this
-SEED         <- getp("SEED",         42)            # master seed; per-combo seed = SEED + ci*10000
+## --- incidence calibration mode + broad bands -------------------------------
+INCIDENCE_CALIBRATION_MODE <- getp("INCIDENCE_CALIBRATION_MODE", "anchored")  # fixed|anchored|free
+CALIB_AGE_BANDS <- as.integer(getp("CALIB_AGE_BANDS", c(0L, 15L, 25L, 45L, 65L)))
 
-## --- objective WEIGHTS / numerics -------------------------------------------
-W_DEATHS <- getp("W_DEATHS", 2)                     # fatal weight
-W_PREV   <- getp("W_PREV",   1)                     # non-fatal weight
-EPS_REL  <- 1e-6                                    # denominator floor for relative error
+## --- priors + smoothness (log-multiplier scale) -----------------------------
+SIGMA_ALPHA   <- getp("SIGMA_ALPHA",   0.75)
+SIGMA_BETA    <- getp("SIGMA_BETA",    0.50)
+LAMBDA_PRIOR  <- getp("LAMBDA_PRIOR",  1.0)
+LAMBDA_SMOOTH <- getp("LAMBDA_SMOOTH", 1.0)
+MULT_LO       <- getp("MULT_LO", 0.2)
+MULT_HI       <- getp("MULT_HI", 5.0)
+# "free" mode loosens the incidence prior (x8) so alpha can move; "fixed" pins alpha=1.
+SIGMA_ALPHA_EFF <- if (INCIDENCE_CALIBRATION_MODE == "free") SIGMA_ALPHA * 8 else SIGMA_ALPHA
 
-## --- probability-constraint numerics ----------------------------------------
-TP_EPS <- 0.005                                     # buffer kept below 1 when capping/renormalising
+## --- optimiser --------------------------------------------------------------
+CALIB_OPTIMIZER <- getp("CALIB_OPTIMIZER", "multistart")  # multistart|nloptr|deoptim
+N_STARTS        <- as.integer(getp("N_STARTS", 8L))
+CONVERGE_TOL    <- getp("CONVERGE_TOL", 1e-8)
+SEED            <- as.integer(getp("SEED", 42L))
 
-## --- calibration target window (run the cohort 2000 -> 2019) ----------------
+## --- calibration window + age range -----------------------------------------
 CAL_YEAR_START <- as.integer(getp("CAL_YEAR_START", 2000))
 CAL_YEAR_END   <- as.integer(getp("CAL_YEAR_END",   2019))
-
-## --- RHD baseline TP build ---------------------------------------------------
 LOCATION  <- getp("LOCATION", "Indonesia")
-AGE_LO    <- as.integer(getp("AGE_LO", 0L))  # FULL cohort age range: 0..95+ (paediatric + adult).
-AGE_HI    <- as.integer(getp("AGE_HI", 95L)) # AGE_LO is the birth/entrant age (see project_combo).
+AGE_LO    <- as.integer(getp("AGE_LO", 0L))
+AGE_HI    <- as.integer(getp("AGE_HI", 95L))
 RHD_CAUSE <- "Rheumatic heart disease"
 ALL_CAUSE <- "All causes"
-
-## --- execution --------------------------------------------------------------
-RUN_PAR   <- if (exists("run_calibration_par")) isTRUE(run_calibration_par) else TRUE
-MAX_CORES <- as.integer(getp("MAX_CORES", 14L))
+TP_EPS    <- 0.005                 # buffer kept below 1 when capping IR/CF vs background
 
 ## --- paths (honour 00_run_all.R globals; else here()) -----------------------
 if (!exists("wd_raw"))  wd_raw  <- paste0(here::here("data-raw"), "/")
 if (!exists("wd_data")) wd_data <- paste0(here::here("data"), "/")
 
-## --- output bundle + Layer-2 stage-target file ------------------------------
 OUT_BUNDLE  <- paste0(wd_data, "calibrated_rhd_parameters.rds")
 STAGE_TMPL  <- paste0(wd_data, "calibration_targets_stage_template.csv")
-# A local A/B/C/D echo target file activates Layer 2 if present (first hit wins).
 STAGE_TARGET_CANDIDATES <- c(
   paste0(wd_data, "calibration_targets_stage.csv"),
   paste0(wd_raw,  "calibration_targets_stage.csv")
@@ -156,14 +120,9 @@ STAGE_TARGET_CANDIDATES <- c(
 DISEASE_INPUTS_FILE <- paste0(wd_data, "disease_model_inputs.rds")
 
 #===============================================================================
-# 1. BUILD RHD-NATIVE BASELINE TP TABLE  (replaces tps_inpt_part*.rds)
+# 1. AGE-GROUP + BAND MAPPINGS
 #===============================================================================
-
-## single-year age (0-95+) -> GBD age-group label (matches make_age_match).
-## MIRRORS the mapping in 03_build_disease_model.R, INCLUDING the paediatric /
-## young groups (<1, 12-23mo, 2-4, 5-9, 10-14, 15-19) so the full 0-95+ range is
-## calibrated. (Previously this started at "20-24 years", which silently binned
-## every age < 25 into the 20-24 group.)
+## single-year age (0-95+) -> GBD age-group label (MIRRORS 03/report age_to_grp).
 age_to_gbd_group <- function(a) {
   fcase(
     a < 1,  "<1 year",
@@ -180,11 +139,23 @@ age_to_gbd_group <- function(a) {
   )
 }
 
+## single-year age -> broad calibration band index (1..n_band) + labels.
+band_edges <- sort(unique(as.integer(CALIB_AGE_BANDS)))
+n_band     <- length(band_edges)
+band_labels <- vapply(seq_len(n_band), function(i) {
+  lo <- band_edges[i]
+  hi <- if (i < n_band) band_edges[i + 1] - 1L else NA_integer_
+  if (is.na(hi)) sprintf("%d+", lo) else sprintf("%d-%d", lo, hi)
+}, character(1))
+band_of <- function(a) findInterval(a, band_edges)   # 1..n_band
+
+#===============================================================================
+# 2. BUILD RHD-NATIVE BASELINE RATE TABLE  (per single age x sex x year)
+#===============================================================================
 build_rhd_tps <- function(gbd, pop, loc, y0, y1) {
   ages <- AGE_LO:AGE_HI
   am   <- data.table(age = ages, age_group = age_to_gbd_group(ages))
 
-  ## GBD per-capita rates by group, RHD + All-causes, calibration window
   r <- gbd[location_name == loc & metric_name == "Rate" &
              year >= y0 & year <= y1 &
              cause_name %in% c(RHD_CAUSE, ALL_CAUSE),
@@ -199,14 +170,11 @@ build_rhd_tps <- function(gbd, pop, loc, y0, y1) {
   w <- dcast(r, sex + age_group + year ~ cm, value.var = "rate")
   for (col in c("rhd_inc", "rhd_prev", "rhd_dth", "all_dth"))
     if (!col %in% names(w)) w[, (col) := 0]
-  w <- am[w, on = "age_group", allow.cartesian = TRUE]     # expand groups -> single age
+  w <- am[w, on = "age_group", allow.cartesian = TRUE]
 
-  ## population (single age x sex x year) from 02's observed table
   pp <- pop[location == loc & age %in% ages & year >= y0 & year <= y1,
             .(location, sex, age, year, Nx)]
-
   dt <- merge(w, pp, by = c("sex", "age", "year"), all.x = TRUE)
-  ## fill any missing rate/pop cells with 0 (rare young/old gaps)
   for (col in c("rhd_inc", "rhd_prev", "rhd_dth", "all_dth"))
     dt[is.na(get(col)), (col) := 0]
 
@@ -231,7 +199,6 @@ build_rhd_tps <- function(gbd, pop, loc, y0, y1) {
 gbd_raw <- as.data.table(readRDS(paste0(wd_data, "temp_baseline_rates_gbd.rds")))
 pop_obs <- as.data.table(readRDS(paste0(wd_data, "pop_observed_1990_2024.rds")))
 
-## the input population MUST actually cover the 2000-onward calibration window
 pop_years <- range(pop_obs[location == LOCATION, year])
 if (pop_years[1] > CAL_YEAR_START)
   stop(sprintf("Population input starts in %d but calibration needs %d onward. ",
@@ -245,35 +212,26 @@ if (gbd_years[1] > CAL_YEAR_START)
 b_rates <- build_rhd_tps(gbd_raw, pop_obs, LOCATION, CAL_YEAR_START, CAL_YEAR_END)
 locs    <- unique(b_rates$location)
 
-## defensive clamps (as the parent 031 applied before calibrating)
-b_rates[CF >= 1, CF := 0.99]
-b_rates[IR >= 1, IR := 0.99]
-b_rates[CF < 0,  CF := 0]
-b_rates[IR < 0,  IR := 0]
+## defensive clamps (as the parent applied before calibrating)
+b_rates[CF >= 1, CF := 0.99]; b_rates[IR >= 1, IR := 0.99]
+b_rates[CF < 0,  CF := 0];    b_rates[IR < 0,  IR := 0]
 
-## frozen copy of the INPUT for end-of-run schema / row-count validation
 tps_input_cols <- copy(names(b_rates))
 tps_input_nrow <- nrow(b_rates)
 
-cat(sprintf("Built RHD baseline TPs: %d rows | ages %d-%d | years %d-%d | sexes %s\n",
+cat(sprintf("Built RHD baseline rates: %d rows | ages %d-%d | years %d-%d | sexes %s\n",
             nrow(b_rates), min(b_rates$age), max(b_rates$age),
             min(b_rates$year), max(b_rates$year),
             paste(unique(b_rates$sex), collapse = ", ")))
-
-## incoming AGE_LO (=age 0, births) population each calibration year, from 02's
-## observed table. With AGE_LO = 0 these are the birth-cohort entrants that refresh
-## the youngest age each year (previously age-20 entrants when the range began at 20).
-pop_ent <- pop_obs[location %in% locs & age == AGE_LO &
-                     year >= CAL_YEAR_START & year <= CAL_YEAR_END,
-                   .(location, sex, age, year, Nx_ent = Nx)]
+cat(sprintf("Calibration bands (%d): %s | incidence mode = %s | optimiser = %s\n",
+            n_band, paste(band_labels, collapse = ", "),
+            INCIDENCE_CALIBRATION_MODE, CALIB_OPTIMIZER))
 
 #===============================================================================
-# 2. GBD CALIBRATION TARGETS
-#    Prevalence target = GBD RHD Prevalence (Number).
-#    Deaths     target = GBD ALL-CAUSES Deaths (Number)  <-- decomposed match.
-#    Both by GBD age group x sex x year, calibration window, LOCATION.
+# 3. GBD CALIBRATION TARGETS  (Number: RHD incidence, prevalence, RHD deaths;
+#    all-cause deaths kept for VALIDATION only). Optional inverse-variance
+#    weights from GBD 95% uncertainty intervals (upper/lower), if present.
 #===============================================================================
-
 gbd <- copy(gbd_raw)
 setnames(gbd,
          c("sex_name", "age_name", "cause_name", "measure_name", "metric_name", "location_name"),
@@ -282,523 +240,530 @@ gbd <- gbd[metric == "Number" & location %in% locs &
              year >= CAL_YEAR_START & year <= CAL_YEAR_END]
 
 age_groups_keep <- unique(age_to_gbd_group(AGE_LO:AGE_HI))
+has_ui <- all(c("upper", "lower") %in% names(gbd))
 
-prev_t <- gbd[cause == RHD_CAUSE & measure == "Prevalence" & age %in% age_groups_keep,
-              .(location, sex, age, year, gbdPrev = val)]
-alld_t <- gbd[cause == ALL_CAUSE & measure == "Deaths" & age %in% age_groups_keep,
-              .(location, sex, age, year, gbdAllDeaths = val)]
+## one tidy target table per (measure) with value + optional UI-based log-variance.
+grab_target <- function(cause_nm, measure_nm, valname) {
+  cols <- c("location", "sex", "age", "year", "val")
+  if (has_ui) cols <- c(cols, "upper", "lower")
+  d <- gbd[cause == cause_nm & measure == measure_nm & age %in% age_groups_keep, ..cols]
+  setnames(d, "val", valname)
+  if (has_ui) {
+    # var(log X) ~ ((log upper - log lower)/(2*1.96))^2 ; unit weight where UI missing/degenerate
+    d[, logvar := ((log(pmax(upper, EPS_LOG)) - log(pmax(lower, EPS_LOG))) / (2 * 1.959964))^2]
+    d[!is.finite(logvar) | logvar <= 0, logvar := NA_real_]
+    d[, c("upper", "lower") := NULL]
+    setnames(d, "logvar", paste0(valname, "_logvar"))
+  }
+  d
+}
+inc_t  <- grab_target(RHD_CAUSE, "Incidence",  "gbdInc")
+prev_t <- grab_target(RHD_CAUSE, "Prevalence", "gbdPrev")
+dth_t  <- grab_target(RHD_CAUSE, "Deaths",     "gbdDeath")
+alld_t <- grab_target(ALL_CAUSE, "Deaths",     "gbdAllDeath")   # validation only
 
-targets <- merge(prev_t, alld_t, by = c("location", "sex", "age", "year"), all = TRUE)
-targets[is.na(gbdPrev),      gbdPrev := 0]
-targets[is.na(gbdAllDeaths), gbdAllDeaths := 0]
-targets[, cause := RHD_CAUSE]                 # single disease cause in this model
-setkey(targets, location, sex, cause)
-
+keyc <- c("location", "sex", "age", "year")
+targets <- Reduce(function(x, y) merge(x, y, by = keyc, all = TRUE),
+                  list(inc_t, prev_t, dth_t, alld_t))
+for (cc in c("gbdInc", "gbdPrev", "gbdDeath", "gbdAllDeath"))
+  targets[is.na(get(cc)), (cc) := 0]
 if (nrow(targets) == 0)
-  stop("No GBD calibration targets built -- check dx_include / age groups / years.", call. = FALSE)
+  stop("No GBD calibration targets built -- check ages / years / measures.", call. = FALSE)
 
 #===============================================================================
-# 3. HELPER FUNCTIONS
+# 4. HAZARD HELPERS + MATRIX PROJECTOR  (aggregate well-sick-dead proxy)
 #===============================================================================
-
-## GBD age-group labels for the full 0-95+ range (matches age_to_gbd_group).
-make_age_match <- function() {
-  am <- data.table(age = AGE_LO:AGE_HI)
-  am[, age.group := age_to_gbd_group(age)]
-  am
-}
-
-## draw ONE i.i.d. uniform multiplier vector (heart of the random search).
-perturb_cvd_combo_random <- function(n_age_groups, granularity, lo, hi, seed = NULL) {
-  if (!is.null(seed)) set.seed(seed)
-  n_par <- if (granularity == "age_group") 2L * n_age_groups else 2L
-  runif(n_par, lo, hi)
-}
-
-## enforce probability / competing-risk constraints (in place). PRESERVES BG.mx
-## (only capping the disease TP) except in the rare fallback where BG.mx alone
-## leaves no room; those rows are flagged in bg_modified.
+# enforce probability / competing-risk constraints IN PLACE (adds no permanent
+# columns). PRESERVES BG.mx and caps IR/CF into the remaining headroom so
+# IR + BG.mx <= 1 and CF + BG.mx <= 1 without renormalising background.
 enforce_tp_constraints <- function(dt, tp_eps = TP_EPS) {
-  dt[is.na(IR),    IR := 0]
-  dt[is.na(CF),    CF := 0]
-  dt[is.na(BG.mx), BG.mx := 0]
+  dt[is.na(IR), IR := 0]; dt[is.na(CF), CF := 0]; dt[is.na(BG.mx), BG.mx := 0]
   dt[IR < 0, IR := 0]; dt[IR > 1, IR := 1]
   dt[CF < 0, CF := 0]; dt[CF > 1, CF := 1]
   dt[BG.mx < 0, BG.mx := 0]
-
-  if (!("bg_modified" %in% names(dt))) dt[, bg_modified := 0L]
-
-  dt[, headroom := 1 - BG.mx - tp_eps]
-  dt[headroom >= 0 & IR > headroom, IR := headroom]
-  dt[headroom >= 0 & CF > headroom, CF := headroom]
-
-  dt[headroom < 0 & (IR + BG.mx) > 1, `:=`(
-    IR_new   = IR    / (IR + BG.mx) - tp_eps,
-    BGmx_new = BG.mx / (IR + BG.mx) - tp_eps,
-    bg_modified = 1L)]
-  dt[!is.na(IR_new), `:=`(IR = pmax(IR_new, 0), BG.mx = pmax(BGmx_new, 0))]
-  dt[, c("IR_new", "BGmx_new") := NULL]
-
-  dt[(CF + BG.mx) > 1, `:=`(
-    CF_new   = CF    / (CF + BG.mx) - tp_eps,
-    BGmx_new = BG.mx / (CF + BG.mx) - tp_eps,
-    bg_modified = 1L)]
-  dt[!is.na(CF_new), `:=`(CF = pmax(CF_new, 0), BG.mx = pmax(BGmx_new, 0))]
-  dt[, c("CF_new", "BGmx_new") := NULL]
-
+  dt[, headroom := pmax(1 - BG.mx - tp_eps, 0)]
+  dt[IR > headroom, IR := headroom]
+  dt[CF > headroom, CF := headroom]
   dt[, headroom := NULL]
   dt[]
 }
 
-## build multiplier table from a flat parameter vector.
-build_mtab <- function(par, age_groups, granularity) {
-  if (granularity == "age_group") {
-    n <- length(age_groups)
-    data.table(age.group = age_groups, ir_mult = par[1:n], cf_mult = par[(n + 1):(2 * n)])
+# competing-risk split of two annual probabilities on the hazard scale.
+# returns p_event1, p_event2, p_survive (sum == 1 exactly; zero-hazard safe).
+compete2 <- function(p1, p2) {
+  p1 <- pmin(pmax(p1, 0), 0.999999); p2 <- pmin(pmax(p2, 0), 0.999999)
+  h1 <- -log1p(-p1); h2 <- -log1p(-p2); ht <- h1 + h2
+  pany <- 1 - exp(-ht)
+  share1 <- ifelse(ht > 0, h1 / ht, 0)
+  list(e1 = pany * share1, e2 = pany * (1 - share1), surv = exp(-ht))
+}
+
+# Build, for one combo, the [n_age x n_yr] input matrices + the target arrays.
+combo_data <- function(loc, sx) {
+  ages  <- AGE_LO:AGE_HI; n_age <- length(ages)
+  yrs   <- CAL_YEAR_START:CAL_YEAR_END; n_yr <- length(yrs)
+  cr    <- b_rates[location == loc & sex == sx]
+  to_mat <- function(col) {
+    m <- matrix(0, n_age, n_yr, dimnames = list(ages, as.character(yrs)))
+    idx <- cbind(match(cr$age, ages), match(cr$year, yrs))
+    m[idx] <- cr[[col]]; m
+  }
+  IR0 <- to_mat("IR"); PREV0 <- to_mat("PREVt0"); RHDMX0 <- to_mat("DIS.mx.t0")
+  BG0 <- to_mat("BG.mx"); NX <- to_mat("Nx")
+  CFBASE <- ifelse(PREV0 > 0, RHDMX0 / PREV0, 0)
+
+  # age -> group integer (1..G) in GBD-group order; group labels present.
+  grp_lab_age <- age_to_gbd_group(ages)
+  grp_present <- unique(grp_lab_age)                 # in ascending-age order
+  grp_int     <- match(grp_lab_age, grp_present)     # 1..G per age
+  G <- length(grp_present)
+
+  # target matrices [G x n_yr] aligned to (grp_present x yrs), for this sex.
+  tg <- targets[location == loc & sex == sx]
+  tmat <- function(col) {
+    m <- matrix(0, G, n_yr, dimnames = list(grp_present, as.character(yrs)))
+    ri <- match(tg$age, grp_present); ci <- match(tg$year, yrs)
+    ok <- !is.na(ri) & !is.na(ci)
+    m[cbind(ri[ok], ci[ok])] <- tg[[col]][ok]; m
+  }
+  TGT <- list(inc = tmat("gbdInc"), prev = tmat("gbdPrev"),
+              death = tmat("gbdDeath"), alldeath = tmat("gbdAllDeath"))
+  # inverse-variance weights [G x n_yr] per measure (normalized to mean 1), else unit.
+  wmat <- function(varcol, tgtmat) {
+    W <- matrix(1, G, n_yr)
+    if (has_ui && USE_IV_WEIGHTS && varcol %in% names(tg)) {
+      m <- matrix(NA_real_, G, n_yr)
+      ri <- match(tg$age, grp_present); ci <- match(tg$year, yrs)
+      ok <- !is.na(ri) & !is.na(ci)
+      m[cbind(ri[ok], ci[ok])] <- tg[[varcol]][ok]
+      w <- 1 / m; w[!is.finite(w)] <- NA_real_
+      if (any(is.finite(w))) { w[!is.finite(w)] <- mean(w[is.finite(w)]); W <- w / mean(w) }
+    }
+    W
+  }
+  WT <- list(inc = wmat("gbdInc_logvar", TGT$inc), prev = wmat("gbdPrev_logvar", TGT$prev),
+             death = wmat("gbdDeath_logvar", TGT$death))
+  # loss mask: keep cells with GBD Number >= TARGET_MIN_COUNT.
+  MSK <- list(inc = TGT$inc >= TARGET_MIN_COUNT, prev = TGT$prev >= TARGET_MIN_COUNT,
+              death = TGT$death >= TARGET_MIN_COUNT)
+
+  list(ages = ages, yrs = yrs, n_age = n_age, n_yr = n_yr,
+       IR0 = IR0, PREV0 = PREV0, CFBASE = CFBASE, BG0 = BG0, NX = NX,
+       band = band_of(ages), grp_int = grp_int, grp_present = grp_present, G = G,
+       TGT = TGT, WT = WT, MSK = MSK)
+}
+
+# Aggregate cohort projection with hazard competing risks, given band multipliers.
+# alpha_band/beta_band are length-n_band multiplicative factors on IR / CF.
+# Returns model [G x n_yr] matrices for incidence, prevalence, RHD deaths, all deaths.
+project_aggregate <- function(cd, alpha_band, beta_band) {
+  n_age <- cd$n_age; n_yr <- cd$n_yr
+  aM <- alpha_band[cd$band]; bM <- beta_band[cd$band]     # per-age multipliers
+  # per (age,year) annual probabilities
+  p_inc_raw <- pmin(cd$IR0 * aM / pmax(1 - cd$PREV0, 0.5), 0.99)   # at-risk incidence prob
+  cf_raw    <- pmin(cd$CFBASE * bM, 0.99)
+  bg        <- pmin(cd$BG0, 0.99)
+  cw <- compete2(p_inc_raw, bg)          # well: incidence vs background
+  cs <- compete2(cf_raw,    bg)          # sick: RHD death vs background
+  p_newsick <- cw$e1                     # [n_age x n_yr]
+  p_rhddeath <- cs$e1
+  surv_sick  <- cs$surv
+
+  S <- matrix(0, n_age, n_yr); newsick <- matrix(0, n_age, n_yr)
+  S[, 1] <- pmin(pmax(cd$NX[, 1] * cd$PREV0[, 1], 0), cd$NX[, 1])
+  W1 <- cd$NX[, 1] - S[, 1]; newsick[, 1] <- W1 * p_newsick[, 1]
+  for (t in 2:n_yr) {
+    prev_surv <- S[, t - 1] * surv_sick[, t - 1] + newsick[, t - 1]   # cohort ages a-1 -> a
+    S[2:n_age, t] <- prev_surv[1:(n_age - 1)]
+    S[n_age, t]   <- S[n_age, t] + prev_surv[n_age]                   # open terminal group retains
+    S[1, t]       <- cd$NX[1, t] * cd$PREV0[1, t]                     # age-0 births reseeded (GBD)
+    S[, t] <- pmin(pmax(S[, t], 0), cd$NX[, t])
+    Wt <- cd$NX[, t] - S[, t]
+    newsick[, t] <- Wt * p_newsick[, t]
+  }
+  rhd_deaths <- S * p_rhddeath
+  all_deaths <- rhd_deaths + cd$NX * bg          # RHD + background of whole pop (validation)
+  agg <- function(M) rowsum(M, cd$grp_int)       # [G x n_yr]
+  list(inc = agg(newsick), prev = agg(S), death = agg(rhd_deaths),
+       alldeath = agg(all_deaths))
+}
+
+# normalized weighted log-scale squared error on one measure (masked cells only).
+loss_term <- function(model, tgt, wt, msk) {
+  if (!any(msk)) return(0)
+  r <- (log(model[msk] + EPS_LOG) - log(tgt[msk] + EPS_LOG))^2 * wt[msk]
+  sum(r) / sum(wt[msk])
+}
+# 2nd-difference smoothness penalty over ordered bands (0 if < 3 bands).
+smooth_pen <- function(v) if (length(v) < 3) 0 else sum(diff(v, differences = 2)^2)
+
+# Full penalized objective from a packed parameter vector eta||zeta (log-mults).
+# `which` selects sub-objective for the sequential steps: "mortality","incidence","joint".
+make_objective <- function(cd, which = "joint") {
+  function(par) {
+    eta  <- par[seq_len(n_band)]
+    zeta <- par[n_band + seq_len(n_band)]
+    pr <- project_aggregate(cd, exp(eta), exp(zeta))
+    L_I <- loss_term(pr$inc,   cd$TGT$inc,   cd$WT$inc,   cd$MSK$inc)
+    L_P <- loss_term(pr$prev,  cd$TGT$prev,  cd$WT$prev,  cd$MSK$prev)
+    L_D <- loss_term(pr$death, cd$TGT$death, cd$WT$death, cd$MSK$death)
+    pri_a <- sum((eta  / SIGMA_ALPHA_EFF)^2)
+    pri_b <- sum((zeta / SIGMA_BETA)^2)
+    smo   <- smooth_pen(eta) + smooth_pen(zeta)
+    data_term <- switch(which,
+      mortality = W_DEATH * L_D,
+      incidence = W_INC * L_I + W_PREV * L_P,
+      joint     = W_INC * L_I + W_PREV * L_P + W_DEATH * L_D)
+    prior_term <- switch(which,
+      mortality = LAMBDA_PRIOR * pri_b + LAMBDA_SMOOTH * smooth_pen(zeta),
+      incidence = LAMBDA_PRIOR * pri_a + LAMBDA_SMOOTH * smooth_pen(eta),
+      joint     = LAMBDA_PRIOR * (pri_a + pri_b) + LAMBDA_SMOOTH * smo)
+    data_term + prior_term
+  }
+}
+
+#===============================================================================
+# 5. BOUNDED OPTIMISER  (multi-start L-BFGS-B default; nloptr / DEoptim optional)
+#    Always evaluates the baseline (log-mults = 0) so the penalized objective is
+#    never worse than baseline. Reports the multi-start spread.
+#===============================================================================
+optimise_block <- function(fn, npar, lower, upper, base_par, seed, n_starts = N_STARTS) {
+  vals <- numeric(0); best_par <- base_par; best_val <- fn(base_par)
+  base_val <- best_val
+  set.seed(seed)
+  # candidate start set: baseline + reproducible uniform draws within bounds
+  starts <- c(list(base_par),
+              lapply(seq_len(n_starts), function(i) runif(npar, lower, upper)))
+
+  run_lbfgs <- function(p0) tryCatch(
+    optim(p0, fn, method = "L-BFGS-B", lower = lower, upper = upper,
+          control = list(factr = 1e7, pgtol = CONVERGE_TOL, maxit = 300)),
+    error = function(e) NULL)
+
+  if (CALIB_OPTIMIZER == "deoptim" && requireNamespace("DEoptim", quietly = TRUE)) {
+    ctrl <- DEoptim::DEoptim.control(NP = 10 * npar, itermax = 120, trace = FALSE,
+                                     reltol = CONVERGE_TOL, steptol = 30)
+    de <- DEoptim::DEoptim(fn, lower, upper, control = ctrl)
+    dp <- as.numeric(de$optim$bestmem)
+    pol <- run_lbfgs(dp); if (!is.null(pol) && pol$value < fn(dp)) dp <- pol$par
+    v <- fn(dp); vals <- c(vals, v); if (v < best_val) { best_val <- v; best_par <- dp }
+  } else if (CALIB_OPTIMIZER == "nloptr" && requireNamespace("nloptr", quietly = TRUE)) {
+    g <- tryCatch(nloptr::nloptr(base_par, fn, lb = lower, ub = upper,
+             opts = list(algorithm = "NLOPT_GN_CRS2_LM", maxeval = 4000, xtol_rel = 1e-6)),
+             error = function(e) NULL)
+    gp <- if (!is.null(g)) g$solution else base_par
+    pol <- run_lbfgs(gp); if (!is.null(pol)) gp <- pol$par
+    v <- fn(gp); vals <- c(vals, v); if (v < best_val) { best_val <- v; best_par <- gp }
   } else {
-    data.table(age.group = age_groups, ir_mult = par[1], cf_mult = par[2])
+    for (p0 in starts) {
+      r <- run_lbfgs(p0)
+      if (!is.null(r)) { vals <- c(vals, r$value); if (r$value < best_val) { best_val <- r$value; best_par <- r$par } }
+    }
   }
+  list(par = best_par, value = best_val, base_value = base_val,
+       start_values = vals,
+       spread = if (length(vals)) c(min = min(vals), median = stats::median(vals), max = max(vals)) else
+                c(min = base_val, median = base_val, max = base_val))
 }
 
-## apply multipliers to a combo's TP rows, then enforce constraints (new DT).
-apply_multipliers <- function(combo_rates, mtab, age_match) {
-  cr <- copy(combo_rates)
-  cr <- merge(cr, age_match, by = "age",       all.x = TRUE)
-  cr <- merge(cr, mtab,      by = "age.group", all.x = TRUE)
-  cr[is.na(ir_mult), ir_mult := 1]
-  cr[is.na(cf_mult), cf_mult := 1]
-  cr[, IR := IR * ir_mult]
-  cr[, CF := CF * cf_mult]
-  cr[, c("age.group", "ir_mult", "cf_mult") := NULL]
-  enforce_tp_constraints(cr)
-  cr
-}
+#===============================================================================
+# 6. CALIBRATE EACH combo (location x sex): sequential -> joint
+#===============================================================================
+lower <- rep(log(MULT_LO), 2 * n_band)
+upper <- rep(log(MULT_HI), 2 * n_band)
+base0 <- rep(0, 2 * n_band)          # all multipliers = 1 (baseline)
 
-## project ONE combo through the well-sick-dead recursion, y0 -> y1.
-## Returns sick (model prevalence), dead (model RHD deaths) and all.mx
-## (model ALL-CAUSE deaths = RHD CF deaths + background of the pool).
-project_combo <- function(cr, pop_combo, y0 = CAL_YEAR_START, y1 = CAL_YEAR_END) {
-  br <- merge(cr, pop_combo, by = c("year", "location", "sex", "age"), all.x = TRUE)
-  br[age == AGE_LO & year > y0, Nx := Nx_ent]    # refresh age-0 (birth) entrants each year
-  br[, Nx_ent := NULL]
+combos <- unique(b_rates[, .(location, sex, cause)])
+n_combos <- nrow(combos)
+cat(sprintf("Layer-1 calibration: %d combo(s) | %d params/combo (%d bands x alpha,beta)\n",
+            n_combos, 2 * n_band, n_band))
 
-  br[year == y0 | age == AGE_LO, sick   := Nx * PREVt0]
-  br[year == y0 | age == AGE_LO, dead   := Nx * DIS.mx.t0]
-  br[year == y0 | age == AGE_LO, well   := Nx * (1 - (PREVt0 + ALL.mx))]
-  br[year == y0 | age == AGE_LO, pop    := Nx]
-  br[year == y0 | age == AGE_LO, all.mx := Nx * ALL.mx]
-
-  br[CF > 0.9, CF := 0.9]
-  br[IR > 0.9, IR := 0.9]
-
-  n_steps <- y1 - y0
-  for (s in 1:n_steps) {
-    yr <- y0 + s
-    b2 <- br[year <= yr & year >= yr - 1]
-    setorder(b2, sex, location, cause, age, year)
-    b2[, age2 := age + 1]
-
-    b2[, sick2 := shift(sick) * (1 - (CF + BG.mx)) + shift(well) * IR,
-       by = .(sex, location, cause, age)]
-    b2[sick2 < 0, sick2 := 0]
-    b2[, dead2 := shift(sick) * CF, by = .(sex, location, cause, age)]
-    b2[dead2 < 0, dead2 := 0]
-    b2[, pop2 := shift(pop) - shift(all.mx), by = .(sex, location, cause, age)]
-    b2[pop2 < 0, pop2 := 0]
-    ## all-cause deaths = disease (CF) deaths this combo + background mortality of pool
-    b2[, all.mx2 := sum(dead2), by = .(sex, location, year, age)]
-    b2[, all.mx2 := all.mx2 + (pop2 * BG.mx.all)]
-    b2[all.mx2 < 0, all.mx2 := 0]
-    b2[, well2 := pop2 - all.mx2 - sick2]
-    b2[well2 < 0, well2 := 0]
-
-    upd <- b2[year == yr & age2 <= AGE_HI,
-              .(age = age2, year, sick2, dead2, well2, pop2, all.mx2)]
-    br[upd, on = .(year, age), `:=`(
-      sick = i.sick2, dead = i.dead2, well = i.well2,
-      pop = i.pop2, all.mx = i.all.mx2)]
-  }
-
-  br[year >= y0, .(location, sex, cause, year, age, sick, dead, all.mx)]
-}
-
-## aggregate single-age projection to GBD age groups and join GBD targets.
-## model Prevalence = sum(sick); model AllDeaths = sum(all.mx) (decomposed).
-proj_vs_targets <- function(proj, combo_targets, age_match) {
-  m  <- merge(proj, age_match, by = "age", all.x = TRUE)
-  ms <- m[, .(Prevalence = sum(sick,   na.rm = TRUE),
-              AllDeaths  = sum(all.mx, na.rm = TRUE)),
-          by = .(location, sex, cause, year, age.group)]
-  setnames(ms, "age.group", "age")
-  j <- merge(combo_targets, ms,
-             by = c("location", "sex", "cause", "year", "age"), all.x = TRUE)
-  j[is.na(AllDeaths),  AllDeaths := 0]
-  j[is.na(Prevalence), Prevalence := 0]
-  j
-}
-
-## weighted RELATIVE squared error (search objective). All-cause deaths weighted 2x.
-combo_error <- function(proj, combo_targets, age_match,
-                        w_deaths = W_DEATHS, w_prev = W_PREV, eps = EPS_REL) {
-  j <- proj_vs_targets(proj, combo_targets, age_match)
-  j[, sum(
-    w_deaths * ((AllDeaths  - gbdAllDeaths) / (gbdAllDeaths + eps))^2 +
-    w_prev   * ((Prevalence - gbdPrev)      / (gbdPrev      + eps))^2,
-    na.rm = TRUE)]
-}
-
-## absolute RMSE diagnostics per location-sex-cause-age.group.
-## RMSE_deaths now measures ALL-CAUSE deaths (the decomposed target).
-combo_diag <- function(proj, combo_targets, age_match) {
-  j <- proj_vs_targets(proj, combo_targets, age_match)
-  j[, .(
-    RMSE_deaths = sqrt(mean((AllDeaths  - gbdAllDeaths)^2, na.rm = TRUE)),
-    RMSE_prev   = sqrt(mean((Prevalence - gbdPrev)^2,      na.rm = TRUE))
-  ), by = .(location, sex, cause, age)]
-}
-
-## calibrate ONE combo: PURE RANDOM SEARCH; candidate 0 = baseline.
-calibrate_one_combo_random <- function(combo_rates, pop_combo, combo_targets, age_match,
-                                       granularity, hw, n_iter, converge_tol,
-                                       w_deaths, w_prev, eps, seed) {
-  lo <- 1 - hw; hi <- 1 + hw
-  age_groups <- sort(unique(combo_targets$age))
-  n_g   <- length(age_groups)
-
-  eval_par <- function(par) {
-    mtab <- build_mtab(par, age_groups, granularity)
-    cr2  <- apply_multipliers(combo_rates, mtab, age_match)
-    proj <- project_combo(cr2, pop_combo)
-    combo_error(proj, combo_targets, age_match, w_deaths, w_prev, eps)
-  }
-
-  n_par    <- if (granularity == "age_group") 2L * n_g else 2L
-  best_par <- rep(1, n_par)
-  best_err <- eval_par(best_par)
-  base_err <- best_err
-  n_eval   <- 1L
-
-  for (it in 1:n_iter) {
-    cand <- perturb_cvd_combo_random(n_g, granularity, lo, hi, seed = seed + it)
-    err  <- eval_par(cand); n_eval <- n_eval + 1L
-    if (err < best_err) { best_err <- err; best_par <- cand }
-    if (best_err < converge_tol) break
-  }
-
-  list(mtab = build_mtab(best_par, age_groups, granularity),
-       best_err = best_err, base_err = base_err,
-       n_eval = n_eval, n_par = n_par,
-       hit_bound = any(best_par <= lo + 1e-9 | best_par >= hi - 1e-9))
-}
-
-## drive one combo end-to-end.
-run_combo <- function(ci, combos, b_rates, pop_ent, targets, age_match) {
+calibrate_combo <- function(ci) {
   loc <- combos$location[ci]; sx <- combos$sex[ci]; cse <- combos$cause[ci]
+  cd  <- combo_data(loc, sx)
+  seed_ci <- SEED + ci * 10000L
 
-  cr <- b_rates[location == loc & sex == sx & cause == cse]
-  pc <- pop_ent[location == loc & sex == sx]
-  ct <- targets[location == loc & sex == sx & cause == cse]
+  ## Step 1 — mortality only (beta), incidence held at anchor (alpha = 0 on log scale)
+  fn_m <- function(zeta) make_objective(cd, "mortality")(c(rep(0, n_band), zeta))
+  o1 <- optimise_block(fn_m, n_band, lower[seq_len(n_band)], upper[seq_len(n_band)],
+                       rep(0, n_band), seed_ci + 1L)
+  zeta1 <- o1$par
 
-  base_rows <- enforce_tp_constraints(copy(cr))
-
-  if (nrow(ct) == 0) {
-    base_rows[, bg_modified := NULL]
-    return(list(
-      rows = base_rows,
-      factors = data.table(location = loc, sex = sx, cause = cse,
-                           age.group = NA_character_, ir_mult = 1, cf_mult = 1,
-                           granularity = GRANULARITY),
-      diag = data.table(location = loc, sex = sx, cause = cse, age = NA_character_,
-                        RMSE_deaths_base = NA_real_, RMSE_prev_base = NA_real_,
-                        RMSE_deaths_cal = NA_real_,  RMSE_prev_cal = NA_real_),
-      err = data.table(location = loc, sex = sx, cause = cse,
-                       base_err = NA_real_, cal_err = NA_real_,
-                       n_eval = 0L, n_par = 0L, hit_bound = FALSE,
-                       bg_modified_rows = 0L)))
+  ## Step 2 — incidence only (alpha), mortality held at step-1 beta
+  if (INCIDENCE_CALIBRATION_MODE == "fixed") {
+    eta2 <- rep(0, n_band); o2 <- list(value = NA_real_, base_value = NA_real_, spread = c(min=NA,median=NA,max=NA))
+  } else {
+    fn_i <- function(eta) make_objective(cd, "incidence")(c(eta, zeta1))
+    o2 <- optimise_block(fn_i, n_band, lower[seq_len(n_band)], upper[seq_len(n_band)],
+                         rep(0, n_band), seed_ci + 2L)
+    eta2 <- o2$par
   }
 
-  fit <- calibrate_one_combo_random(cr, pc, ct, age_match,
-                                    GRANULARITY, SEARCH_HALFWIDTH, N_ITER,
-                                    CONVERGE_TOL, W_DEATHS, W_PREV, EPS_REL,
-                                    SEED + ci * 10000L)
+  ## Step 3 — joint refinement from the sequential solution (full penalized objective)
+  fn_j <- make_objective(cd, "joint")
+  start_joint <- c(eta2, zeta1)
+  oj <- optimise_block(fn_j, 2 * n_band, lower, upper, base0, seed_ci + 3L)
+  # ensure joint is seeded from the sequential solution too (compare, keep best)
+  vj_seq <- fn_j(start_joint)
+  if (is.finite(vj_seq) && vj_seq < oj$value) { oj$par <- start_joint; oj$value <- vj_seq }
+  if (INCIDENCE_CALIBRATION_MODE == "fixed") oj$par[seq_len(n_band)] <- 0   # pin alpha
 
-  cal_rows  <- apply_multipliers(cr, fit$mtab, age_match)
-  bg_mod_n  <- sum(cal_rows$bg_modified)
-  cal_rows[, bg_modified := NULL]
+  eta <- oj$par[seq_len(n_band)]; zeta <- oj$par[n_band + seq_len(n_band)]
+  alpha <- exp(eta); beta <- exp(zeta)
 
-  base_diag <- combo_diag(project_combo(base_rows, pc), ct, age_match)
-  cal_diag  <- combo_diag(project_combo(cal_rows,  pc), ct, age_match)
-  setnames(base_diag, c("RMSE_deaths", "RMSE_prev"), c("RMSE_deaths_base", "RMSE_prev_base"))
-  setnames(cal_diag,  c("RMSE_deaths", "RMSE_prev"), c("RMSE_deaths_cal",  "RMSE_prev_cal"))
-  diag <- merge(base_diag, cal_diag, by = c("location", "sex", "cause", "age"), all = TRUE)
-
-  factors <- copy(fit$mtab)
-  factors[, `:=`(location = loc, sex = sx, cause = cse, granularity = GRANULARITY)]
-  setcolorder(factors, c("location", "sex", "cause", "age.group",
-                         "ir_mult", "cf_mult", "granularity"))
-
-  err <- data.table(location = loc, sex = sx, cause = cse,
-                    base_err = fit$base_err, cal_err = fit$best_err,
-                    n_eval = fit$n_eval, n_par = fit$n_par,
-                    hit_bound = fit$hit_bound, bg_modified_rows = bg_mod_n)
-
-  list(rows = cal_rows, factors = factors, diag = diag, err = err)
-}
-
-#===============================================================================
-# 4. RUN CALIBRATION OVER ALL location-sex-cause COMBOS
-#===============================================================================
-
-age_match <- make_age_match()
-combos    <- unique(b_rates[, .(location, sex, cause)])
-n_combos  <- nrow(combos)
-
-cat(sprintf("Random-search TP calibration: %d combos | granularity = %s | window %d-%d\n",
-            n_combos, GRANULARITY, CAL_YEAR_START, CAL_YEAR_END))
-cat(sprintf("Search range per multiplier: [%.2f, %.2f] | %d i.i.d. candidates/combo\n",
-            1 - SEARCH_HALFWIDTH, 1 + SEARCH_HALFWIDTH, N_ITER))
-
-worker_exports <- c(
-  "combos", "b_rates", "pop_ent", "targets", "age_match",
-  "make_age_match", "perturb_cvd_combo_random", "enforce_tp_constraints",
-  "build_mtab", "apply_multipliers", "project_combo", "proj_vs_targets",
-  "combo_error", "combo_diag", "calibrate_one_combo_random", "run_combo",
-  "age_to_gbd_group", "GRANULARITY", "SEARCH_HALFWIDTH", "N_ITER", "CONVERGE_TOL",
-  "W_DEATHS", "W_PREV", "EPS_REL", "TP_EPS",
-  "CAL_YEAR_START", "CAL_YEAR_END", "AGE_LO", "AGE_HI", "SEED"
-)
-
-if (RUN_PAR && n_combos > 1) {
-  n_cores <- max(1L, min(MAX_CORES, n_combos, parallel::detectCores() - 1L))
-  cat(sprintf("Running in parallel on %d cores...\n", n_cores))
-  cl <- makeCluster(n_cores)
-  registerDoParallel(cl)
-  results <- foreach(ci = seq_len(n_combos),
-                     .packages = c("data.table"),
-                     .export   = worker_exports) %dopar% {
-    setDTthreads(1)
-    run_combo(ci, combos, b_rates, pop_ent, targets, age_match)
+  ## baseline vs calibrated fit components (for diagnostics + acceptance)
+  comp <- function(par) {
+    e <- par[seq_len(n_band)]; z <- par[n_band + seq_len(n_band)]
+    pr <- project_aggregate(cd, exp(e), exp(z))
+    list(L_I = loss_term(pr$inc, cd$TGT$inc, cd$WT$inc, cd$MSK$inc),
+         L_P = loss_term(pr$prev, cd$TGT$prev, cd$WT$prev, cd$MSK$prev),
+         L_D = loss_term(pr$death, cd$TGT$death, cd$WT$death, cd$MSK$death),
+         pr = pr)
   }
-  stopCluster(cl)
-} else {
-  cat("Running sequentially...\n")
-  results <- lapply(seq_len(n_combos), function(ci) {
-    res <- run_combo(ci, combos, b_rates, pop_ent, targets, age_match)
-    cat(sprintf("  [%d/%d] %s | %s | %s : err %.3g -> %.3g\n",
-                ci, n_combos, combos$location[ci], combos$sex[ci], combos$cause[ci],
-                res$err$base_err, res$err$cal_err))
-    res
-  })
+  cb <- comp(base0); cc <- comp(oj$par)
+  pen <- function(cl, par) {
+    e <- par[seq_len(n_band)]; z <- par[n_band + seq_len(n_band)]
+    W_INC*cl$L_I + W_PREV*cl$L_P + W_DEATH*cl$L_D +
+      LAMBDA_PRIOR*(sum((e/SIGMA_ALPHA_EFF)^2) + sum((z/SIGMA_BETA)^2)) +
+      LAMBDA_SMOOTH*(smooth_pen(e) + smooth_pen(z))
+  }
+  pen_base <- pen(cb, base0); pen_cal <- pen(cc, oj$par)
+
+  ## calibrated IR / CF written back to the tp rows (IR = IR_GBD x alpha; CF = CF_GBD x beta)
+  cr <- copy(b_rates[location == loc & sex == sx])
+  cr[, bnd := band_of(age)]
+  cr[, IR := IR * alpha[bnd]]
+  cr[, CF := CF * beta[bnd]]
+  cr[, bnd := NULL]
+  cr <- enforce_tp_constraints(cr)
+
+  ## fit-by-group-year long table (model vs GBD, incl. all-cause validation)
+  yrs <- cd$yrs; grp <- cd$grp_present
+  mk_long <- function(mat, meas, src) data.table(
+    location = loc, sex = sx, age = rep(grp, times = length(yrs)),
+    year = rep(yrs, each = length(grp)),
+    measure = meas, source = src, value = as.vector(mat))
+  fit_long <- rbindlist(list(
+    mk_long(cc$pr$inc,      "Incidence",  "model"),
+    mk_long(cd$TGT$inc,     "Incidence",  "gbd"),
+    mk_long(cc$pr$prev,     "Prevalence", "model"),
+    mk_long(cd$TGT$prev,    "Prevalence", "gbd"),
+    mk_long(cc$pr$death,    "Deaths",     "model"),
+    mk_long(cd$TGT$death,   "Deaths",     "gbd"),
+    mk_long(cc$pr$alldeath, "AllDeaths",  "model"),
+    mk_long(cd$TGT$alldeath,"AllDeaths",  "gbd")))
+
+  ## (mass-balance is built once at consolidation from pr_cal + TGT; see build_massbalance)
+
+  factors <- data.table(location = loc, sex = sx, cause = cse,
+                        band = band_labels, band_lo = band_edges,
+                        alpha = alpha, beta = beta)
+
+  diag <- data.table(location = loc, sex = sx, cause = cse,
+    L_I_base = cb$L_I, L_P_base = cb$L_P, L_D_base = cb$L_D,
+    L_I_cal = cc$L_I, L_P_cal = cc$L_P, L_D_cal = cc$L_D,
+    penalized_base = pen_base, penalized_cal = pen_cal,
+    step1_mortality_value = o1$value, step2_incidence_value = o2$value,
+    step3_joint_value = oj$value,
+    joint_spread_min = oj$spread[["min"]], joint_spread_med = oj$spread[["median"]],
+    joint_spread_max = oj$spread[["max"]])
+
+  list(rows = cr, factors = factors, diag = diag, fit_long = fit_long,
+       cd = cd, alpha = alpha, beta = beta, pr_cal = cc$pr, pr_base = cb$pr)
 }
 
-## --- consolidate ------------------------------------------------------------
-calibrated  <- rbindlist(lapply(results, `[[`, "rows"),    use.names = TRUE, fill = TRUE)
-factors_out <- rbindlist(lapply(results, `[[`, "factors"), use.names = TRUE, fill = TRUE)
-diag_out    <- rbindlist(lapply(results, `[[`, "diag"),    use.names = TRUE, fill = TRUE)
-err_out     <- rbindlist(lapply(results, `[[`, "err"),     use.names = TRUE, fill = TRUE)
+results <- lapply(seq_len(n_combos), function(ci) {
+  res <- calibrate_combo(ci)
+  cat(sprintf("  [%d/%d] %s | %s : penalized %.4g -> %.4g | alpha[%s] beta[%s]\n",
+              ci, n_combos, combos$location[ci], combos$sex[ci],
+              res$diag$penalized_base, res$diag$penalized_cal,
+              paste(sprintf("%.2f", res$alpha), collapse = ","),
+              paste(sprintf("%.2f", res$beta),  collapse = ",")))
+  res
+})
 
+#===============================================================================
+# 7. CONSOLIDATE + MASS-BALANCE + BAKE INTO $tp
+#===============================================================================
+calibrated  <- rbindlist(lapply(results, `[[`, "rows"),     use.names = TRUE, fill = TRUE)
+factors_out <- rbindlist(lapply(results, `[[`, "factors"),  use.names = TRUE, fill = TRUE)
+diag_out    <- rbindlist(lapply(results, `[[`, "diag"),     use.names = TRUE, fill = TRUE)
+fit_out     <- rbindlist(lapply(results, `[[`, "fit_long"), use.names = TRUE, fill = TRUE)
 setcolorder(calibrated, intersect(tps_input_cols, names(calibrated)))
 
-## --- Layer-1 diagnostics CSV --------------------------------------------------
+## mass-balance table per combo x band x year: model prevalence vs incidence x dwell,
+## and the same for GBD. dwell (mean years in the RHD state) = prevalence / incidence.
+build_massbalance <- function() {
+  ages <- AGE_LO:AGE_HI
+  out <- list()
+  for (r in results) {
+    cd <- r$cd; grp <- cd$grp_present; yrs <- cd$yrs
+    # map each GBD group to a band via its lowest age
+    grp_lo_age <- vapply(grp, function(g) min(ages[age_to_gbd_group(ages) == g]), numeric(1))
+    grp_band   <- band_of(grp_lo_age)
+    for (bi in seq_len(n_band)) {
+      gi <- which(grp_band == bi); if (!length(gi)) next
+      m_prev <- colSums(r$pr_cal$prev[gi, , drop = FALSE])
+      m_inc  <- colSums(r$pr_cal$inc [gi, , drop = FALSE])
+      g_prev <- colSums(cd$TGT$prev [gi, , drop = FALSE])
+      g_inc  <- colSums(cd$TGT$inc  [gi, , drop = FALSE])
+      out[[length(out) + 1L]] <- data.table(
+        location = r$factors$location[1], sex = r$factors$sex[1],
+        band = band_labels[bi], year = yrs,
+        model_prev = m_prev, model_inc = m_inc,
+        model_dwell = ifelse(m_inc > 0, m_prev / m_inc, NA_real_),
+        gbd_prev = g_prev, gbd_inc = g_inc,
+        gbd_dwell = ifelse(g_inc > 0, g_prev / g_inc, NA_real_))
+    }
+  }
+  rbindlist(out, use.names = TRUE, fill = TRUE)
+}
+massbalance <- build_massbalance()
+
+## write human-readable diagnostics
+fwrite(factors_out, paste0(wd_data, "calibration_layer1_factors.csv"))
+fwrite(diag_out,    paste0(wd_data, "calibration_layer1_diagnostics.csv"))
+fwrite(fit_out,     paste0(wd_data, "calibration_layer1_fit_by_group_year.csv"))
+fwrite(massbalance, paste0(wd_data, "calibration_layer1_massbalance.csv"))
+# keep the legacy filenames as aliases (nothing reads them, but avoid surprising a grep)
 fwrite(factors_out, paste0(wd_data, "calibration_factors_random_tp.csv"))
-
-err_pct <- copy(err_out[, .(location, sex, cause, base_err, cal_err,
-                            n_eval, n_par, hit_bound, bg_modified_rows)])
-err_pct[, pct_improvement := 100 * (base_err - cal_err) / pmax(base_err, EPS_REL)]
-diag_full <- merge(diag_out, err_pct, by = c("location", "sex", "cause"), all.x = TRUE)
-fwrite(diag_full, paste0(wd_data, "calibration_diagnostics_random_tp.csv"))
+fwrite(diag_out,    paste0(wd_data, "calibration_diagnostics_random_tp.csv"))
 
 #===============================================================================
-# 5. LAYER-2 INTERFACE — A/B/C/D STAGE CALIBRATION vs LOCAL ECHO TARGETS
-#    Documented schema + loss; runs only if a local target file is supplied.
-#    Otherwise fall back to Layer 1 and preserve the uncalibrated stage params.
+# 8. LAYER-2 INTERFACE  (unchanged; Stage-2 04b fills it against local echo targets)
 #===============================================================================
-
-## expected target-table schema (self-documenting; ZERO rows — no fabrication).
 calibration_targets_stage_template <- data.table(
-  location          = character(),  # e.g. "Indonesia"
-  year              = integer(),    # target year
-  sex               = character(),  # "Female" | "Male" | "Both"
-  age_lo            = integer(),    # inclusive lower age of the target band
-  age_hi            = integer(),    # inclusive upper age of the target band
-  stage             = character(),  # "A" | "B" | "C" | "D"
-  target_prevalence = numeric(),    # observed stage prevalence (see target_type)
-  target_type       = character(),  # "proportion" (of population) | "per_1000" | "rate"
-  weight            = numeric()     # relative weight in the loss (>= 0)
+  location = character(), year = integer(), sex = character(),
+  age_lo = integer(), age_hi = integer(), stage = character(),
+  target_prevalence = numeric(), target_type = character(), weight = numeric()
 )
 fwrite(calibration_targets_stage_template, STAGE_TMPL)
 
-## weighted squared-log-error loss for stage-specific prevalence (robust,
-## relative). predicted/target are data.tables keyed by (year, sex band, stage);
-## epsilon guards log(0). Documented here; invoked only when targets are present.
-stage_calibration_loss <- function(predicted, targets, epsilon = 1e-8) {
-  req <- c("year", "stage", "target_prevalence", "weight")
-  miss <- setdiff(req, names(targets))
-  if (length(miss)) stop("calibration_targets_stage is missing: ",
-                         paste(miss, collapse = ", "), call. = FALSE)
-  j <- merge(targets, predicted, by = intersect(names(targets), names(predicted)),
-             all.x = TRUE)
-  if (anyNA(j$predicted_prevalence))
-    stop("A stage target has no matching model prediction.", call. = FALSE)
-  j[, sum(weight * (log(predicted_prevalence + epsilon) -
-                    log(target_prevalence   + epsilon))^2, na.rm = TRUE)]
-}
-
-## parameters Layer 2 would calibrate once local echo targets exist.
-calibratable_stage_params <- c(
-  "p_A_to_B", "p_B_to_C", "p_C_to_D",          # forward progression
-  "p_A_to_no_rhd", "p_B_to_A", "p_C_to_B",     # regression
-  "rhd_d_fraction"                             # initial D share
-)
-
-## uncalibrated stage parameters (passthrough from 03) for a self-describing bundle.
 stage_params_uncalibrated <- if (file.exists(DISEASE_INPUTS_FILE)) {
   dmi_ <- readRDS(DISEASE_INPUTS_FILE)
   list(transitions = dmi_$transitions, p_rhd_death = dmi_$p_rhd_death,
        stage_split = dmi_$stage_split, rhd_d_fraction = dmi_$meta$rhd_d_fraction)
 } else NULL
 
-## detect a local target file; fall back loudly if absent.
 stage_target_file <- STAGE_TARGET_CANDIDATES[file.exists(STAGE_TARGET_CANDIDATES)][1]
 stage_targets_present <- !is.na(stage_target_file)
-
-if (stage_targets_present) {
-  stage_status <- "targets_present_not_yet_optimised"
-  cat(sprintf(paste0("\nLAYER 2: local A/B/C/D target file found (%s). The stage-",
-      "calibration loss/interface is defined; wire the optimiser to these targets\n",
-      "to calibrate %s. Stage params remain at their 00_run_all.R values until then.\n"),
-      stage_target_file, paste(calibratable_stage_params, collapse = ", ")))
-} else {
-  stage_status <- "pending_local_echo_targets"
+stage_status <- if (stage_targets_present) "targets_present_not_yet_optimised" else
+                "pending_local_echo_targets"
+if (!stage_targets_present) {
   cat(strrep("!", 70), "\n", sep = "")
   cat("LAYER 2 (A/B/C/D STAGE CALIBRATION) IS PENDING LOCAL ECHO TARGETS.\n")
-  cat("  No local stage-prevalence target file was found at either of:\n")
-  for (p in STAGE_TARGET_CANDIDATES) cat("    - ", p, "\n", sep = "")
-  cat("  Falling back to LAYER 1 (total RHD prevalence + mortality via IR/CF).\n")
-  cat("  A/B/C/D transition/regression probabilities and rhd_d_fraction are used\n")
-  cat("  AS-IS from 00_run_all.R (03's bundle); they are NOT stage-calibrated.\n")
-  cat("  A blank target-table TEMPLATE was written to:\n    ", STAGE_TMPL, "\n", sep = "")
-  cat("  Populate it with local echocardiographic stage prevalence (no fabricated\n")
-  cat("  values) to activate stage calibration.\n")
+  cat("  No local stage-prevalence target file at either candidate path.\n")
+  cat("  Stage transitions/mortality are PARTIALLY IDENTIFIED: Stage-2 (04b) uses\n")
+  cat("  clinical priors/bounds + the Layer-1 RHD-mortality anchor, and saves the\n")
+  cat("  near-optimal set rather than presenting one matrix as identified.\n")
   cat(strrep("!", 70), "\n", sep = "")
 }
 
 stage_calibration <- list(
-  status              = stage_status,
-  targets_file        = if (stage_targets_present) stage_target_file else NA_character_,
-  targets_template    = calibration_targets_stage_template,
-  template_file       = STAGE_TMPL,
-  calibratable_params = calibratable_stage_params,
-  stage_params        = stage_params_uncalibrated,   # uncalibrated passthrough (from 03)
-  loss_note = paste("Weighted squared-log-error on stage prevalence;",
-                    "see stage_calibration_loss() in 04_calibration_random_tp.R.")
+  status = stage_status,
+  targets_file = if (stage_targets_present) stage_target_file else NA_character_,
+  targets_template = calibration_targets_stage_template,
+  template_file = STAGE_TMPL,
+  calibratable_params = c("p_A_to_B","p_B_to_C","p_C_to_D","p_A_to_no_rhd",
+                          "p_B_to_A","p_C_to_B","rhd_d_fraction"),
+  stage_params = stage_params_uncalibrated,
+  loss_note = "Weighted squared-log-error on stage prevalence; Stage-2 in 04b."
 )
 
 #===============================================================================
-# 5b. WRITE THE SINGLE CALIBRATED-PARAMETER BUNDLE  (replaces 10 chunk files)
+# 9. ASSEMBLE + WRITE THE CALIBRATED-PARAMETER BUNDLE  (schema preserved + $layer1)
 #===============================================================================
+layer1 <- list(
+  incidence_parameters = factors_out[, .(location, sex, cause, band, band_lo, alpha)],
+  mortality_parameters = factors_out[, .(location, sex, cause, band, band_lo, beta)],
+  objective_components = diag_out,
+  optimizer_diagnostics = list(
+    optimizer = CALIB_OPTIMIZER, n_starts = N_STARTS,
+    incidence_mode = INCIDENCE_CALIBRATION_MODE,
+    bands = band_labels, band_edges = band_edges,
+    weights = c(W_INC = W_INC, W_PREV = W_PREV, W_DEATH = W_DEATH),
+    priors = c(sigma_alpha = SIGMA_ALPHA_EFF, sigma_beta = SIGMA_BETA,
+               lambda_prior = LAMBDA_PRIOR, lambda_smooth = LAMBDA_SMOOTH),
+    used_iv_weights = has_ui && USE_IV_WEIGHTS),
+  fit_by_group_year = fit_out,
+  mass_balance = massbalance,
+  validation = list(
+    penalized_improved = all(diag_out$penalized_cal <= diag_out$penalized_base + 1e-8),
+    total_penalized_base = sum(diag_out$penalized_base),
+    total_penalized_cal  = sum(diag_out$penalized_cal))
+)
+
 calibrated_rhd_parameters <- list(
-  tp          = calibrated,     # Layer-1 calibrated IR/CF table (input schema)
-  factors     = factors_out,
-  diagnostics = diag_full,
-  stage_calibration = stage_calibration,
+  tp = calibrated, factors = factors_out, diagnostics = diag_out,
+  stage_calibration = stage_calibration, layer1 = layer1,
   meta = list(
-    location        = locs,
-    calib_year_start = CAL_YEAR_START,
-    calib_year_end   = CAL_YEAR_END,
-    calib_last_year  = max(calibrated$year),
-    granularity      = GRANULARITY,
-    search_halfwidth = SEARCH_HALFWIDTH,
-    n_iter           = N_ITER,
-    tp_schema        = tps_input_cols,
-    built_from       = c("temp_baseline_rates_gbd.rds",
-                         "pop_observed_1990_2024.rds", basename(DISEASE_INPUTS_FILE))
-  )
+    location = locs, calib_year_start = CAL_YEAR_START, calib_year_end = CAL_YEAR_END,
+    calib_last_year = max(calibrated$year),
+    granularity = "band", bands = band_labels, band_edges = band_edges,
+    incidence_mode = INCIDENCE_CALIBRATION_MODE, optimizer = CALIB_OPTIMIZER,
+    tp_schema = tps_input_cols,
+    built_from = c("temp_baseline_rates_gbd.rds", "pop_observed_1990_2024.rds",
+                   basename(DISEASE_INPUTS_FILE)))
 )
 saveRDS(calibrated_rhd_parameters, file = OUT_BUNDLE)
 
-## retire the obsolete 10-chunk output so downstream can't read stale files.
-old_chunks <- list.files(wd_data, pattern = "^adjusted_searo_part[0-9]+\\.rds$",
-                         full.names = TRUE)
-if (length(old_chunks)) {
-  file.remove(old_chunks)
-  cat(sprintf("Removed %d obsolete adjusted_searo_part*.rds chunk file(s).\n",
-              length(old_chunks)))
-}
+old_chunks <- list.files(wd_data, pattern = "^adjusted_searo_part[0-9]+\\.rds$", full.names = TRUE)
+if (length(old_chunks)) { file.remove(old_chunks)
+  cat(sprintf("Removed %d obsolete adjusted_searo_part*.rds chunk file(s).\n", length(old_chunks))) }
 
 #===============================================================================
-# 6. VALIDATION  (hard failures; identify the offending combo/age on violation)
+# 10. VALIDATION  (hard failures; identify the offending combo/age on violation)
 #===============================================================================
-
-cat("\n", strrep("=", 70), "\nVALIDATION\n", strrep("=", 70), "\n", sep = "")
-
-## locate any offending rows and stop() naming them (stronger than a bare stopifnot)
+cat("\n", strrep("=", 70), "\nLAYER-1 VALIDATION\n", strrep("=", 70), "\n", sep = "")
 report_bad <- function(dt, bad_idx, msg) {
-  bad_idx[is.na(bad_idx)] <- TRUE                 # NA in the test itself counts as bad
+  bad_idx[is.na(bad_idx)] <- TRUE
   if (any(bad_idx)) {
-    bad <- dt[bad_idx]
     cat("OFFENDING ROWS (", msg, "):\n", sep = "")
-    print(utils::head(bad[, .(location, sex, cause, age, year, IR, CF, BG.mx)], 10))
+    print(utils::head(dt[bad_idx, .(location, sex, cause, age, year, IR, CF, BG.mx)], 10))
     stop(msg, " -- ", sum(bad_idx), " offending row(s); see above.", call. = FALSE)
   }
 }
-report_bad(calibrated, calibrated[, is.na(IR)],                "IR is NA")
-report_bad(calibrated, calibrated[, is.na(CF)],                "CF is NA")
-report_bad(calibrated, calibrated[, is.na(BG.mx)],             "BG.mx is NA")
-report_bad(calibrated, calibrated[, IR < 0 | IR > 1],          "IR outside [0,1]")
-report_bad(calibrated, calibrated[, CF < 0 | CF > 1],          "CF outside [0,1]")
-report_bad(calibrated, calibrated[, BG.mx < 0 | BG.mx > 1],    "BG.mx outside [0,1]")
-report_bad(calibrated, calibrated[, IR + BG.mx > 1 + 1e-9],    "IR + BG.mx > 1 (competing risk)")
-report_bad(calibrated, calibrated[, CF + BG.mx > 1 + 1e-9],    "CF + BG.mx > 1 (competing risk)")
+report_bad(calibrated, calibrated[, is.na(IR)],             "IR is NA")
+report_bad(calibrated, calibrated[, is.na(CF)],             "CF is NA")
+report_bad(calibrated, calibrated[, is.na(BG.mx)],          "BG.mx is NA")
+report_bad(calibrated, calibrated[, IR < 0 | IR > 1],       "IR outside [0,1]")
+report_bad(calibrated, calibrated[, CF < 0 | CF > 1],       "CF outside [0,1]")
+report_bad(calibrated, calibrated[, BG.mx < 0 | BG.mx > 1], "BG.mx outside [0,1]")
+report_bad(calibrated, calibrated[, IR + BG.mx > 1 + 1e-9], "IR + BG.mx > 1 (competing risk)")
+report_bad(calibrated, calibrated[, CF + BG.mx > 1 + 1e-9], "CF + BG.mx > 1 (competing risk)")
+stopifnot("row count != input" = nrow(calibrated) == tps_input_nrow,
+          "schema != input"    = setequal(names(calibrated), tps_input_cols))
 
-stopifnot(
-  "row count != input" = nrow(calibrated) == tps_input_nrow,
-  "schema != input"    = setequal(names(calibrated), tps_input_cols)
-)
-cat("All probability/row constraints satisfied (IR, CF, BG.mx in [0,1]; competing sums <= 1).\n")
-cat(sprintf("Rows: %d (matches input: %d). Schema matches input: TRUE.\n",
-            nrow(calibrated), tps_input_nrow))
+if (!layer1$validation$penalized_improved)
+  stop("Calibrated penalized objective exceeds baseline for some combo -- ",
+       "the baseline start-0 guarantee failed; investigate.", call. = FALSE)
 
-bg_rows_total <- sum(err_out$bg_modified_rows, na.rm = TRUE)
-if (bg_rows_total > 0) {
-  cat(sprintf("NOTE: BG.mx renormalised (fallback) on %d rows where BG.mx alone left ",
-              bg_rows_total), "no room for the disease TP.\n", sep = "")
-} else {
-  cat("BG.mx preserved on ALL rows (no fallback renormalisation).\n")
-}
+cat("All probability/row constraints satisfied (IR, CF, BG.mx in [0,1]; sums <= 1).\n")
+cat(sprintf("Rows: %d (matches input). Schema matches input: TRUE.\n", nrow(calibrated)))
+cat(sprintf("\nPenalized objective (sum over combos): baseline = %.4g -> calibrated = %.4g (%.1f%% lower)\n",
+            layer1$validation$total_penalized_base, layer1$validation$total_penalized_cal,
+            100 * (layer1$validation$total_penalized_base - layer1$validation$total_penalized_cal) /
+              max(layer1$validation$total_penalized_base, 1e-9)))
+cat("\nPer-combo loss (baseline -> calibrated):\n")
+print(diag_out[, .(location, sex,
+                   L_I = sprintf("%.3g->%.3g", L_I_base, L_I_cal),
+                   L_P = sprintf("%.3g->%.3g", L_P_base, L_P_cal),
+                   L_D = sprintf("%.3g->%.3g", L_D_base, L_D_cal),
+                   joint_spread = sprintf("%.3g/%.3g/%.3g", joint_spread_min, joint_spread_med, joint_spread_max))])
 
-tot_base_err <- sum(err_out$base_err, na.rm = TRUE)
-tot_cal_err  <- sum(err_out$cal_err,  na.rm = TRUE)
-cat(sprintf("\nWeighted relative error (search objective), summed over combos:\n"))
-cat(sprintf("  baseline = %.4g   calibrated = %.4g   reduction = %.1f%%\n",
-            tot_base_err, tot_cal_err,
-            100 * (tot_base_err - tot_cal_err) / max(tot_base_err, EPS_REL)))
+## mass-balance headline (last calibration year): model vs GBD implied dwell by band
+mb_last <- massbalance[year == max(year)]
+cat(sprintf("\nMass balance (prevalence ~ incidence x dwell), %d, dwell in years:\n", max(massbalance$year)))
+print(mb_last[, .(location, sex, band,
+                  model_dwell = round(model_dwell, 1), gbd_dwell = round(gbd_dwell, 1))])
 
-abs_summary <- diag_out[, .(
-  RMSE_deaths_base = mean(RMSE_deaths_base, na.rm = TRUE),
-  RMSE_deaths_cal  = mean(RMSE_deaths_cal,  na.rm = TRUE),
-  RMSE_prev_base   = mean(RMSE_prev_base,   na.rm = TRUE),
-  RMSE_prev_cal    = mean(RMSE_prev_cal,    na.rm = TRUE))]
-cat("\nMean absolute RMSE across combo x age.group cells (counts):\n")
-cat(sprintf("  All-cause deaths : baseline = %.1f -> calibrated = %.1f\n",
-            abs_summary$RMSE_deaths_base, abs_summary$RMSE_deaths_cal))
-cat(sprintf("  RHD prevalence   : baseline = %.1f -> calibrated = %.1f\n",
-            abs_summary$RMSE_prev_base, abs_summary$RMSE_prev_cal))
-
-cat("\nPer-combo weighted error (baseline -> calibrated):\n")
-print(err_out[order(cause, sex),
-              .(location, sex, cause,
-                base_err = round(base_err, 3), cal_err = round(cal_err, 3),
-                n_eval, hit_bound, bg_modified_rows)])
-
-if (any(err_out$hit_bound, na.rm = TRUE))
-  cat("\nWARNING: some combos hit the search bound -- consider widening ",
-      "SEARCH_HALFWIDTH.\n", sep = "")
+## all-cause deaths retained for VALIDATION only — report model vs GBD envelope
+val_all <- fit_out[measure == "AllDeaths", .(v = sum(value)), by = source]
+cat(sprintf("\nAll-cause deaths (VALIDATION only; NOT in the loss), summed over window: model=%.0f | GBD=%.0f\n",
+            val_all[source == "model", v], val_all[source == "gbd", v]))
 
 cat("\nWrote:\n")
-cat(sprintf("  %scalibrated_rhd_parameters.rds   (single bundle: $tp/$factors/$diagnostics/$stage_calibration/$meta)\n", wd_data))
-cat(sprintf("  %scalibration_targets_stage_template.csv   (Layer-2 target schema)\n", wd_data))
-cat(sprintf("  %scalibration_factors_random_tp.csv\n", wd_data))
-cat(sprintf("  %scalibration_diagnostics_random_tp.csv\n", wd_data))
+cat(sprintf("  %scalibrated_rhd_parameters.rds  ($tp/$factors/$diagnostics/$stage_calibration/$layer1/$meta)\n", wd_data))
+cat(sprintf("  %scalibration_layer1_{factors,diagnostics,fit_by_group_year,massbalance}.csv\n", wd_data))
 cat(sprintf("\nLayer-2 stage calibration status: %s\n", stage_status))
-cat("Reminder: 05/06 consume the calibrated IR/CF AS-IS; stage params come from 03 (uncalibrated).\n")
+cat("Reminder: 05/06 consume the calibrated IR/CF AS-IS; stage params come from 03 until Stage-2 (04b).\n")

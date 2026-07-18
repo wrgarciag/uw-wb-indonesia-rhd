@@ -1,0 +1,1061 @@
+You are working in the production R project for the Indonesia rheumatic heart disease (RHD) secondary-prevention investment case (`scripts/00_run_all.R` ... `08_economic_evaluation.R`). I want you to refactor the full pipeline from the current `mild -> severe -> post-surgery` tunnel structure to the World Heart Federation A/B/C/D RHD staging structure, following the detailed specification in the "SPECIFICATION" section below.
+
+Before anything else, read this hard constraint. It overrides any temptation to "modernize" or re-architect the code.
+
+================================================================================
+PROGRAMMING CHOICES THAT MUST BE PRESERVED
+================================================================================
+
+This refactor changes the EPIDEMIOLOGICAL STRUCTURE (states, transitions,
+surgery-as-service, cascade, economics), NOT the software architecture. Preserve
+every one of the following idioms exactly as the current code uses them. Do not
+migrate paradigms, do not "tidy-ify" the engine, do not introduce new frameworks.
+
+1. MATRIX-FORM MARKOV ENGINE. The core model in `06_run_prevention_model.R`
+   operates on `[age x sex]` numeric matrices
+   (`matrix(0, n_age, n_sex, dimnames = list(AGES, SEXES))`) and
+   `[age x sex x year]` arrays, with each annual cycle expressed as elementwise
+   matrix operations and `age_shift()` advancing cohorts (terminal 100+ open
+   group accumulated). Keep this. The A/B/C/D stocks (`A`, `B`, `C`, `D`) and
+   every flow must be `[age x sex]` matrices computed with vectorised matrix
+   arithmetic -- NOT data.table row operations, NOT a per-row loop over cells,
+   NOT a transition-matrix-multiply reformulation. Keep the `zero_mat()` /
+   `age_shift()` / `melt_year()` helper pattern; extend it from three stocks to
+   four.
+
+2. `data.table` EVERYWHERE THE PROJECT ALREADY USES IT. Tidy outputs, calibration
+   tables, baseline assembly joins, and all of `07`/`08` must stay in data.table
+   (`:=`, `.SD`, `rbindlist`, `dcast`, `fwrite`, `by = .(...)`). Do not introduce
+   `dplyr`/`tidyr` into scripts that are data.table-native (note `00` currently
+   loads dplyr/tidyr -- keep the load list unless a script genuinely needs
+   neither). Preserve the `08` guard against the same-call `:=` bug (assign `vsl`
+   in its own `[, vsl := ...]` call before referencing it).
+
+3. LIST-BUNDLE `.rds` CONTRACTS BETWEEN SCRIPTS. Each script persists a single
+   self-contained named list / object to `data/` or `output/` that the next
+   script reads without recomputation (`disease_model_inputs.rds`,
+   `baseline_state.rds`, `out_model/<location>.rds`, etc.). Keep this "persist a
+   self-describing bundle, read it downstream" pattern. When the spec adds fields
+   (A/B/C/D params, surgery block, cascade metrics), extend these bundles -- don't
+   replace the mechanism.
+
+4. `getp()` PARAMETER-FUNNEL + `00` AS SINGLE CONTROL PANEL. Keep the
+   `getp(nm, default)` idiom so each script runs standalone with documented
+   fallbacks while `00_run_all.R` remains the single source of truth. Keep the
+   `[PAPER]`/`[LIT]`/`[CALIBRATE]` tag convention on parameters. Keep all monetary
+   values confined to block J of `00` and consumed only by `08`.
+
+5. PARALLELISM IDIOM. Keep `foreach` + `doParallel`, parallelised BY LOCATION,
+   with `setDTthreads(1)` inside workers and the sequential `%do%` fallback for a
+   single location. Do not switch to `future`, `mclapply`, `parLapply`, etc.
+
+6. FAIL-LOUD INLINE VALIDATION. Keep the existing style of `stop(...)` /
+   `stopifnot(...)` checks embedded in each script (the `chk_rate()`, `fail()`
+   helpers, order-of-magnitude anchor bands). Add the new A/B/C/D and surgery
+   validations in this same style rather than a separate testing framework --
+   except where the spec explicitly asks for a dedicated deterministic smoke-test
+   function, which you may add as a plain function.
+
+7. SEPARATION OF CONCERNS / FILE BOUNDARIES. Keep the 01->08 split exactly
+   (inputs / demography / disease-input builder / calibration / initial-state
+   assembler / matrix runner / tidy outputs / economics). `03` builds and
+   validates inputs only; `06` is the only runner; `08` is the only place
+   economics live. Do not collapse, reorder, or merge scripts.
+
+If the SPECIFICATION and these constraints ever appear to conflict, the
+STRUCTURAL/EPIDEMIOLOGICAL content of the spec wins on WHAT the model represents,
+and THESE CONSTRAINTS win on HOW it is implemented in R. If you believe a spec
+item truly cannot be done in matrix form or in data.table, stop and flag it in
+your plan rather than silently switching paradigms.
+
+================================================================================
+PROCESS
+================================================================================
+
+1. Read every script `00`-`08` in execution order, plus the study notes
+   (`RHD modelling study notes.docx`) and the standalone prototype
+   (`rhd_secondary_prevention_model_indonesia_ABCD_BCA_fixed.R`).
+
+2. Produce a concise implementation plan: current contracts; which persisted
+   bundles/schemas change; which scripts stay largely unchanged (expect `01`/`02`
+   to be nearly untouched); how calibration works under A/B/C/D; how surgery
+   becomes a service flow rather than a state; and any parameters that can't yet
+   be estimated (mark `[CALIBRATE]`). In the plan, include a short section
+   confirming, script by script, that the seven programming choices above are
+   preserved -- explicitly note that the `06` engine remains matrix-form with four
+   stocks and that `07`/`08` stay data.table.
+
+3. Then implement the full refactor. Do not stop at the plan. Run all feasible
+   tests and fix errors you hit during execution.
+
+================================================================================
+SPECIFICATION
+================================================================================
+
+The following is the full A/B/C/D refactoring specification (sections 1-11). Its
+epidemiological content is authoritative; implement it within the programming
+constraints above.
+
+You are working in the production R project for the Indonesia rheumatic heart disease secondary-prevention investment case.
+
+Your task is to refactor the full production pipeline in `scripts/` so that it uses the current World Heart Federation A/B/C/D RHD staging structure instead of the existing `mild -> severe -> post-surgery` tunnel structure.
+
+Before modifying code:
+
+1. Read every script in execution order:
+   - `scripts/00_run_all.R`
+   - `scripts/01_prepare_inputs.R`
+   - `scripts/02_build_demography.R`
+   - `scripts/03_build_disease_model.R`
+   - `scripts/04_calibration_random_tp.R`
+   - `scripts/05_build_baseline.R`
+   - `scripts/06_run_prevention_model.R`
+   - `scripts/07_make_outputs.R`
+   - `scripts/08_economic_evaluation.R`
+
+2. Read the RHD modelling study notes and the latest standalone prototype:
+   - `RHD modelling study notes.docx`
+   - `rhd_secondary_prevention_model_indonesia_ABCD_BCA_fixed.R`
+
+3. First produce a concise implementation plan describing:
+   - the current pipeline contracts;
+   - which persisted objects and schemas must change;
+   - which scripts can remain substantively unchanged;
+   - how calibration will work under the A/B/C/D structure;
+   - how surgery will be represented as a clinical-service flow rather than a health state;
+   - any assumptions that cannot yet be estimated from available data.
+
+Then implement the refactor.
+
+# 1. Required epidemiological model structure
+
+Replace the existing living RHD states:
+
+- `mild`
+- `severe`
+- `post`
+
+with:
+
+- `A`: minimal or early RHD
+- `B`: mild established RHD
+- `C`: advanced RHD without clinical complications
+- `D`: advanced RHD with complications
+
+The conceptual structure should be:
+
+`No RHD -> A <-> B <-> C -> D -> RHD death`
+
+with competing non-RHD mortality from every living state.
+
+Allow the following annual transitions, controlled from `00_run_all.R`:
+
+- No RHD -> A through incident RHD
+- A -> No RHD, optional regression
+- A -> B
+- B -> A, optional regression
+- B -> C
+- C -> B, optional regression
+- C -> D
+- D -> C, optional and defaulting to zero
+- A/B/C/D -> RHD death
+- A/B/C/D -> other-cause death
+- remaining probability -> stay in the same state
+
+Incident RHD must enter stage A directly. Do not add a separate acute rheumatic fever state.
+
+# 2. Surgery must not be a health state
+
+Do not create a surgery, post-surgery, or surgical-recovery state.
+
+Surgery is a clinical intervention or health-service event, not an epidemiological state. Stages C and D and receipt of surgery are not mutually exclusive. A surgery tunnel would also be shorter than the one-year cycle and would risk conflating disease severity with service utilization.
+
+Represent surgery as:
+
+1. a fixed proportion of people in stage C and/or stage D who require surgery during each annual cycle;
+2. an annual flow or trace output;
+3. an intervention that changes selected transition probabilities;
+4. a cost calculated from the surgery flow.
+
+At minimum expose these parameters in `00_run_all.R`:
+
+```r
+frac_C_requiring_surgery <- ...
+frac_D_requiring_surgery <- ...
+
+cov_surgery_ref <- ...
+cov_surgery_scale_up <- ...
+
+eff_surgery_C_to_D <- ...
+eff_surgery_D_to_rhd_death <- ...
+
+cost_surgery <- ...
+```
+
+Use clearer names if appropriate, but preserve this conceptual separation.
+
+Suggested annual surgery-need and surgery-volume calculations are:
+
+```r
+n_C_requiring_surgery_t <-
+  C_start_t * frac_C_requiring_surgery
+
+n_D_requiring_surgery_t <-
+  D_start_t * frac_D_requiring_surgery
+
+n_surgeries_C_t <-
+  n_C_requiring_surgery_t * surgery_coverage_t
+
+n_surgeries_D_t <-
+  n_D_requiring_surgery_t * surgery_coverage_t
+
+n_surgeries_t <-
+  n_surgeries_C_t + n_surgeries_D_t
+```
+
+If surgery coverage differs by stage, define separate C and D coverage parameters.
+
+Do not automatically remove people from stage C or D after surgery. They remain classified by their epidemiological/clinical RHD stage unless the modeled effect changes their subsequent transition risk.
+
+Model surgery effects through transition-risk reductions:
+
+```r
+p_C_to_D_effective_t <-
+  p_C_to_D *
+  (
+    1 -
+      eff_surgery_C_to_D *
+      effective_surgery_reach_C_t
+  )
+
+p_D_to_rhd_death_effective_t <-
+  p_D_to_rhd_death *
+  (
+    1 -
+      eff_surgery_D_to_rhd_death *
+      effective_surgery_reach_D_t
+  )
+```
+
+where:
+
+```r
+effective_surgery_reach_C_t <-
+  frac_C_requiring_surgery * surgery_coverage_t
+
+effective_surgery_reach_D_t <-
+  frac_D_requiring_surgery * surgery_coverage_t
+```
+
+This is a population-average formulation. If the engine explicitly separates those requiring surgery from those not requiring surgery within the annual flow calculations, document the equivalent weighted-risk formulation.
+
+Do not apply surgery effects to stages A or B.
+
+If there is uncertainty regarding whether surgery reduces C -> D, D -> RHD death, or both, parameterize both effects separately and make either one easy to set to zero.
+
+Surgery costs must be based on the trace:
+
+```r
+c_surgery_t <-
+  n_surgeries_t * cost_surgery
+```
+
+The stage output must retain C and D stocks independently of surgery volume.
+
+# 3. Initial stage distribution
+
+GBD supplies total RHD prevalence but not A/B/C/D prevalence. Seed total prevalent RHD across stages using the study-note information:
+
+- A: 56.5%
+- B: 27.2%
+- C: 16.2%
+- D: use an Indonesia-specific RHD-with-heart-failure or complicated-RHD fraction
+
+Because the A/B/C percentages sum to approximately 99.9%, normalize A/B/C and apply them to the non-D share:
+
+```r
+abc_raw <- c(A = 0.565, B = 0.272, C = 0.162)
+abc <- abc_raw / sum(abc_raw)
+
+stage_split <- c(
+  abc * (1 - rhd_d_fraction),
+  D = rhd_d_fraction
+)
+```
+
+Expose `rhd_d_fraction` in `00_run_all.R` and mark it `[CALIBRATE]`.
+
+# 4. Secondary-prevention effect
+
+Use the latest agreed secondary-prevention specification:
+
+- optimal secondary prevention produces a 55% relative reduction in the transition probability from each living RHD state to RHD-specific death;
+- it does not reduce RHD incidence unless explicitly added in a future extension.
+
+For each stage `s` in `A`, `B`, `C`, and `D`, implement:
+
+```r
+p_rhd_death_effective_s_t <-
+  p_rhd_death_s *
+  (
+    1 -
+      sap_rrr_rhd_death *
+      effective_treatment_coverage_t
+  )
+```
+
+Set:
+
+```r
+sap_rrr_rhd_death <- 0.55
+```
+
+in `00_run_all.R`.
+
+For stage D, combine SAP and surgery effects without double-counting. Use a transparent multiplicative formulation unless there is a documented alternative:
+
+```r
+p_D_to_rhd_death_effective_t <-
+  p_D_to_rhd_death *
+  (
+    1 -
+      sap_rrr_rhd_death *
+      effective_treatment_coverage_t
+  ) *
+  (
+    1 -
+      eff_surgery_D_to_rhd_death *
+      effective_surgery_reach_D_t
+  )
+```
+
+For stages A-C, apply the SAP mortality effect. For C, separately apply any surgery effect to C -> D.
+
+Do not reuse the current implementation in which SAP reduces only `mild -> severe` progression. Model outputs and documentation must accurately state that SAP acts on RHD-specific mortality.
+
+# 5. Screening, diagnosis, and treatment cascade
+
+Replace the single SAP-coverage trajectory with three explicit cascade metrics.
+
+Indonesia baseline in 2026:
+
+- 5% screened
+- 5% diagnosed
+- 4% on optimal treatment
+
+Scale linearly to the following targets by 2050:
+
+- 80% screened
+- 80% diagnosed
+- 65% on optimal treatment
+
+Hold the target coverage constant from 2050 through 2100.
+
+Create separate reference and scale-up scenarios.
+
+## Reference
+
+Hold all baseline cascade metrics constant over the full horizon.
+
+## Scale-up
+
+Ramp each metric linearly from the 2026 baseline to the 2050 target.
+
+Interpret these percentages as cumulative coverage of their relevant eligible populations, not as conditional probabilities that must automatically be multiplied together.
+
+Enforce logical consistency:
+
+```r
+effective_diagnosis_coverage <-
+  pmin(
+    screen_coverage,
+    diagnosis_coverage
+  )
+
+effective_treatment_coverage <-
+  pmin(
+    screen_coverage,
+    diagnosis_coverage,
+    optimal_treatment_coverage
+  )
+```
+
+Store both stated and effective coverage metrics in model outputs.
+
+Remove or retire the current school-age-only screening mask from the primary specification. The agreed costing assumption is that screening cost is applied to the total population screened. If an age-restricted screening option is retained for sensitivity analysis, make it optional and off by default.
+
+# 6. Screening, treatment, and surgery costs
+
+Keep all monetary parameters and calculations exclusively in `08_economic_evaluation.R`, with parameters defined in `00_run_all.R`.
+
+Use:
+
+```r
+cost_screen_per_person <- 1.10
+cost_sap_per_year <- 110
+```
+
+Screening volume:
+
+```r
+n_screened_t <-
+  total_population_t *
+  screen_coverage_t
+```
+
+Secondary-prevention treatment volume:
+
+```r
+n_on_optimal_treatment_t <-
+  total_living_rhd_t *
+  effective_treatment_coverage_t
+```
+
+Costs:
+
+```r
+c_screen_t <-
+  n_screened_t *
+  cost_screen_per_person
+
+c_sap_t <-
+  n_on_optimal_treatment_t *
+  cost_sap_per_year
+
+c_surgery_t <-
+  n_surgeries_t *
+  cost_surgery
+```
+
+Primary total program cost:
+
+```r
+cost_total_t <-
+  c_screen_t +
+  c_sap_t +
+  c_surgery_t
+```
+
+If surgery coverage and effects are identical in the reference and scale-up scenarios, surgery cost may be reported as a background cost but must not incorrectly drive incremental program cost.
+
+If surgery is included as part of the scale-up package, define the reference and intervention surgery coverage trajectories explicitly in `00_run_all.R`.
+
+Do not retain HF-management costs unless HF management is explicitly part of the intervention package. Remove obsolete costs that are not connected to an active modeled intervention.
+
+# 7. Preserve the benefit-cost analysis
+
+Preserve the economic framework currently implemented in `08_economic_evaluation.R`:
+
+```r
+incremental_cost_t <-
+  cost_scale_up_t -
+  cost_reference_t
+
+deaths_averted_t <-
+  rhd_deaths_reference_t -
+  rhd_deaths_scale_up_t
+
+gdp_pc_t <-
+  gdp_pc_base *
+  (
+    1 + gdp_growth
+  )^(
+    year -
+      gdp_pc_base_year
+  )
+
+vsl_t <-
+  vsl_mult *
+  gdp_pc_t
+
+benefit_vsl_t <-
+  deaths_averted_t *
+  vsl_t
+
+benefit_gdp_t <-
+  deaths_averted_t *
+  gdp_pc_t
+
+benefit_total_t <-
+  benefit_vsl_t +
+  benefit_gdp_t
+```
+
+Preserve:
+
+- 3% discounting;
+- total discounted incremental cost;
+- discounted VSL benefit;
+- discounted GDP/productivity benefit;
+- total monetized benefit;
+- net benefit;
+- benefit-cost ratio;
+- cumulative RHD deaths averted;
+- cost per RHD death averted;
+- discounted DALYs averted;
+- cost per DALY averted.
+
+Avoid the `data.table` same-call assignment bug. Do not create `vsl` and reference it in another right-hand-side expression inside the same `:=` call. Use separate assignments:
+
+```r
+inc[, vsl :=
+  econ$vsl_mult *
+  gdp_pc
+]
+
+inc[, `:=`(
+  benefit_vsl =
+    deaths_avert *
+    vsl,
+
+  benefit_gdp =
+    deaths_avert *
+    gdp_pc
+)]
+```
+
+Retain the existing denominator conventions unless clearly documented otherwise:
+
+- cost per death uses discounted costs divided by undiscounted deaths averted;
+- cost per DALY uses discounted costs divided by discounted deaths averted times DALYs per death.
+
+Add guards against division by zero and non-finite BCRs.
+
+# 8. File-specific requirements
+
+## `00_run_all.R`
+
+Refactor the master control panel so it is the single source of truth for:
+
+- A/B/C/D transition probabilities;
+- A/B/C/D RHD-specific mortality probabilities;
+- optional regression probabilities;
+- `rhd_d_fraction`;
+- `sap_rrr_rhd_death = 0.55`;
+- screening, diagnosis, and optimal-treatment baseline and target coverage;
+- ramp ending in 2050;
+- surgery requirement proportions for C and D;
+- surgery coverage in each scenario;
+- surgery effect on C -> D;
+- surgery effect on D -> RHD death;
+- Indonesia screening, SAP, and surgery unit costs;
+- economic parameters.
+
+Remove obsolete production controls for:
+
+- `p_mild_to_severe`;
+- `p_severe_death`;
+- `p_post_death_rhd`;
+- `seed_split = c(mild, severe, post)`;
+- single `cov_sap_*` trajectories;
+- post-surgery states;
+- HF management coverage and cost unless explicitly retained;
+- school-age screening as the default costing population.
+
+Update all script descriptions and pipeline contracts.
+
+## `01_prepare_inputs.R`
+
+Preserve GBD input preparation unless a small schema or validation change is necessary.
+
+Do not introduce stage-specific assumptions here.
+
+## `02_build_demography.R`
+
+Preserve the WPP population backbone unless a small compatibility change is necessary.
+
+The output must remain age-by-sex-by-year for Indonesia.
+
+## `03_build_disease_model.R`
+
+Rewrite the disease-input bundle so it contains:
+
+```r
+rates_by_year = list(
+  ir_rhd,
+  mort_rhd,
+  mort_all,
+  oth_mort,
+  prev_seed
+)
+
+transitions = list(
+  p_A_to_no_rhd,
+  p_A_to_B,
+  p_B_to_A,
+  p_B_to_C,
+  p_C_to_B,
+  p_C_to_D,
+  p_D_to_C
+)
+
+p_rhd_death = c(
+  A = ...,
+  B = ...,
+  C = ...,
+  D = ...
+)
+
+effects = list(
+  sap_rrr_rhd_death = 0.55,
+  eff_surgery_C_to_D = ...,
+  eff_surgery_D_to_rhd_death = ...
+)
+
+surgery = list(
+  frac_C_requiring_surgery = ...,
+  frac_D_requiring_surgery = ...,
+  coverage_ref_baseline = ...,
+  coverage_ref_target = ...,
+  coverage_up_baseline = ...,
+  coverage_up_target = ...
+)
+
+stage_split = c(
+  A = ...,
+  B = ...,
+  C = ...,
+  D = ...
+)
+
+coverage = list(
+  screen_ref_baseline,
+  screen_ref_target,
+  screen_up_baseline,
+  screen_up_target,
+
+  diagnosis_ref_baseline,
+  diagnosis_ref_target,
+  diagnosis_up_baseline,
+  diagnosis_up_target,
+
+  treatment_ref_baseline,
+  treatment_ref_target,
+  treatment_up_baseline,
+  treatment_up_target,
+
+  ramp_start,
+  ramp_end
+)
+```
+
+Validate that all baseline outgoing probabilities from each epidemiological state sum to less than 1 before interventions.
+
+Surgery fractions and coverage must be in `[0,1]`.
+
+Surgery effects must be in `[0,1]`.
+
+Do not create a surgery or post-surgery state in the input bundle.
+
+## `04_calibration_random_tp.R`
+
+This script requires careful redesign.
+
+The current calibration is a two-state well/sick/dead calibration that adjusts only IR and CF. It is not sufficient by itself to identify A/B/C/D transitions.
+
+Refactor calibration in two layers:
+
+1. Preserve calibration of overall RHD incidence and total RHD mortality against GBD where useful.
+2. Add an A/B/C/D calibration interface using local echocardiographic prevalence targets.
+
+Create a clearly documented target-table contract such as:
+
+```r
+calibration_targets_stage <- data.table(
+  location = "Indonesia",
+  year = ...,
+  sex = ...,
+  age_lo = ...,
+  age_hi = ...,
+  stage = c("A", "B", "C", "D"),
+  target_prevalence = ...,
+  target_type = "proportion_or_rate",
+  weight = ...
+)
+```
+
+The objective should compare predicted and observed stage-specific prevalence, preferably using weighted squared log error or another robust relative-error function:
+
+```r
+loss_stage <- sum(
+  weight *
+  (
+    log(
+      predicted_prevalence +
+      epsilon
+    ) -
+      log(
+        target_prevalence +
+        epsilon
+      )
+  )^2
+)
+```
+
+Calibratable parameters should include selected A/B/C/D progression or regression probabilities and, if needed, the initial D fraction.
+
+Surgery parameters should not be used to force-fit baseline stage prevalence unless local data directly identify surgery reach or effects. Treat surgery parameters as external intervention/service parameters by default.
+
+Do not pretend that current GBD total prevalence data identify all stage transitions.
+
+If no local A/B/C/D target file exists yet:
+
+- create the expected input schema;
+- allow a clearly labelled fallback calibration to total RHD prevalence and mortality;
+- preserve uncalibrated stage parameters from `00_run_all.R`;
+- issue a prominent message that stage-transition calibration is pending local echo targets;
+- do not fabricate stage-specific observations.
+
+It is acceptable to replace the current `adjusted_searo_part*.rds` output with a cleaner object such as:
+
+```r
+data/calibrated_rhd_parameters.rds
+```
+
+but update every downstream contract consistently. Avoid retaining ten chunk files if they are no longer necessary.
+
+## `05_build_baseline.R`
+
+Build the initial A/B/C/D matrices:
+
+```r
+prev_pool <-
+  prev_seed *
+  population_base
+
+seed <- list(
+  A =
+    prev_pool *
+    stage_split[["A"]],
+
+  B =
+    prev_pool *
+    stage_split[["B"]],
+
+  C =
+    prev_pool *
+    stage_split[["C"]],
+
+  D =
+    prev_pool *
+    stage_split[["D"]]
+)
+```
+
+Realize the reference and scale-up trajectories for:
+
+- screening;
+- diagnosis;
+- optimal treatment;
+- effective diagnosis;
+- effective treatment;
+- surgery coverage.
+
+Persist a self-contained baseline state for the runner.
+
+Do not create a post-surgery stock.
+
+## `06_run_prevention_model.R`
+
+Replace the current `mild/severe/post` engine completely.
+
+For every age-sex-year cell, compute annual flows from A/B/C/D using explicit competing outflows.
+
+A schematic update is:
+
+```r
+A_next <-
+  A_stay +
+  B_to_A +
+  new_rhd_A
+
+B_next <-
+  B_stay +
+  A_to_B +
+  C_to_B
+
+C_next <-
+  C_stay +
+  B_to_C +
+  D_to_C
+
+D_next <-
+  D_stay +
+  C_to_D
+```
+
+For each stage:
+
+```r
+stage_rhd_death <-
+  stage_stock *
+  p_rhd_death_effective_stage
+
+stage_other_death <-
+  stage_stock *
+  oth_mort
+```
+
+For C and D, compute surgery requirements and service volumes before applying the effective transition probabilities:
+
+```r
+C_requiring_surgery <-
+  C_start *
+  frac_C_requiring_surgery
+
+D_requiring_surgery <-
+  D_start *
+  frac_D_requiring_surgery
+
+surgeries_C <-
+  C_requiring_surgery *
+  surgery_coverage
+
+surgeries_D <-
+  D_requiring_surgery *
+  surgery_coverage
+```
+
+Use surgery reach to modify C -> D and/or D -> RHD death.
+
+Do not subtract surgery volumes from C or D stocks as though surgery were an absorbing or mutually exclusive state.
+
+Account for all epidemiological outflows before calculating the staying stock.
+
+Continue to age surviving stocks one year per cycle, including the open terminal age group.
+
+Produce two outputs:
+
+1. A standard aggregate table with total RHD:
+
+   ```r
+   sick = A + B + C + D
+   ```
+
+2. A stage-and-flow table containing:
+   - A, B, C, D stocks;
+   - all A/B/C/D transition flows;
+   - incident RHD entering A;
+   - stage-specific RHD deaths;
+   - total RHD deaths;
+   - other deaths;
+   - screening, diagnosis, and treatment volumes;
+   - C and D requiring surgery;
+   - surgeries delivered to C and D;
+   - total surgeries;
+   - stated and effective cascade coverage;
+   - surgery coverage;
+   - effective surgery reach in C and D.
+
+Do not call the second output `tunnel` unless required for temporary backward compatibility. Prefer `$stages` or `$stage_flows`.
+
+If retaining `eff_cf` for output compatibility:
+
+```r
+eff_cf <-
+  1 -
+  sap_rrr_rhd_death *
+  effective_treatment_coverage
+```
+
+Document that it is the SAP-related RHD-mortality multiplier, not a mild-to-severe progression multiplier.
+
+Add separate output fields for surgery-related multipliers, for example:
+
+```r
+eff_C_to_D_surgery
+eff_D_to_rhd_death_surgery
+```
+
+## `07_make_outputs.R`
+
+Update the standard output contract so it preserves the aggregate well/sick/dead output while also writing separate A/B/C/D and flow tables.
+
+Suggested outputs:
+
+```text
+output/tables/rhd_model_long.csv
+output/tables/rhd_stage_model_long.csv
+output/tables/rhd_annual_flows.csv
+```
+
+The stage table should include:
+
+```text
+scenario, age, sex, year, location, stage, cases,
+prevalence, prevalence_per_1000
+```
+
+The flow table should include, at minimum:
+
+```text
+scenario, age, sex, year, location,
+new_rhd_A,
+A_to_no_rhd, A_to_B,
+B_to_A, B_to_C,
+C_to_B, C_to_D,
+D_to_C,
+rhd_deaths_A, rhd_deaths_B, rhd_deaths_C, rhd_deaths_D,
+other_deaths_A, other_deaths_B, other_deaths_C, other_deaths_D,
+n_screened, n_diagnosed, n_on_optimal_treatment,
+C_requiring_surgery, D_requiring_surgery,
+surgeries_C, surgeries_D, total_surgeries
+```
+
+Validate:
+
+- `A + B + C + D == sick`;
+- no negative stocks or flows;
+- complete age-sex-year-scenario grid;
+- surgery volumes do not exceed the number requiring surgery;
+- intervention cumulative RHD deaths do not exceed reference deaths.
+
+## `08_economic_evaluation.R`
+
+Update costing to read the new stage-and-flow output.
+
+Use:
+
+- total population for screening;
+- total living RHD for optimal treatment;
+- total surgery trace for surgery costs.
+
+The annual cost calculation should be:
+
+```r
+cost_ty <- stage_flows[, .(
+  c_screen =
+    sum(n_screened) *
+    econ$cost_screen_per_person,
+
+  c_sap =
+    sum(n_on_optimal_treatment) *
+    econ$cost_sap_per_year,
+
+  c_surgery =
+    sum(total_surgeries) *
+    econ$cost_surgery
+), by = .(
+  location,
+  scenario,
+  year
+)]
+
+cost_ty[, cost :=
+  c_screen +
+  c_sap +
+  c_surgery
+]
+```
+
+Do not depend on:
+
+- `mild`;
+- `severe`;
+- `post`;
+- a post-surgery stock;
+- `cov_hf`;
+- HF-management cost unless explicitly modeled.
+
+Retain the full benefit-cost framework described above.
+
+# 9. Validation and tests
+
+Add hard validations throughout the pipeline.
+
+At minimum test:
+
+1. Every transition probability is in `[0,1]`.
+2. For each epidemiological state, baseline outgoing probabilities sum to `<1`.
+3. Intervention-adjusted RHD mortality is never negative.
+4. Surgery-adjusted C -> D and D -> RHD death probabilities are in `[0,1]`.
+5. A/B/C/D stocks and all flows are non-negative.
+6. A + B + C + D reconstructs total RHD exactly.
+7. Total living RHD does not exceed population.
+8. Reference cascade coverage remains constant.
+9. Scale-up cascade reaches exactly:
+   - 80% screening in 2050;
+   - 80% diagnosis in 2050;
+   - 65% optimal treatment in 2050.
+10. Cascade coverage remains at those targets after 2050.
+11. Effective treatment never exceeds screening or diagnosis.
+12. Screening volume equals total population times screening coverage.
+13. Treatment volume equals living RHD times effective treatment coverage.
+14. C surgery requirement equals C stock times the specified requirement fraction.
+15. D surgery requirement equals D stock times the specified requirement fraction.
+16. Surgery volume does not exceed surgery requirement.
+17. Surgery does not create or remove an epidemiological stock directly.
+18. Stage C and D stocks remain independently reported after surgery.
+19. Scale-up cumulative RHD deaths are no greater than reference deaths.
+20. Incremental cost is non-negative under the stated assumptions.
+21. BCR and cost-effectiveness ratios handle zero denominators safely.
+22. All persisted output schemas match their documented contracts.
+23. Running `source("scripts/00_run_all.R")` completes without relying on objects left in the global environment from previous runs.
+
+Also add a small deterministic smoke test using reduced ages and years, or a dedicated test function, to verify:
+
+- one-cycle mass balance;
+- A/B/C/D reconstruction;
+- surgery trace consistency;
+- no surgery-state creation;
+- correct transition-risk reduction from surgery;
+- correct mortality-risk reduction from SAP.
+
+# 10. Coding requirements
+
+- Use `data.table` consistently where the current project uses it.
+- Preserve the current separation of concerns:
+  - inputs;
+  - demography;
+  - disease parameters;
+  - calibration;
+  - initial state;
+  - model execution;
+  - outputs;
+  - economics.
+- Keep all user-editable parameters in `00_run_all.R`.
+- Do not duplicate economic parameters in other scripts.
+- Avoid hidden global dependencies. Each persisted object should be self-describing.
+- Update comments, headers, filenames, object names, and messages so none incorrectly describe a mild/severe/post model.
+- Remove obsolete code rather than leaving large commented-out legacy blocks.
+- Prefer a clean, readable implementation over preserving backward compatibility with obsolete intermediate files.
+- Do not change the raw-data directory structure.
+- Do not modify or commit files under `data-raw/`.
+- Do not commit generated `data/` or `output/` artifacts unless the repository explicitly tracks them.
+
+# 11. Deliverables
+
+After implementation, provide:
+
+1. A summary of the architecture changes.
+2. A file-by-file change log.
+3. A list of assumptions still marked `[CALIBRATE]`.
+4. The updated persisted-object schemas.
+5. Any calibration target files or templates created.
+6. The exact command used to run the pipeline.
+7. A report of validation checks passed.
+8. Any remaining warnings or unresolved data requirements.
+9. A concise comparison of the previous and new model structures.
+10. An explicit explanation of how surgery is represented:
+    - no surgery state;
+    - stage C/D surgery requirement fractions;
+    - surgery trace volumes;
+    - effects on C -> D and/or D -> RHD death;
+    - cost based on the trace.
+11. `git diff --stat` and a focused summary of the substantive diff.
+
+Do not stop after writing a plan. Implement the refactor, run all feasible tests, and fix errors discovered during execution.
+
+================================================================================
+ADDITIONAL DELIVERABLE (in addition to the "11. Deliverables" list above)
+================================================================================
+
+12. A short "programming-choices preserved" checklist confirming the matrix
+    engine (four stocks, [age x sex] matrices, age_shift/zero_mat/melt_year
+    pattern), data.table usage in 07/08 and the tidy/calibration/baseline layers,
+    the list-bundle .rds contracts, the getp/single-control-panel pattern, the
+    foreach-by-location parallelism with setDTthreads(1), and the fail-loud inline
+    validation style were all retained.
+
+Do not stop after writing a plan. Implement the refactor, run all feasible tests,
+and fix errors discovered during execution.

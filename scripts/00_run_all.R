@@ -49,7 +49,7 @@ suppressPackageStartupMessages({
 #    COUNTRY-scoped so runs never overwrite each other; data-raw/ is SHARED (the
 #    raw GBD/WPP CSVs contain every country and 01 filters to COUNTRY).
 #===============================================================================
-COUNTRY <- "Uganda"           # <<< the ONE line to change to run another country
+COUNTRY <- "Indonesia"           # <<< the ONE line to change to run another country
 ISO3    <- switch(COUNTRY,
                   Indonesia = "IDN",
                   Uganda    = "UGA",
@@ -118,42 +118,59 @@ incidence_trend <- switch(COUNTRY,
                                               # [TODO: confirm for Uganda] trend may differ from Indonesia's
 
 #===============================================================================
-# F. CALIBRATION SETTINGS  (04) — pure random search
+# F. CALIBRATION SETTINGS  (04) — Layer-1 aggregate, hazard-based, prior-anchored
+#    (REPLACES the former pure random search on IR/CF vs GBD all-cause deaths.)
+#    Layer 1 now calibrates, per location x sex, a low-dimensional set of
+#    log-scale multipliers — one INCIDENCE correction (alpha) and one aggregate
+#    RHD-MORTALITY correction (beta) per broad AGE BAND — for a well-sick-dead
+#    proxy with hazard competing risks, against GBD RHD-SPECIFIC incidence,
+#    prevalence and DEATHS (all-cause deaths are retained for VALIDATION only).
+#    The loss is log-scale + priors + 2nd-difference smoothness; the optimiser is
+#    a bounded multi-start local search (see CALIB_OPTIMIZER). Calibrated IR feeds
+#    the inflow into stage A (06); calibrated aggregate CF is the RHD-mortality
+#    anchor consumed by the Stage-2 structural stage calibration.
 #===============================================================================
-# run_calibration_par <- TRUE      # parallelise calibration across combos
-# SEARCH_HALFWIDTH    <- 0.50      # IR/CF multipliers sampled in [1-hw, 1+hw]
-# GRANULARITY         <- "age_group"  # "combo" | "age_group"
-# N_ITER              <- 400       # i.i.d. candidates per combo (candidate 0 = baseline)
-# CONVERGE_TOL        <- 1e-4      # early stop when best weighted error < tol
-# SEED                <- 42        # master RNG seed (reproducible)
-# W_DEATHS            <- 2         # objective weight on (all-cause) deaths
-# W_PREV              <- 1         # objective weight on RHD prevalence
-# # (calibration age range is the full 0-95+; see AGE_LO/AGE_HI defaults in 04)
+run_calibration_par <- switch(COUNTRY, Indonesia = TRUE, Uganda = TRUE)
+SEED                <- switch(COUNTRY, Indonesia = 42L,  Uganda = 42L)  # master RNG
 
-run_calibration_par <- switch(COUNTRY,
-                              Indonesia = TRUE,
-                              Uganda    = TRUE)
-SEARCH_HALFWIDTH <- switch(COUNTRY,
-                           Indonesia = 0.50,
-                           Uganda    = 0.50)
-GRANULARITY <- switch(COUNTRY,
-                      Indonesia = "age_group",
-                      Uganda    = "age_group")
-N_ITER <- switch(COUNTRY,
-                 Indonesia = 400L,
-                 Uganda    = 400L)
-CONVERGE_TOL <- switch(COUNTRY,
-                       Indonesia = 1e-4,
-                       Uganda    = 1e-4)
-SEED <- switch(COUNTRY,
-               Indonesia = 42L,
-               Uganda    = 42L)
-W_DEATHS <- switch(COUNTRY,
-                   Indonesia = 2,
-                   Uganda    = 2)
-W_PREV <- switch(COUNTRY,
-                 Indonesia = 1,
-                 Uganda    = 1)
+## --- objective weights (log-scale, normalized loss terms) -------------------
+W_INC   <- switch(COUNTRY, Indonesia = 1, Uganda = 1)   # weight on RHD INCIDENCE fit
+W_PREV  <- switch(COUNTRY, Indonesia = 1, Uganda = 1)   # weight on RHD PREVALENCE fit
+W_DEATH <- switch(COUNTRY, Indonesia = 2, Uganda = 2)   # weight on RHD-SPECIFIC DEATHS fit
+# Inverse-variance weight the log-residuals using GBD 95% UIs when present
+# (01 now retains upper/lower); FALSE => unit weights.
+USE_IV_WEIGHTS <- switch(COUNTRY, Indonesia = TRUE, Uganda = TRUE)
+# Drop target cells whose GBD Number is below this floor from the LOSS (they are
+# still reported for validation); guards divide-by-tiny in the relative fit.
+TARGET_MIN_COUNT <- switch(COUNTRY, Indonesia = 1, Uganda = 1)
+
+## --- incidence calibration mode + broad age bands ---------------------------
+# "fixed"    : IR held exactly at the GBD age-sex pattern (alpha = 1, not estimated)
+# "anchored" : IR = IR_GBD x exp(f_band(a)), f low-dim & prior-anchored to 0 (DEFAULT)
+# "free"     : same parameterisation but weak prior (alpha free to move)
+INCIDENCE_CALIBRATION_MODE <- switch(COUNTRY, Indonesia = "anchored", Uganda = "anchored")
+# Lower edges of the broad calibration age bands (last band is open-ended).
+# Default 0-14 / 15-24 / 25-44 / 45-64 / 65+ — one alpha & one beta per band x sex.
+CALIB_AGE_BANDS <- c(0L, 15L, 25L, 45L, 65L)
+
+## --- priors + smoothness (all on the log-multiplier scale) ------------------
+SIGMA_ALPHA   <- switch(COUNTRY, Indonesia = 0.75, Uganda = 0.75)  # incidence prior sd (GENEROUS:
+                                                                   #   let incidence breathe so the
+                                                                   #   GBD-incidence >> prevalence
+                                                                   #   tension does NOT re-enter)
+SIGMA_BETA    <- switch(COUNTRY, Indonesia = 0.50, Uganda = 0.50)  # RHD-mortality prior sd
+LAMBDA_PRIOR  <- switch(COUNTRY, Indonesia = 1.0,  Uganda = 1.0)   # weight on the prior penalty
+LAMBDA_SMOOTH <- switch(COUNTRY, Indonesia = 1.0,  Uganda = 1.0)   # weight on 2nd-diff smoothness
+MULT_LO       <- 0.2    # multiplier lower bound (log bounds = log(MULT_LO/HI))
+MULT_HI       <- 5.0    # multiplier upper bound
+
+## --- optimiser --------------------------------------------------------------
+# "multistart" : bounded multi-start L-BFGS-B (base R optim; DEFAULT, no extra deps)
+# "nloptr"     : global CRS2 -> L-BFGS-B polish (needs the installed nloptr)
+# "deoptim"    : DEoptim global -> L-BFGS-B polish (only if DEoptim is installed)
+CALIB_OPTIMIZER <- "multistart"
+N_STARTS        <- 8L     # reproducible random starts (+ the baseline start-0), multistart/deoptim
+CONVERGE_TOL    <- 1e-8   # optimiser convergence tolerance
 
 #===============================================================================
 # G. A/B/C/D NATURAL HISTORY  (03) — annual transition probabilities
@@ -230,87 +247,73 @@ W_PREV <- switch(COUNTRY,
 #                    Indonesia = 0.000,
 #                    Uganda    = 0.000)
 
-p_A_to_no_rhd <- switch(
-  COUNTRY,
-  Indonesia = 0.005,
-  Uganda    = 0.2
-)
+# A/B/C/D annual transition PRIOR CENTERS (shared clinical priors; 04b calibrates
+# them per country against GBD RHD prevalence + RHD deaths using the real engine).
+# These are NOT final values and are NOT the former hand-tuned per-country hacks.
+# 04b gives transitions LOOSER priors than mortality, so the penalized objective
+# reconciles GBD deaths by moving the STOCK/progression, not by suppressing
+# mortality (Part 10 excess-death rule). p_A_to_no_rhd (regression) is the lever
+# that reconciles high GBD incidence with observed prevalence (mass balance).
+p_A_to_no_rhd <- 0.05     # regression A -> No RHD  (loose prior; data-identified)
+p_A_to_B      <- 0.020    # A -> B progression
+p_B_to_A      <- 0.010    # B -> A regression
+p_B_to_C      <- 0.030    # B -> C progression
+p_C_to_B      <- 0.005    # C -> B regression
+p_C_to_D      <- 0.060    # C -> D progression (surgery lowers this in the engine)
+p_D_to_C      <- 0.000    # D -> C regression (fixed at 0 unless calibrate_p_D_to_C = TRUE)
 
-p_A_to_B <- switch(
-  COUNTRY,
-  Indonesia = 0.020,
-  Uganda    = 0.038
-)
+# Per-stage UNTREATED RHD-death PRIOR CENTERS (annual), clinical and severity-
+# ordered (A <= B < C < D). The former hand-tuned mortality scalars
+# (rhd_mortality_calibration_mult = 1/2.5 Indonesia, 1/8 Uganda) and
+# scale_probability() are REMOVED: they hid a stock/progression problem behind
+# implausible stage mortality. 04b now calibrates the stock/progression to
+# reproduce GBD RHD deaths while these mortalities stay near their clinical priors
+# (TIGHT priors). An optional BOUNDED residual multiplier (RESID_MULT_LO/HI) may
+# move mortality modestly, but a solution sitting AT that bound is a VALIDATION
+# FAILURE (the 1/8 must not reappear under a new name).
+p_rhd_death_A <- 0.001    # stage A (minimal/early)      ~0.1%/yr  [clinical prior]
+p_rhd_death_B <- 0.005    # stage B (mild established)    ~0.5%/yr  [clinical prior]
+p_rhd_death_C <- 0.020    # stage C (advanced, no compl.) ~2%/yr    [clinical prior]
+p_rhd_death_D <- 0.080    # stage D (advanced w/ HF)      ~10%/yr   [clinical prior]
 
-p_B_to_A <- switch(
-  COUNTRY,
-  Indonesia = 0.010,
-  Uganda    = 0.110
-)
+# Stage-D share of prevalent RHD at the seed year (PRIOR CENTER; 04b calibrates it).
+rhd_d_fraction <- 0.10
 
-p_B_to_C <- switch(
-  COUNTRY,
-  Indonesia = 0.030,
-  Uganda    = 0.03
-)
+#===============================================================================
+# G2. STRUCTURAL (LAYER-2) A/B/C/D CALIBRATION  (04b)
+#     Runs the REAL engine (R/abcd_engine.R) inside the objective and calibrates
+#     transitions + severity-ratio stage mortality + rhd_d_fraction against GBD
+#     RHD prevalence + RHD-SPECIFIC deaths (2000-2019). Mortality carries TIGHT
+#     clinical priors, stock/progression LOOSER priors, so excess deaths are
+#     resolved by moving the stock, not by suppressing mortality.
+#===============================================================================
+run_structural_calibration <- switch(COUNTRY, Indonesia = TRUE, Uganda = TRUE)
+calibrate_p_D_to_C <- FALSE          # keep D->C fixed at its prior (0) unless TRUE
+STRUCT_MATCH_FROM  <- 2010L          # first GBD year matched (skip the seed transient)
+# The structural projection is EQUILIBRATED by a zero-start burn-in using the
+# first-window-year rates, so the scored stage distribution (and hence the 06
+# seed) is the transition-implied EQUILIBRIUM — not the Cannon clinical-cohort
+# split, whose slow-draining C/D would otherwise contaminate the fit. Prevalence
+# is therefore GENERATED from incidence + natural history and fit to GBD (rather
+# than seeded to match), so the regression rate that reconciles the mass balance
+# is genuinely data-identified.
+STRUCT_BURN_YEARS  <- 60L            # burn-in cycles to reach the stage equilibrium
 
-p_C_to_B <- switch(
-  COUNTRY,
-  Indonesia = 0.005,
-  Uganda    = 0.060
-)
+# priors: mortality TIGHT (log-sd), transitions LOOSE (logit-sd) so the objective
+# reconciles GBD deaths by moving the STOCK/progression, not the mortality.
+SIGMA_MORT   <- 0.35                  # log-sd on stage mortalities -> stay near clinical
+SIGMA_TRANS  <- 2.00                  # logit-sd on transitions      -> data-driven stock
+SIGMA_RESID  <- 0.25                  # log-sd on the residual mortality multiplier
+LAMBDA_PRIOR_STRUCT <- 1.0
+W_PREV_STRUCT  <- 1                   # weight on RHD prevalence fit
+W_DEATH_STRUCT <- 2                   # weight on RHD-SPECIFIC deaths fit
 
-p_C_to_D <- switch(
-  COUNTRY,
-  Indonesia = 0.060,
-  Uganda    = 0.05
-)
+# bounds (documented plausible ranges)
+MD_LO <- 0.03; MD_HI <- 0.25         # stage-D untreated annual mortality bounds
+RESID_MULT_LO <- 0.5; RESID_MULT_HI <- 2.0   # bounded residual mult (bound-hit = FAILURE)
 
-p_D_to_C <- switch(
-  COUNTRY,
-  Indonesia = 0.000,
-  Uganda    = 0.000
-)
-
-# Country-specific multiplier applied on the complementary-log-log/hazard scale.
-# Indonesia retains the existing 1/2.5 quick calibration. Uganda's Table 1
-# mortality inputs are used without further scaling by default (multiplier = 1).
-rhd_mortality_calibration_mult <- switch(COUNTRY,
-                                         Indonesia = 1 / 2.5,
-                                         Uganda    = 1 / 8)
-
-scale_probability <- function(p, multiplier) {
-  1 - (1 - p)^multiplier
-}
-
-# Annual untreated RHD-specific death probabilities. The value inside each
-# country branch is the unscaled input; the country-specific multiplier above is
-# then applied consistently to all stages.
-p_rhd_death_A <- switch(
-  COUNTRY,
-  Indonesia = scale_probability(0.0005, rhd_mortality_calibration_mult),
-  Uganda    = scale_probability(0.0000, rhd_mortality_calibration_mult)
-)
-p_rhd_death_B <- switch(
-  COUNTRY,
-  Indonesia = scale_probability(0.0020, rhd_mortality_calibration_mult),
-  Uganda    = scale_probability(0.0000, rhd_mortality_calibration_mult)
-)
-p_rhd_death_C <- switch(
-  COUNTRY,
-  Indonesia = scale_probability(0.0200, rhd_mortality_calibration_mult),
-  Uganda    = scale_probability(0.0100, rhd_mortality_calibration_mult)
-)
-p_rhd_death_D <- switch(
-  COUNTRY,
-  Indonesia = scale_probability(0.0800, rhd_mortality_calibration_mult),
-  Uganda    = scale_probability(0.0750, rhd_mortality_calibration_mult)
-)
-
-# Stage-D share of prevalent RHD at the seed year.
-rhd_d_fraction <- switch(COUNTRY,
-                         Indonesia = 0.10,
-                         Uganda    = 0.10)
+STRUCT_N_STARTS      <- 2L           # reproducible multi-starts (+ prior-center start); unimodal
+STRUCT_NEAROPT_DELTA <- 0.05         # near-optimal set: keep solutions with L <= L_min*(1+delta)
 
 #===============================================================================
 # H. INTERVENTION EFFECTS  (03) — relative risk reductions
@@ -467,8 +470,9 @@ setwd(wd_code)   # scripts use absolute wd_* globals for I/O and here() for R/pa
 source(paste0(wd_code, "01_prepare_inputs.R"))        # GBD inputs
 source(paste0(wd_code, "02_build_demography.R"))      # WPP2024 population backbone
 source(paste0(wd_code, "03_build_disease_model.R"))   # disease-model INPUTS (builder)
-source(paste0(wd_code, "04_calibration_random_tp.R")) # calibrate IR/CF (2000-2019)
-source(paste0(wd_code, "05_build_baseline.R"))        # assemble initial state
+source(paste0(wd_code, "04_calibration_random_tp.R")) # Layer 1: calibrate IR + CF anchor (2000-2019)
+source(paste0(wd_code, "04b_calibrate_structural.R")) # Layer 2: structural A/B/C/D stage calibration
+source(paste0(wd_code, "05_build_baseline.R"))        # assemble initial state (uses 04b stage params)
 source(paste0(wd_code, "06_run_prevention_model.R"))  # run ref + SAP (parallel by location)
 source(paste0(wd_code, "07_make_outputs.R"))          # standard long table
 source(paste0(wd_code, "08_economic_evaluation.R"))   # benefit-cost & cost-effectiveness
