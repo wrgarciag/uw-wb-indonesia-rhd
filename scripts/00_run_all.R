@@ -49,7 +49,7 @@ suppressPackageStartupMessages({
 #    COUNTRY-scoped so runs never overwrite each other; data-raw/ is SHARED (the
 #    raw GBD/WPP CSVs contain every country and 01 filters to COUNTRY).
 #===============================================================================
-COUNTRY <- "Uganda"           # <<< the ONE line to change to run another country
+COUNTRY <- "Indonesia"           # <<< the ONE line to change to run another country
 ISO3    <- switch(COUNTRY,
                   Indonesia = "IDN",
                   Uganda    = "UGA",
@@ -274,7 +274,7 @@ p_D_to_C      <- 0.000    # D -> C regression (fixed at 0 unless calibrate_p_D_t
 p_rhd_death_A <- 0.001    # stage A (minimal/early)      ~0.1%/yr  [clinical prior]
 p_rhd_death_B <- 0.005    # stage B (mild established)    ~0.5%/yr  [clinical prior]
 p_rhd_death_C <- 0.020    # stage C (advanced, no compl.) ~2%/yr    [clinical prior]
-p_rhd_death_D <- 0.100    # stage D (advanced w/ HF)      ~10%/yr   [clinical prior]
+p_rhd_death_D <- 0.080    # stage D (advanced w/ HF)      ~10%/yr   [clinical prior]
 
 # Stage-D share of prevalent RHD at the seed year (PRIOR CENTER; 04b calibrates it).
 rhd_d_fraction <- 0.10

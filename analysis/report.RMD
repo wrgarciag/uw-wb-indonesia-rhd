@@ -3,7 +3,7 @@ title: "`r params$country` Rheumatic Heart Disease Secondary-Prevention Investme
 date: "`r Sys.Date()`"
 author: "University of Washington · World Bank `r params$country` RHD Model"
 params:
-  country: "Uganda"    # "Indonesia" | "Uganda" — pass via rmarkdown::render(params = list(country = ...))
+  country: "Indonesia"    # "Indonesia" | "Uganda" — pass via rmarkdown::render(params = list(country = ...))
 output:
   html_document:
     toc: true

@@ -1,3 +1,7 @@
+
+## Prompts used during the model development
+
+
 # Task: Refactor the Indonesia RHD modeling pipeline (scripts 02–04)
 
 ## Context
@@ -302,3 +306,66 @@ Do a dry run of each country. Run the full pipeline (source("scripts/00_run_all.
 Keep outputs separated by country so a Uganda run doesn't overwrite Indonesia's artifacts — e.g. write to output/out_model/, output/tables/, and the report under country-scoped paths or filenames.
 
 Work step by step. Show me the inventory from step 1 and your proposed COUNTRY switch design before making bulk edits, then proceed once I confirm. At the end, give me the exact commands to run each country and the list of any [TODO: confirm] parameters you couldn't source.
+
+
+###############################################################
+###############################################################
+
+Add age standarized rates into the report
+
+Scope constraint: Only modify analysis/report.RMD. Do NOT edit any file under 
+analysis/scripts/, data/, data-raw/, or output/, and do NOT re-run or change the 
+model engine (scripts 06/07/08). All new calculations must be conducted inside 
+analysis/report.RMD itself, using only the artifacts the report already reads 
+(the loaded `wsd`/`stg` model outputs, `meta`, the GBD 2023 epi data, and the 
+observed population), exactly as the existing chunks do.
+
+Goal: Add AGE-STANDARDIZED RATE time series to every component of Section 4 
+"Baseline (pre-intervention) trend & validation" of analysis/report.RMD:
+  4.1 Incident cases and incidence rate
+  4.2 Prevalent cases and prevalence
+  4.3 Mortality rates — RHD and all causes
+
+Currently Section 4 plots CRUDE rates only (count ÷ total population), for both the 
+GBD historical series (2000–2023) and the model-projected reference (`ref`) arm 
+(jump-off `base_year` onward). The Limitations section explicitly flags this as a 
+weakness ("Historical validation is a crude-rate comparison ... Neither is 
+age-standardised, so shifts partly reflect the changing age structure"). I want an 
+age-standardized (ASR) counterpart series added alongside the existing crude series 
+for each of incidence rate (per 1,000), prevalence rate (per 1,000), RHD mortality 
+(per 100,000), and all-cause mortality (per 100,000). Keep the existing crude-rate 
+plots; the ASR series are additive (either new panels or overlaid, but do not remove 
+or alter the current crude output).
+
+Reference year for the standard population:
+  Add a top-level constant  BASE_YEAR <- 2023L  in the report and use the 
+  age-structure of BASE_YEAR (2023) as the FIXED standard population for direct 
+  age-standardization of every year in both the GBD historical series and the 
+  model-projected series. Every year's age-specific rates are weighted by the 2023 
+  age distribution so that ASR trends reflect epidemiology, not shifting age 
+  structure. Do NOT confuse this with the model's seed/jump-off year 
+  (`meta$base_year`); BASE_YEAR = 2023 is only the standardization reference. Define 
+  it once (near the top-level constants/helpers) and reference it everywhere.
+
+How to compute it, all within report.RMD:
+  - Build the 2023 standard population from age-specific weights already available in 
+    the report. Reuse the existing age-group machinery (age_to_grp / grp_levels) so 
+    the model's single-year ages fold into the same 22 GBD age groups, giving one 
+    comparable age axis.
+  - GBD side: from the GBD age-group Rate-metric data the report already loads 
+    (cause = RHD and All causes; measures Incidence, Prevalence, Deaths; by age group 
+    and sex), directly standardize each year to the 2023 age distribution.
+  - Model side: from the reference (`ref`) arm output already loaded, compute 
+    age-group-specific rates by (year, group), then direct-standardize to the same 
+    2023 age distribution, on the same basis as the GBD ASR so the historical and 
+    projected ASR series join cleanly at the 2024 seam — mirroring how the crude 
+    series are made comparable today.
+  - Produce ASR for all four quantities across both windows: historical (2000–2023) 
+    and projected (base_year–2100).
+
+Conventions: follow the report's existing style — data.table, the COUNTRY switch, 
+the established plotting helpers (combine_series / plot_series / base_theme), the 
+solid=historical / dashed=projected convention — and guard gracefully so that if the 
+GBD artifact is unavailable the ASR historical overlay is simply omitted (as the 
+crude panels already degrade). Do not add new package dependencies beyond those the 
+report already loads.
