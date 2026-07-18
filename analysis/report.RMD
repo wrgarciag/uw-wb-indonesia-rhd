@@ -114,6 +114,16 @@ grp_mid <- setNames(
     82, 87, 92, 97),
   grp_levels)
 
+# ---- Standardization reference year (fixed standard population for ASR) ------
+# BASE_YEAR is the single, FIXED reference year whose age structure is used as
+# the standard population for the direct age-standardised rates (ASR) added to
+# the baseline-validation section: every year's age-specific rates (GBD
+# historical AND model-projected) are re-weighted to this one 2023 age
+# distribution, so ASR trends reflect epidemiology rather than a shifting age
+# structure. This is DISTINCT from the model's seed / jump-off year
+# (`meta$base_year`, 2025); BASE_YEAR is only the standardisation reference.
+BASE_YEAR <- 2023L
+
 # Common ggplot theme tweaks used throughout.
 base_theme <- function(sz = 13)
   theme_minimal(base_size = sz) +
@@ -768,6 +778,17 @@ lines are model-projected (`r proj_years`)**; model *rates* are crude rates
 (count ÷ total population) computed on the same basis as the GBD crude rates, so
 the two are directly comparable at the join.
 
+Each rate is shown **two ways**: the **crude** rate (count ÷ total population)
+and, additively beneath it, an **age-standardised rate (ASR)** in which every
+year's age-specific rates — both the GBD historical series and the model
+projection — are re-weighted to a single fixed standard age structure, that of
+**`r BASE_YEAR`** (direct standardization). Because the crude rate mixes true
+epidemiological change with the shifting age structure of `r CTRY`, the ASR
+series isolates the epidemiological signal, and the GBD-standardized and
+model-standardized ASR are built on the same basis so they, too, join at the
+2024 seam. (`r BASE_YEAR` here is only the standardisation reference; it is not
+the model's `r base_year` seed / jump-off year.)
+
 ```{r baseline-aggregates, message=FALSE, warning=FALSE, echo=FALSE}
 ref <- wsd[scenario == "ref"]
 
@@ -793,6 +814,67 @@ h_inc   <- build_hist(CAUSE, "Incidence", 1000)
 h_prev  <- build_hist(CAUSE, "Prevalence", 1000)
 h_rhdmx <- build_hist(CAUSE, "Deaths", 1e5)
 h_allmx <- build_hist("All causes", "Deaths", 1e5)
+
+# ---- Age-standardised rates (ASR): direct standardization to BASE_YEAR -------
+# The crude series above are count / total-population and so partly track the
+# shifting age structure. The ASR counterparts below strip that out by direct
+# standardization to the fixed BASE_YEAR (2023) age structure: every year's
+# age-specific rates are re-weighted to one standard population, on the SAME
+# per-unit basis as the crude series, so the historical (GBD) and projected
+# (model) ASR join at the 2024 seam exactly as the crude series do.
+#
+# Because GBD supplies sex-specific (not both-sex) age-group rates, we
+# standardise jointly over (age group x sex) using the observed 2023 population
+# as the standard; the resulting weighted rate is the both-sex ASR, directly
+# comparable to the both-sex crude series. The observed-population artifact is
+# the standard, so ASR requires `have_pop`; if absent, ASR is skipped entirely
+# (as the GBD crude overlays already degrade). If only the GBD artifact is
+# missing, the projected model ASR is still shown and the historical ASR
+# overlay is simply omitted.
+have_asr <- have_pop
+if (have_asr) {
+  # 2023 standard population by (GBD age group x sex), folded through the same
+  # age_to_grp machinery so model and GBD share one comparable age axis.
+  std_gs    <- pop_obs[year == BASE_YEAR,
+                       .(std = sum(Nx)), by = .(grp = age_to_grp(age), sex)]
+  std_total <- sum(std_gs$std)
+
+  # Model ASR (reference arm): age-group x sex rates by year, directly
+  # standardized to the 2023 structure. Units mirror the crude series
+  # (incidence & prevalence per 1,000; RHD & all-cause mortality per 100,000).
+  refg_asr <- copy(ref)
+  refg_asr[, grp := age_to_grp(age)]
+  mga <- refg_asr[, .(inc = sum(newcases), prev = sum(sick), rhd = sum(dead),
+                      allmx = sum(all.mx), pop = sum(pop)),
+                  by = .(year, sex, grp)]
+  mga <- merge(mga, std_gs, by = c("grp", "sex"))
+  mod_asr_yr <- mga[, .(
+      inc_rate  = sum(inc   / pop * std) / std_total * 1000,
+      prev_rate = sum(prev  / pop * std) / std_total * 1000,
+      rhd_mort  = sum(rhd   / pop * std) / std_total * 1e5,
+      all_mort  = sum(allmx / pop * std) / std_total * 1e5),
+      by = year][order(year)]
+} else {
+  std_gs <- NULL; std_total <- NA_real_; mod_asr_yr <- NULL
+}
+
+# GBD ASR historical series: direct-standardize the GBD age-group Rate metric
+# (val is per 100,000) to the same 2023 standard. Attaching std weights via an
+# inner join means any age-group cell GBD lacks contributes 0 to the numerator
+# while std_total keeps the full fixed denominator, so every year uses the same
+# standard population and the ASR is comparable across years and to the model.
+gbd_asr_yr <- function(cause, measure, per = 1000) {
+  if (!have_gbd || !have_asr) return(NULL)
+  r <- gbd[cause_name == cause & measure_name == measure & metric_name == "Rate",
+           .(year, sex = sex_name, grp = age_name, prop = val / 1e5)]
+  if (!nrow(r)) return(NULL)
+  r <- merge(r, std_gs, by = c("grp", "sex"))
+  r[, .(rate = sum(prop * std) / std_total * per), by = year][year >= 2000][order(year)]
+}
+ha_inc   <- gbd_asr_yr(CAUSE,        "Incidence",  1000)
+ha_prev  <- gbd_asr_yr(CAUSE,        "Prevalence", 1000)
+ha_rhdmx <- gbd_asr_yr(CAUSE,        "Deaths",     1e5)
+ha_allmx <- gbd_asr_yr("All causes", "Deaths",     1e5)
 
 # Combine one historical + one projected series into a tidy DT for plotting.
 combine_series <- function(hist_dt, hist_val, mod_dt, mod_val) {
@@ -835,6 +917,18 @@ print(plot_series(d_inc_rate,
   "RHD incidence rate — reference",
   "New RHD cases per 1,000 population per year",
   "Incident cases per 1,000", "#2166ac", ylab_comma = FALSE))
+
+# Age-standardised counterpart (additive): same series, re-weighted to the
+# fixed BASE_YEAR (2023) age structure so the trend reflects epidemiology, not
+# the shifting age structure. If GBD is unavailable, ha_inc is NULL and only
+# the projected model ASR is drawn.
+if (have_asr) {
+  d_inc_rate_asr <- combine_series(ha_inc, "rate", mod_asr_yr, "inc_rate")
+  print(plot_series(d_inc_rate_asr,
+    "RHD incidence rate — reference (age-standardised)",
+    paste0("Age-standardised to the ", BASE_YEAR, " age structure; new RHD cases per 1,000/year"),
+    "Incident cases per 1,000 (ASR)", "#2166ac", ylab_comma = FALSE))
+}
 ```
 
 ## Prevalent cases and prevalence
@@ -852,6 +946,16 @@ print(plot_series(d_prev_rate,
   "RHD prevalence — reference",
   "Prevalent RHD cases per 1,000 population",
   "Prevalent cases per 1,000", "#b2182b", ylab_comma = FALSE))
+
+# Age-standardised counterpart (additive): prevalence re-weighted to the fixed
+# BASE_YEAR (2023) age structure.
+if (have_asr) {
+  d_prev_rate_asr <- combine_series(ha_prev, "rate", mod_asr_yr, "prev_rate")
+  print(plot_series(d_prev_rate_asr,
+    "RHD prevalence — reference (age-standardised)",
+    paste0("Age-standardised to the ", BASE_YEAR, " age structure; prevalent RHD cases per 1,000"),
+    "Prevalent cases per 1,000 (ASR)", "#b2182b", ylab_comma = FALSE))
+}
 ```
 
 ## Mortality rates — RHD and all causes
@@ -869,6 +973,23 @@ print(plot_series(d_all_mort,
   "All-cause mortality rate — reference",
   "All-cause deaths per 100,000 population (RHD + background)",
   "All-cause deaths per 100,000", "#333333", ylab_comma = FALSE))
+
+# Age-standardised counterparts (additive): RHD and all-cause mortality
+# re-weighted to the fixed BASE_YEAR (2023) age structure.
+if (have_asr) {
+  d_rhd_mort_asr <- combine_series(ha_rhdmx, "rate", mod_asr_yr, "rhd_mort")
+  d_all_mort_asr <- combine_series(ha_allmx, "rate", mod_asr_yr, "all_mort")
+
+  print(plot_series(d_rhd_mort_asr,
+    "RHD mortality rate — reference (age-standardised)",
+    paste0("Age-standardised to the ", BASE_YEAR, " age structure; RHD cause-specific deaths per 100,000"),
+    "RHD deaths per 100,000 (ASR)", "#4d4d4d", ylab_comma = FALSE))
+
+  print(plot_series(d_all_mort_asr,
+    "All-cause mortality rate — reference (age-standardised)",
+    paste0("Age-standardised to the ", BASE_YEAR, " age structure; all-cause deaths per 100,000"),
+    "All-cause deaths per 100,000 (ASR)", "#333333", ylab_comma = FALSE))
+}
 ```
 
 ```{r validation-note, echo=FALSE, results='asis'}
@@ -1534,10 +1655,16 @@ if (have_econ) {
   productivity term and `r if (have_econ) eparams$dalys_per_death else 30` DALYs
   per RHD death; unit costs are literature/calibrated values. The benefit–cost
   ratio is sensitive to the VSL multiplier and discount rate.
-- **Historical validation is a crude-rate comparison.** GBD historical series
-  use GBD counts over observed WPP population; the model rates are crude rates on
-  the same basis. Neither is age-standardised, so shifts partly reflect the
-  changing age structure.
+- **Historical validation shows crude and age-standardised rates.** GBD
+  historical series use GBD counts over observed WPP population; the model rates
+  are crude rates on the same basis. Because a crude rate mixes epidemiological
+  change with the shifting age structure, each baseline-validation rate is now
+  also shown **age-standardised** (direct standardization to the fixed `r BASE_YEAR`
+  age structure, jointly over age group and sex), on the same basis for the GBD
+  historical and model-projected series so the ASR overlays join at the 2024
+  seam. The remaining caveat is that direct standardization to a single
+  reference year cannot capture changes in the *within-age-group* composition or
+  in the standard structure itself.
 
 ---
 
