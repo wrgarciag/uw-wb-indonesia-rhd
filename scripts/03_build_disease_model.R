@@ -30,10 +30,11 @@
 #           RHD Prevalence -> prevalent RHD seed at the first model year
 #           RHD Deaths     -> RHD cause-specific mortality anchor
 #           All-cause Deaths - RHD Deaths -> background (other-cause) mortality
-#     data/pop_projection_2025_2100.rds      (from 02_build_demography.R)
+#     data/pop_projection.rds                (from 02_build_demography.R)
 #         single-year population by age x sex x year (persons), for LOCATION. Read here
-#         ONLY to establish the projection horizon (year grid) and a base-year
-#         order-of-magnitude anchor. 05 re-reads the full population itself.
+#         ONLY to establish the model horizon (= ANALYSIS_YEARS, clipped to the
+#         projection backbone) and a base-year order-of-magnitude anchor. 05 re-reads
+#         the full population itself.
 #
 #   OUTPUT (written to wd_data = data/):
 #     disease_model_inputs.rds  — a named list (see section 8) holding:
@@ -83,8 +84,22 @@ AGES     <- 0:100                # single-year ages (0..100, 100 = 100+ open gro
 SEXES    <- c("Female", "Male")
 n_age    <- length(AGES)
 
-RATE_BASE_YEAR <- getp("RATE_BASE_YEAR", 2023L)  # latest GBD year
-POP_PROJ_FILE  <- paste0(wd_data, "pop_projection_2025_2100.rds")
+RATE_BASE_YEAR <- getp("RATE_BASE_YEAR", 2023L)  # latest GBD year (held forward below)
+POP_PROJ_FILE  <- paste0(wd_data, "pop_projection.rds")   # STABLE name (02)
+
+# ANALYSIS PERIOD (the model horizon). Set once in 00_run_all.R; every array,
+# baseline, model run, output and report object below is built over EXACTLY these
+# years. Standalone fallback: derive from ANALYSIS_YEAR_START/END, else the whole
+# projection table. The projection backbone (02) may be wider; 03 CLIPS to it.
+ANALYSIS_YEAR_START <- as.integer(getp("ANALYSIS_YEAR_START", NA_integer_))
+ANALYSIS_YEAR_END   <- as.integer(getp("ANALYSIS_YEAR_END",   NA_integer_))
+ANALYSIS_YEARS <- (
+  if (!is.na(ANALYSIS_YEAR_START) && !is.na(ANALYSIS_YEAR_END))
+    ANALYSIS_YEAR_START:ANALYSIS_YEAR_END          # from 00_run_all.R (the pipeline path)
+  else if (exists("ANALYSIS_YEARS", inherits = TRUE))
+    as.integer(get("ANALYSIS_YEARS", inherits = TRUE))
+  else NULL                                        # NULL => use the full projection table (standalone)
+)
 
 # ------------------------------------------------------------------------------
 # 1. RAMP WINDOW (structure only; no discounting/economics here)
@@ -156,9 +171,9 @@ stopifnot(abs(sum(stage_split) - 1) < 1e-9)
 # ------------------------------------------------------------------------------
 # 6. CARE-CASCADE STRUCTURE  (3 metrics; realised into trajectories by 05)
 #    Cumulative population coverages. Reference holds baselines flat over the
-#    horizon; scale-up ramps each linearly from the 2026 baseline to the 2050
-#    target (held to 2100). Effective diagnosis/treatment are capped by earlier
-#    cascade stages in 05 (effective_treatment <= diagnosis <= screening).
+#    horizon; scale-up ramps each linearly from the ramp_start baseline to the
+#    ramp_end target (held at target thereafter). Effective diagnosis/treatment are
+#    capped by earlier cascade stages in 05 (effective_treatment <= diagnosis <= screening).
 # ------------------------------------------------------------------------------
 coverage <- list(
   # screening
@@ -228,14 +243,34 @@ mort_rhd0 <- rate_matrix("Rheumatic heart disease", "Deaths")      # RHD death r
 mort_all0 <- rate_matrix("All causes",              "Deaths")      # all-cause death rate
 oth_mort0 <- pmax(mort_all0 - mort_rhd0, 0)   # background (non-RHD) competing mortality
 
-## 7b. establish the projection horizon (year grid) from 02's projection table --
+## 7b. establish the model horizon = the ANALYSIS period, CLIPPED to the years the
+##     projection backbone (02) actually provides. The projection may be wider than
+##     the analysis window; the model runs over EXACTLY ANALYSIS_YEARS (or, if that
+##     global is absent in a standalone run, the whole projection table).
 if (!file.exists(POP_PROJ_FILE))
   stop("Missing population projection input:\n  ", POP_PROJ_FILE,
        "\n  Run 02_build_demography.R first.", call. = FALSE)
 pop_proj <- as.data.table(readRDS(POP_PROJ_FILE))
 pop_proj <- pop_proj[location == LOCATION & age %in% AGES & sex %in% SEXES]
-years    <- sort(unique(pop_proj$year))     # 2025..2100  (HORIZON driven by input)
-n_years  <- length(years)
+proj_years_avail <- sort(unique(pop_proj$year))
+if (is.null(ANALYSIS_YEARS)) {
+  years <- proj_years_avail                 # standalone: use the full projection table
+} else {
+  missing_years <- setdiff(ANALYSIS_YEARS, proj_years_avail)
+  if (length(missing_years))
+    stop("Analysis year(s) ", paste(range(missing_years), collapse = "-"),
+         " are outside the projection backbone (", min(proj_years_avail), "-",
+         max(proj_years_avail), ").\n  Widen PROJ_YEARS / re-run 02, or narrow ",
+         "ANALYSIS_YEAR_START/END in 00_run_all.R.", call. = FALSE)
+  years <- as.integer(ANALYSIS_YEARS)       # model horizon = the analysis period
+  pop_proj <- pop_proj[year %in% years]
+}
+years   <- sort(unique(years))
+n_years <- length(years)
+if (n_years < 1L) stop("Empty model horizon (no analysis years available).", call. = FALSE)
+message(sprintf("  Model horizon = %d-%d (%d years)%s", min(years), max(years), n_years,
+                if (is.null(ANALYSIS_YEARS)) "  [standalone: full projection table]"
+                else "  [ANALYSIS_YEARS, clipped to projection backbone]"))
 
 ## 7c. broadcast base-year [age x sex] matrices to [age x sex x year] arrays -----
 ##     incidence carries the secular trend (anchored at the first projection year);
@@ -373,7 +408,8 @@ disease_model_inputs <- list(
     LOCATION       = LOCATION,
     AGES           = AGES,
     SEXES          = SEXES,
-    years          = years,
+    years          = years,                       # the model horizon = ANALYSIS_YEARS
+    analysis_years = years,                       # explicit alias (downstream validation anchor)
     RATE_BASE_YEAR = as.integer(RATE_BASE_YEAR),
     incidence_trend = incidence_trend,
     rhd_d_fraction  = rhd_d_fraction,

@@ -106,6 +106,9 @@ wsd <- rbindlist(lapply(files, function(f) as.data.table(readRDS(f)$wsd)),
 if (is.null(stg) || !nrow(stg))
   stop("Model output has no $stages table — re-run 06_run_prevention_model.R.", call. = FALSE)
 
+# expected model horizon (ANALYSIS years) from 06's persisted meta (asserted below).
+analysis_years <- sort(as.integer(readRDS(files[1])$meta$years))
+
 # ------------------------------------------------------------------------------
 # 2. ANNUAL COST COMPONENTS per location x scenario x year (from stage-flow trace)
 #    (No cost columns exist in the model output — costs are applied HERE only.)
@@ -134,6 +137,9 @@ inc <- merge(wide_cost[,  .(location, year, cost_ref = ref, cost_sap = sap)],
 inc[, `:=`(inc_cost     = cost_sap - cost_ref,
            deaths_avert = death_ref - death_sap)]
 
+# Economic discount reference year: set in 00_run_all.R (default ANALYSIS_YEAR_START);
+# standalone fallback = the first analysis year in the data. Separate from the GDP-pc
+# reference year (econ$gdp_pc_base_year) and the GBD rate reference year.
 discount_base_year <- getp("discount_base_year", min(inc$year))
 inc[, `:=`(
   df      = 1 / (1 + econ$disc_rate)^(year - discount_base_year),
@@ -186,6 +192,16 @@ budget_impact <- merge(
 # 5. VALIDATION  (fail loudly; deaths-averted / incremental-cost checks CUMULATIVE)
 # ------------------------------------------------------------------------------
 if (any(cost_ty$cost < -1e-6)) stop("Negative annual cost computed.", call. = FALSE)
+
+# analysis-horizon integrity: the incremental (and hence budget/summary) table must
+# span EXACTLY the analysis years — no economic row outside the configured window.
+inc_years <- sort(unique(as.integer(inc$year)))
+if (!identical(inc_years, analysis_years))
+  stop("Economic table years (", min(inc_years), "-", max(inc_years),
+       ") do not match the analysis horizon (", min(analysis_years), "-",
+       max(analysis_years), ").", call. = FALSE)
+if (!is.finite(discount_base_year))
+  stop("discount_base_year is not finite.", call. = FALSE)
 
 # per-year deaths-averted / incremental cost MAY dip negative in late years (a
 # mortality-only intervention raises surviving prevalence, so later cohorts can

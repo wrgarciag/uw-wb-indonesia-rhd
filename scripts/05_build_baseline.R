@@ -14,10 +14,11 @@
 # WITHOUT re-running 01-04. It reads only the PERSISTED upstream outputs:
 #
 #   INPUTS
-#     data/pop_projection_2025_2100.rds       (02) population [age x sex x year]
+#     data/pop_projection.rds                  (02) population [age x sex x year]
 #     data/disease_model_inputs.rds           (03) rate arrays + A/B/C/D natural
 #                                                  history + effects + surgery +
-#                                                  stage_split + cascade structure
+#                                                  stage_split + cascade structure;
+#                                                  meta$years = the ANALYSIS horizon
 #     data/calibrated_rhd_parameters.rds       (04) CALIBRATED IR/CF ($tp), 2000-2019
 #
 #   OUTPUT (written to wd_data = data/):
@@ -57,7 +58,7 @@ RHD_PREV_HI <- getp("RHD_PREV_HI", 1e7)   #   wide default covers Indonesia and 
 LOCATIONS <- if (exists("LOCATIONS")) LOCATIONS else "Indonesia"
 SCENARIOS <- c("ref", "sap")           # reference vs secondary-prevention scale-up
 
-IN_POP     <- paste0(wd_data, "pop_projection_2025_2100.rds")
+IN_POP     <- paste0(wd_data, "pop_projection.rds")            # STABLE name (02)
 IN_DISEASE <- paste0(wd_data, "disease_model_inputs.rds")
 IN_CALIB   <- paste0(wd_data, "calibrated_rhd_parameters.rds")
 OUT_FILE   <- paste0(wd_data, "baseline_state.rds")
@@ -78,9 +79,20 @@ calib    <- readRDS(IN_CALIB)               # 04 calibrated-parameter bundle
 
 AGES  <- dmi$meta$AGES
 SEXES <- dmi$meta$SEXES
-years <- dmi$meta$years                    # projection horizon (2025..2100)
+years <- dmi$meta$years                    # the ANALYSIS horizon (set by 03)
 n_age <- length(AGES); n_sex <- length(SEXES); n_years <- length(years)
 base_year <- min(years)
+
+# analysis-period validation: when 00_run_all.R is driving, the horizon inherited
+# from 03 must equal ANALYSIS_YEARS exactly (guards against a stale disease-inputs
+# bundle built under a different window).
+if (exists("ANALYSIS_YEARS", inherits = TRUE)) {
+  ay <- sort(as.integer(get("ANALYSIS_YEARS", inherits = TRUE)))
+  if (!identical(sort(as.integer(years)), ay))
+    stop("Baseline horizon (", min(years), "-", max(years),
+         ") != ANALYSIS_YEARS (", min(ay), "-", max(ay),
+         "). Re-run 03_build_disease_model.R under the current window.", call. = FALSE)
+}
 
 # calibrated IR/CF table (Layer 1) — a single self-describing bundle now.
 calib_tp <- as.data.table(calib$tp)
@@ -214,8 +226,9 @@ build_location_state <- function(loc) {
   }
 
   ## 3f. realised cascade + surgery coverage trajectories per scenario --------
-  #  Reference holds baselines flat; scale-up ramps to the 2050 targets.
-  #  Effective diagnosis/treatment are capped by the earlier cascade stages.
+  #  Reference holds baselines flat; scale-up ramps to targets over [ramp_start,
+  #  ramp_end] (from 03's coverage$ramp_*), held at target thereafter. Effective
+  #  diagnosis/treatment are capped by the earlier cascade stages.
   cascade_for <- function(arm) {                          # arm = "ref" | "up"
     screen    <- ramp_traj(cov[[paste0("screen_",    arm, "_baseline")]],
                            cov[[paste0("screen_",    arm, "_target")]],   cov$ramp_start, cov$ramp_end)

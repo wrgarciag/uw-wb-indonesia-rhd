@@ -50,6 +50,11 @@ if (!exists("abcd_one_cycle")) {
 
 #===============================================================================
 # 0. SETTINGS (honour 00_run_all.R; else documented defaults)
+#    NOTE: this Layer-2 calibration operates entirely on the CALIBRATION window
+#    (CAL_YEAR_START..CAL_YEAR_END, matched from STRUCT_MATCH_FROM) — a period
+#    conceptually SEPARATE from the model ANALYSIS period. Its calibrated stage
+#    parameters are horizon-agnostic (per-cycle probabilities), so 04b needs no
+#    ANALYSIS_YEARS input; 05 applies them over whatever analysis horizon 03 set.
 #===============================================================================
 LOCATION  <- getp("LOCATION", "Indonesia")
 AGE_LO <- as.integer(getp("AGE_LO", 0L)); AGE_HI <- as.integer(getp("AGE_HI", 95L))

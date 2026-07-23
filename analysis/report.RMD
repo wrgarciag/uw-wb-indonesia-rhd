@@ -1,5 +1,5 @@
 ---
-title: "`r params$country` Rheumatic Heart Disease Secondary-Prevention Investment Case: Methods, Projected Health Impact and Economic Evaluation (2025–2100)"
+title: "`r params$country` Rheumatic Heart Disease Secondary-Prevention Investment Case: Methods, Projected Health Impact and Economic Evaluation`r tryCatch({ .ctry <- if (!is.null(params$country)) params$country else 'Indonesia'; .root <- tryCatch(normalizePath(file.path(dirname(knitr::current_input(dir = TRUE)), '..'), winslash = '/', mustWork = TRUE), error = function(e) 'C:/Users/wrgar/OneDrive - UW/02Work/WorldBank-Indonesia/uw-wb-indonesia-rhd'); .f <- list.files(file.path(.root, 'output', .ctry, 'out_model'), pattern = '[.]rds$', full.names = TRUE); .y <- sort(as.integer(readRDS(.f[1])$meta$years)); sprintf(' (%d–%d)', min(.y), max(.y)) }, error = function(e) '')`"
 date: "`r Sys.Date()`"
 author: "University of Washington · World Bank `r params$country` RHD Model"
 params:
@@ -118,10 +118,12 @@ grp_mid <- setNames(
 # BASE_YEAR is the single, FIXED reference year whose age structure is used as
 # the standard population for the direct age-standardised rates (ASR) added to
 # the baseline-validation section: every year's age-specific rates (GBD
-# historical AND model-projected) are re-weighted to this one 2023 age
-# distribution, so ASR trends reflect epidemiology rather than a shifting age
-# structure. This is DISTINCT from the model's seed / jump-off year
-# (`meta$base_year`, 2025); BASE_YEAR is only the standardisation reference.
+# historical AND model-projected) are re-weighted to this one age distribution,
+# so ASR trends reflect epidemiology rather than a shifting age structure. It is
+# the GBD rate reference year (latest GBD data year, 2023) and is DISTINCT from
+# the model's seed / first-analysis year (`meta$base_year`); BASE_YEAR is only
+# the standardisation reference. Kept fixed at the GBD data year, independent of
+# the configurable analysis period.
 BASE_YEAR <- 2023L
 
 # Common ggplot theme tweaks used throughout.
@@ -158,13 +160,17 @@ wsd[, scenario := factor(scenario, levels = scenario_levels)]
 stg[, scenario := factor(scenario, levels = scenario_levels)]
 
 # ---- Key dimensions ---------------------------------------------------------
+# The analysis horizon is read ENTIRELY from the model output (meta$years /
+# wsd$year), which the pipeline built over the configured ANALYSIS_YEARS. No year
+# range is hard-coded here, so this report tracks whatever window 00_run_all.R set.
 LOCS        <- sort(unique(as.character(wsd$location)))
 n_loc       <- length(LOCS)
 year_min    <- min(wsd$year); year_max <- max(wsd$year)
-base_year   <- meta$base_year                       # 2025 seed / jump-off year
+base_year   <- meta$base_year                       # first analysis year (seed / jump-off)
 ramp_start  <- meta$ramp_start; ramp_end <- meta$ramp_end
-proj_years  <- paste0(base_year, "–", year_max)
-sim_horizon <- paste0(base_year + 1L, "–", year_max)   # 2026-2100 (task horizon)
+analysis_years <- sort(unique(as.integer(wsd$year)))  # exact set of model years
+proj_years  <- paste0(year_min, "–", year_max)      # the analysis horizon (e.g. 2026–2050)
+sim_horizon <- proj_years                            # model runs over the whole analysis horizon
 CAUSE       <- unique(as.character(wsd$cause))[1]
 scenarios_present <- levels(droplevels(wsd$scenario))
 ```
@@ -264,9 +270,10 @@ if (have_gbd) {
   gbd <- gbd[location_name == loc1]
 }
 
-# Observed single-year population 1990-2024 (02_build_demography.R) as the
-# denominator for GBD crude rates.
-po_path <- paste0(wd_data, "pop_observed_1990_2024.rds")
+# Observed single-year population (02_build_demography.R; stable filename) as the
+# denominator for GBD crude rates — the OBSERVED-data period, separate from the
+# analysis horizon.
+po_path <- paste0(wd_data, "pop_observed.rds")
 have_pop <- file.exists(po_path)
 if (have_pop) {
   pop_obs <- as.data.table(readRDS(po_path))
@@ -337,8 +344,8 @@ RHD-specific mortality across the disease course.
 The central question is:
 
 > *How many RHD deaths does scaling up echo screening and secondary antibiotic
-> prophylaxis avert in `r CTRY` over the century, and does the monetised
-> health benefit justify the incremental cost?*
+> prophylaxis avert in `r CTRY` over the analysis horizon (`r proj_years`), and
+> does the monetised health benefit justify the incremental cost?*
 
 The engine is a **discrete-time, matrix-form (age × sex) Markov cohort model**
 whose living RHD population is resolved into the four **World Heart Federation
@@ -434,11 +441,11 @@ if (have_bs) {
 
   # Care cascade (cumulative population coverage; scale-up ramps, reference flat)
   g <- "Care cascade (cumulative coverage)"
-  add_row(g, "Screening — baseline → 2050 target",
+  add_row(g, sprintf("Screening — baseline → %d target", ramp_end),
           sprintf("%s → %s", fmt_pct(cov$ref$screen[1], 0),    fmt_pct(max(cov$sap$screen), 0)),    "[PAPER]")
-  add_row(g, "Diagnosis — baseline → 2050 target",
+  add_row(g, sprintf("Diagnosis — baseline → %d target", ramp_end),
           sprintf("%s → %s", fmt_pct(cov$ref$diagnosis[1], 0), fmt_pct(max(cov$sap$diagnosis), 0)), "[PAPER]")
-  add_row(g, "Optimal treatment (SAP) — baseline → 2050 target",
+  add_row(g, sprintf("Optimal treatment (SAP) — baseline → %d target", ramp_end),
           sprintf("%s → %s", fmt_pct(cov$ref$treatment[1], 0), fmt_pct(max(cov$sap$treatment), 0)), "[PAPER]")
   add_row(g, "Scale-up ramp window", sprintf("%d → %d", ramp_start, ramp_end), "[PAPER]")
   add_row(g, "Incidence secular trend (per year)", sprintf("%.3f", meta$incidence_trend), "[CALIBRATE]")
@@ -490,7 +497,7 @@ kbl
 
 ```{r fig-coverage, message=FALSE, warning=FALSE, echo=FALSE, fig.width=9, fig.height=4}
 # Realised care-cascade coverage: the scale-up ramps screening -> diagnosis ->
-# optimal treatment to their 2050 targets, while the reference arm holds every
+# optimal treatment to their ramp_end targets, while the reference arm holds every
 # metric flat at its baseline. Surgery coverage is held equal in both arms.
 if (have_bs) {
   metric_lab <- c(screen = "Screening", diagnosis = "Diagnosis",
@@ -769,14 +776,16 @@ kable(scn_tbl,
 # Baseline (pre-intervention) trend & validation
 
 The panels below use the **reference (`ref`)** arm as the pre-intervention
-baseline, projected over the simulation horizon (**`r sim_horizon`**, with
-`r base_year` the seeded jump-off year), and — where the GBD artifact is
-available — **complemented with GBD 2023 historical series from 2000** so the
-reader can judge continuity and validity at the simulation start. Following the
-report convention, **solid lines are historical (GBD 2000–2023)** and **dashed
-lines are model-projected (`r proj_years`)**; model *rates* are crude rates
-(count ÷ total population) computed on the same basis as the GBD crude rates, so
-the two are directly comparable at the join.
+baseline, projected over the analysis horizon (**`r sim_horizon`**, with
+`r base_year` the seeded first analysis year), and — where the GBD artifact is
+available — **complemented with GBD historical series from 2000 to the last GBD
+data year** so the reader can judge continuity and validity at the simulation
+start. Following the report convention, **solid lines are historical (GBD, up to
+`r BASE_YEAR`)** and **dashed lines are model-projected (`r proj_years`)**; model
+*rates* are crude rates (count ÷ total population) computed on the same basis as
+the GBD crude rates, so the two are directly comparable at the join. (The GBD
+historical overlay is the separate observed / GBD-reference period; the model
+series itself is confined to the analysis horizon.)
 
 Each rate is shown **two ways**: the **crude** rate (count ÷ total population)
 and, additively beneath it, an **age-standardised rate (ASR)** in which every
@@ -786,8 +795,9 @@ projection — are re-weighted to a single fixed standard age structure, that of
 epidemiological change with the shifting age structure of `r CTRY`, the ASR
 series isolates the epidemiological signal, and the GBD-standardized and
 model-standardized ASR are built on the same basis so they, too, join at the
-2024 seam. (`r BASE_YEAR` here is only the standardisation reference; it is not
-the model's `r base_year` seed / jump-off year.)
+historical-to-projection transition. (`r BASE_YEAR` here is only the
+standardisation reference; it is not the model's `r base_year` seed / first
+analysis year.)
 
 ```{r baseline-aggregates, message=FALSE, warning=FALSE, echo=FALSE}
 ref <- wsd[scenario == "ref"]
@@ -818,10 +828,11 @@ h_allmx <- build_hist("All causes", "Deaths", 1e5)
 # ---- Age-standardised rates (ASR): direct standardization to BASE_YEAR -------
 # The crude series above are count / total-population and so partly track the
 # shifting age structure. The ASR counterparts below strip that out by direct
-# standardization to the fixed BASE_YEAR (2023) age structure: every year's
-# age-specific rates are re-weighted to one standard population, on the SAME
-# per-unit basis as the crude series, so the historical (GBD) and projected
-# (model) ASR join at the 2024 seam exactly as the crude series do.
+# standardization to the fixed BASE_YEAR (GBD data year) age structure: every
+# year's age-specific rates are re-weighted to one standard population, on the
+# SAME per-unit basis as the crude series, so the historical (GBD) and projected
+# (model) ASR join at the historical-to-projection transition exactly as the
+# crude series do.
 #
 # Because GBD supplies sex-specific (not both-sex) age-group rates, we
 # standardise jointly over (age group x sex) using the observed 2023 population
@@ -999,12 +1010,13 @@ if (have_gbd && have_pop) {
   g0 <- if (!is.null(h_prev)) h_prev[year == max(year), rate] else NA_real_
   if (length(m0) && is.finite(g0))
     cat(sprintf(
-"The model is seeded at %d from GBD 2023 prevalence, so the projected prevalence
-rate at the jump-off year (**%.2f per 1,000**) sits close to the last observed
-GBD value (**%.2f per 1,000** in %d), giving visual continuity across the
-2024 seam. The RHD incidence array carries a %.1f%%/year secular decline, so
-incidence drifts down over the horizon while prevalence reflects the balance of
-incidence, progression and improving survival.",
+"The model is seeded at %d from GBD prevalence (held forward from the last GBD
+data year), so the projected prevalence rate at the first analysis year (**%.2f
+per 1,000**) sits close to the last observed GBD value (**%.2f per 1,000** in
+%d), giving visual continuity at the historical-to-projection transition. The RHD
+incidence array carries a %.1f%%/year secular decline, so incidence drifts down
+over the horizon while prevalence reflects the balance of incidence, progression
+and improving survival.",
       base_year, m0, g0, h_prev[year == max(year), year],
       100 * (1 - meta$incidence_trend)))
 } else {
@@ -1013,15 +1025,17 @@ incidence, progression and improving survival.",
 }
 ```
 
-## Age- and sex-specific profiles (every 10 years, 2000–2100)
+## Age- and sex-specific profiles (every 10 years, 2000–`r year_max`)
 
-The figures below show age profiles at **decade years from 2000 to 2100**, split
-by sex. Years through 2023 are drawn from GBD (age-group rates); years from
-`r base_year` on are model-projected, folded into the same GBD age groups so the
-two share one comparable age axis.
+The figures below show age profiles at **decade years from 2000 to `r year_max`**,
+split by sex. Years before `r base_year` are drawn from GBD (age-group rates, the
+separate historical/observed period); years from `r base_year` on are
+model-projected (the analysis horizon), folded into the same GBD age groups so
+the two share one comparable age axis.
 
 ```{r age-profiles, message=FALSE, warning=FALSE, echo=FALSE, fig.width=11, fig.height=7.5}
-dec_years <- seq(2000, 2100, by = 10)
+# Decade snapshots from 2000 (GBD historical) through the analysis end (model).
+dec_years <- seq(2000, year_max, by = 10)
 
 # Model age profile by (year, sex, GBD group): prevalence per 1,000, RHD mort /100k.
 refg <- copy(ref)
@@ -1062,7 +1076,8 @@ ggplot(prof_prev, aes(age_mid, value, color = sex)) +
   facet_wrap(~ year, ncol = 3, scales = "free_y") +
   scale_color_manual(values = sex_cols, name = NULL) +
   labs(title = "RHD prevalence by age and sex, every 10 years",
-       subtitle = "Prevalent cases per 1,000; GBD (≤2023) and model-projected (≥ jump-off) share one age axis",
+       subtitle = paste0("Prevalent cases per 1,000; GBD historical (before ", base_year,
+                          ") and model-projected (", base_year, "+) share one age axis"),
        x = "Age (years)", y = "Prevalent cases per 1,000") +
   base_theme(12) + theme(legend.position = "bottom")
 ```
@@ -1073,7 +1088,8 @@ ggplot(prof_mort, aes(age_mid, value, color = sex)) +
   facet_wrap(~ year, ncol = 3, scales = "free_y") +
   scale_color_manual(values = sex_cols, name = NULL) +
   labs(title = "RHD mortality rate by age and sex, every 10 years",
-       subtitle = "RHD deaths per 100,000; GBD (≤2023) and model-projected (≥ jump-off)",
+       subtitle = paste0("RHD deaths per 100,000; GBD historical (before ", base_year,
+                          ") and model-projected (", base_year, "+)"),
        x = "Age (years)", y = "RHD deaths per 100,000") +
   base_theme(12) + theme(legend.position = "bottom")
 ```
@@ -1661,10 +1677,10 @@ if (have_econ) {
   change with the shifting age structure, each baseline-validation rate is now
   also shown **age-standardised** (direct standardization to the fixed `r BASE_YEAR`
   age structure, jointly over age group and sex), on the same basis for the GBD
-  historical and model-projected series so the ASR overlays join at the 2024
-  seam. The remaining caveat is that direct standardization to a single
-  reference year cannot capture changes in the *within-age-group* composition or
-  in the standard structure itself.
+  historical and model-projected series so the ASR overlays join at the
+  historical-to-projection transition. The remaining caveat is that direct
+  standardization to a single reference year cannot capture changes in the
+  *within-age-group* composition or in the standard structure itself.
 
 ---
 
@@ -1684,6 +1700,6 @@ cat("   rhd_stage_model_long.rds  :", have_stage_tab, "\n")
 cat("   rhd_annual_flows.rds      :", have_flow_tab,  "\n")
 cat("   rhd_economic_results.rds  :", have_econ, "\n")
 cat("   GBD 2023 epi (historical) :", have_gbd,  if (have_gbd) paste0("  [", gbd_path, "]") else "", "\n")
-cat("   pop_observed_1990_2024    :", have_pop,  "\n\n")
+cat("   pop_observed              :", have_pop,  "\n\n")
 sessionInfo()
 ```

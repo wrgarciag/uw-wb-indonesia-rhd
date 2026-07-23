@@ -369,3 +369,67 @@ solid=historical / dashed=projected convention — and guard gracefully so that 
 GBD artifact is unavailable the ASR historical overlay is simply omitted (as the 
 crude panels already degrade). Do not add new package dependencies beyond those the 
 report already loads.
+
+##############################################################
+#############################################################
+
+Modify the full RHD pipeline in `scripts/00_run_all.R` through `scripts/08_economic_evaluation.R`, including `04b_calibrate_structural.R` and the analysis/report R Markdown, so the model analysis period is fully configurable.
+
+The user should define the period only in `scripts/00_run_all.R`, for example:
+
+```r
+ANALYSIS_YEAR_START <- 2026L
+ANALYSIS_YEAR_END   <- 2050L
+ANALYSIS_YEARS      <- ANALYSIS_YEAR_START:ANALYSIS_YEAR_END
+```
+
+Propagate these parameters consistently through demography, disease inputs, baseline construction, model execution, outputs, economic evaluation, plots, tables, text, and report metadata. Remove downstream hard-coded assumptions such as `2025:2100`, references to a fixed 2100 endpoint, and year-specific population filenames.
+
+Use stable filenames such as `pop_observed.rds` and `pop_projection.rds`, rather than filenames containing fixed years.
+
+Keep the following periods conceptually separate:
+
+* Analysis period
+* Calibration period
+* Observed-data period
+* Intervention ramp period
+* GBD rate reference year
+* GDP-per-capita reference year
+* Economic discount reference year
+
+For the economic analysis, define the discount reference year in `00_run_all.R`, with the first analysis year as the default:
+
+```r
+discount_base_year <- ANALYSIS_YEAR_START
+```
+
+Do not change any epidemiological assumptions, calibration methods, transition probabilities, intervention effects, costs, or introduce ad hoc adjustments.
+
+Add validation throughout the pipeline to ensure every model, output, economic, and report object contains exactly the configured analysis years.
+
+Test the implementation using `2026:2050` and confirm that no results, tables, plots, or report text include years outside that range.
+
+##########################################################3
+########################################################3
+
+Creating meta data table
+
+Review the full scripts/00–08 R pipeline and create docs/metadata_inputs.csv as the project’s authoritative raw-input data manifest/source registry.
+
+Trace every external input file, dataset, sheet, and object read by the pipeline, including inputs loaded indirectly through helper functions or sourced scripts. Create one row per distinct input dataset or file component (such as an Excel sheet). Include, where identifiable:
+
+Input ID
+File name and relative path
+File format and sheet/table name
+Description and role in the model
+Variables or indicators used
+Geographic, age, sex, and time coverage
+Unit of observation
+Source institution
+Original source/publication and URL
+Script(s) and function(s) consuming it
+Pipeline stage
+Expected update frequency or reference version
+Data-processing notes, assumptions, and limitations
+
+Use clear, consistent snake_case column names and repository-relative paths. Infer metadata from the code and existing documentation, but do not invent unknown information; use NA and briefly flag what requires manual confirmation. Deduplicate repeated inputs while listing all consuming scripts. Only create or modify docs/metadata_inputs.csv; do not change the model code or other files.

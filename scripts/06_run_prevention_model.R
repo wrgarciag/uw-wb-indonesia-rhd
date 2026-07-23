@@ -83,6 +83,16 @@ baseline_state <- readRDS(IN_FILE)
 LOCATIONS <- baseline_state$locations
 SCENARIOS <- baseline_state$meta$scenarios
 
+# analysis-period integrity: horizon inherited from 05 must equal ANALYSIS_YEARS
+# when 00_run_all.R is driving (else a stale baseline_state under a different window).
+if (exists("ANALYSIS_YEARS", inherits = TRUE)) {
+  ay <- sort(as.integer(get("ANALYSIS_YEARS", inherits = TRUE)))
+  my <- sort(as.integer(baseline_state$meta$years))
+  if (!identical(my, ay))
+    stop("baseline_state horizon (", min(my), "-", max(my), ") != ANALYSIS_YEARS (",
+         min(ay), "-", max(ay), "). Re-run 03-05 under the current window.", call. = FALSE)
+}
+
 message(sprintf("── 06_run_prevention_model.R (A/B/C/D) : %d location(s), scenarios %s ──",
                 length(LOCATIONS), paste(SCENARIOS, collapse = ", ")))
 
@@ -235,6 +245,13 @@ run_location <- function(loc, baseline_state) {
   exp_rows <- length(SCEN) * n_years * n_age * n_sex
   fail(nrow(wsd_all) != exp_rows, "WSD table has an incomplete scenario/age/year grid.")
   fail(nrow(stg_all) != exp_rows, "stage table has an incomplete scenario/age/year grid.")
+
+  # horizon integrity: the model output must cover EXACTLY the analysis years
+  # (meta$years), no more, no fewer.
+  fail(!identical(sort(unique(as.integer(wsd_all$year))), as.integer(years)),
+       "WSD years do not match the analysis horizon (meta$years).")
+  fail(!identical(sort(unique(as.integer(stg_all$year))), as.integer(years)),
+       "stage years do not match the analysis horizon (meta$years).")
 
   num_wsd <- wsd_all[, .SD, .SDcols = is.numeric]
   fail(anyNA(num_wsd), "WSD table contains NA.")

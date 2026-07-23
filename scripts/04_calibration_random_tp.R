@@ -197,7 +197,7 @@ build_rhd_tps <- function(gbd, pop, loc, y0, y1) {
 }
 
 gbd_raw <- as.data.table(readRDS(paste0(wd_data, "temp_baseline_rates_gbd.rds")))
-pop_obs <- as.data.table(readRDS(paste0(wd_data, "pop_observed_1990_2024.rds")))
+pop_obs <- as.data.table(readRDS(paste0(wd_data, "pop_observed.rds")))   # STABLE name (02)
 
 pop_years <- range(pop_obs[location == LOCATION, year])
 if (pop_years[1] > CAL_YEAR_START)
@@ -702,7 +702,7 @@ calibrated_rhd_parameters <- list(
     granularity = "band", bands = band_labels, band_edges = band_edges,
     incidence_mode = INCIDENCE_CALIBRATION_MODE, optimizer = CALIB_OPTIMIZER,
     tp_schema = tps_input_cols,
-    built_from = c("temp_baseline_rates_gbd.rds", "pop_observed_1990_2024.rds",
+    built_from = c("temp_baseline_rates_gbd.rds", "pop_observed.rds",
                    basename(DISEASE_INPUTS_FILE)))
 )
 saveRDS(calibrated_rhd_parameters, file = OUT_BUNDLE)
