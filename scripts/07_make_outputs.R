@@ -82,6 +82,10 @@ read_tbl <- function(which) rbindlist(lapply(files, function(f) {
 wsd <- read_tbl("wsd")
 stg <- read_tbl("stages")
 
+# expected model horizon (the ANALYSIS years) from 06's persisted meta — used to
+# assert below that every compiled table covers EXACTLY these years.
+analysis_years <- sort(as.integer(readRDS(files[1])$meta$years))
+
 # ------------------------------------------------------------------------------
 # 2. AGGREGATE long table (exact contract)
 # ------------------------------------------------------------------------------
@@ -165,6 +169,16 @@ if (long[, any(sick > pop + 1e-3)])
 grid_n <- long[, .N, by = .(location, scenario)]
 if (uniqueN(grid_n$N) != 1L)
   stop("Age/sex/year grid is not identical across every location-scenario.", call. = FALSE)
+
+# analysis-horizon integrity: every compiled table spans EXACTLY the analysis years
+for (nm in c("aggregate", "stage", "flow")) {
+  yy <- sort(unique(as.integer(switch(nm, aggregate = long$year,
+                                          stage = stage_long$year, flow = flow$year))))
+  if (!identical(yy, analysis_years))
+    stop("Compiled ", nm, " table years (", min(yy), "-", max(yy),
+         ") do not match the analysis horizon (", min(analysis_years), "-",
+         max(analysis_years), ").", call. = FALSE)
+}
 
 # reference vs SAP: SAP averts RHD deaths (cumulative, per location)
 chk <- dcast(long[, .(dead = sum(dead)), by = .(location, scenario)],

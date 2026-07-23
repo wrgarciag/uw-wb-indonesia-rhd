@@ -9,7 +9,7 @@
 #
 # Pipeline (each script reads the PERSISTED outputs of the previous ones):
 #   01 prepare inputs  -> data-raw/temp_baseline_rates_gbd.rds
-#   02 demography      -> data/pop_observed_1990_2024.rds, pop_projection_2025_2100.rds
+#   02 demography      -> data/pop_observed.rds, pop_projection.rds   (stable names)
 #   03 disease inputs  -> data/disease_model_inputs.rds            (builder, not runner)
 #   04 calibration     -> data/calibrated_rhd_parameters.rds       (calibrated IR/CF, 2000-2019)
 #   05 initial state   -> data/baseline_state.rds                  (assembles 02+03+04)
@@ -91,23 +91,72 @@ ALLC_DEATH_HI <- switch(COUNTRY, Indonesia = 4e6, Uganda = 6e5)
 
 #===============================================================================
 # C. HORIZON / YEAR WINDOWS
-#===============================================================================
-# Demography (02): observed 1990-2024, medium-variant projection 2025-2100.
-# These close the former 2024-2025 gap; keep them contiguous (obs ends the year
-# before proj begins) or 02's join-continuity check will fail.
-OBS_YEARS      <- 1990:2024
-PROJ_YEARS     <- 2025:2100
-RATE_BASE_YEAR <- 2023L          # latest GBD rate year (held forward by 03)
+#    The pipeline distinguishes SEVEN conceptually-separate time references. Only
+#    the ANALYSIS period (1) is the model run / reporting horizon; the others are
+#    independent inputs and may differ from it. Change the analysis period HERE
+#    and it propagates through demography, disease inputs, baseline, model run,
+#    outputs, economics, plots, tables, text and report — nothing downstream
+#    hard-codes a horizon or a 2100 endpoint.
+#      (1) ANALYSIS period          — model + every output/report object (this block)
+#      (2) OBSERVED-data period     — WPP2024 estimates (feeds calibration)   [OBS_YEARS]
+#      (3) PROJECTION-demography    — medium-variant population backbone       [PROJ_YEARS]
+#      (4) CALIBRATION window       — in-sample fit years (04/04b)             [CAL_YEAR_*]
+#      (5) GBD rate reference year  — latest GBD rate year, held forward (03)  [RATE_BASE_YEAR]
+#      (6) GDP-per-capita ref year  — year gdp_pc_base refers to (block J)     [gdp_pc_base_year]
+#      (7) discount reference year  — economic discounting anchor (block J)    [discount_base_year]
+#    (The intervention scale-up ramp, block D, is an 8th, also independent.)
+#-------------------------------------------------------------------------------
+# (1) ANALYSIS PERIOD — the model run / reporting horizon. EDIT THESE TWO LINES.
+#     Every model, output, economic and report object covers EXACTLY these years.
+ANALYSIS_YEAR_START <- 2026L
+ANALYSIS_YEAR_END   <- 2100L
+ANALYSIS_YEARS      <- ANALYSIS_YEAR_START:ANALYSIS_YEAR_END
 
-# Calibration in-sample window (04)
+# (2) OBSERVED-data period (02 demography ESTIMATES; also feeds the 04/04b
+#     calibration). Independent of the analysis window: WPP2024 reports estimates
+#     through its jump-off year (2024) and must span the calibration window below.
+OBS_YEARS <- 1990:2024
+
+# (3) PROJECTION-demography period (02 medium-variant backbone the model draws
+#     population from). CONTIGUOUS with OBS_YEARS (starts the year after observed
+#     ends, or 02's join-continuity check fails) and need only reach the analysis
+#     end — NO fixed 2100 endpoint. Widen PROJ_YEAR_END only to keep population
+#     available beyond the analysis horizon.
+PROJ_YEAR_START <- max(OBS_YEARS) + 1L
+PROJ_YEAR_END   <- ANALYSIS_YEAR_END
+PROJ_YEARS      <- PROJ_YEAR_START:PROJ_YEAR_END
+
+# (4) CALIBRATION in-sample window (04/04b) — a fit period, NOT the analysis
+#     period. Must fall within the observed-data period.
 CAL_YEAR_START <- 2000L
 CAL_YEAR_END   <- 2019L
 
+# (5) GBD rate reference year — latest GBD rate year, held forward by 03.
+RATE_BASE_YEAR <- 2023L
+
+# --- consistency checks on the year windows (fail fast, before sourcing 01-08) --
+stopifnot(
+  "ANALYSIS_YEAR_START <= ANALYSIS_YEAR_END" = ANALYSIS_YEAR_START <= ANALYSIS_YEAR_END,
+  "OBS_YEARS ascending"                       = min(OBS_YEARS)  <  max(OBS_YEARS),
+  "PROJ_YEARS ascending"                      = min(PROJ_YEARS) <= max(PROJ_YEARS),
+  "observed & projection contiguous"          = min(PROJ_YEARS) == max(OBS_YEARS) + 1L,
+  "calibration window within observed period" =
+    CAL_YEAR_START >= min(OBS_YEARS) && CAL_YEAR_END <= max(OBS_YEARS) &&
+    CAL_YEAR_START <= CAL_YEAR_END,
+  "analysis period within projection backbone" = all(ANALYSIS_YEARS %in% PROJ_YEARS)
+)
+message(sprintf(
+  "Year windows | analysis %d-%d | observed %d-%d | projection %d-%d | calibration %d-%d | GBD rate ref %d",
+  ANALYSIS_YEAR_START, ANALYSIS_YEAR_END, min(OBS_YEARS), max(OBS_YEARS),
+  min(PROJ_YEARS), max(PROJ_YEARS), CAL_YEAR_START, CAL_YEAR_END, RATE_BASE_YEAR))
+
 #===============================================================================
-# D. INTERVENTION SCALE-UP RAMP WINDOW  (03/05)
+# D. INTERVENTION SCALE-UP RAMP WINDOW  (03/05) — independent of the analysis
+#    period (a policy assumption). Defaults coincide with the analysis bounds but
+#    may differ (e.g. a ramp that finishes before or after the analysis horizon).
 #===============================================================================
 ramp_start <- 2026L              # first year cascade coverage begins rising (baseline year)
-ramp_end   <- 2050L              # year target cascade coverage is reached (then held to 2100)
+ramp_end   <- 2050L              # year target cascade coverage is reached (held thereafter)
 
 #===============================================================================
 # E. INCIDENCE SECULAR TREND  (03/05)
@@ -332,7 +381,8 @@ eff_surgery_D_to_rhd_death <- 0.85 # [LIT]/[CALIBRATE] surgery RRR on D -> RHD d
 # I. CARE CASCADE + SURGERY SERVICE  (03/05)
 #    Three cascade metrics (screening / diagnosis / optimal treatment) as
 #    CUMULATIVE population coverages. Reference holds baselines flat; scale-up
-#    ramps each linearly from the 2026 baseline to the 2050 target (held to 2100).
+#    ramps each linearly from the ramp_start baseline to the ramp_end target
+#    (held at target through the end of the analysis horizon).
 #    Effective diagnosis/treatment are capped by the earlier cascade stages (05).
 #    [TODO: confirm for Uganda] the BASELINE cascade coverages and the surgery
 #    requirement/coverage fractions below are health-system-specific and were set
@@ -417,7 +467,7 @@ screen_age_hi <- switch(COUNTRY,
 # gdp_growth       <- 0.03         # [CALIBRATE] real per-capita GDP growth
 # vsl_mult         <- 30           # [PAPER] value of a statistical life = 30 x GDP per capita
 # dalys_per_death  <- 30           # [CALIBRATE] undiscounted DALYs per RHD death
-# discount_base_year <- 2025L      # discount to this year (default = first model year)
+# discount_base_year <- ANALYSIS_YEAR_START  # discount to this year (default = first analysis year)
 # 
 # # unit costs (base-year US$) -- [PAPER]/[LIT]
 # cost_screen_per_person <- 1.10   # [PAPER] echo screening cost per person screened
@@ -442,9 +492,10 @@ vsl_mult <- switch(COUNTRY,
 dalys_per_death <- switch(COUNTRY,
                           Indonesia = 30,
                           Uganda    = 30)
-discount_base_year <- switch(COUNTRY,
-                             Indonesia = 2025L,
-                             Uganda    = 2025L)
+# (7) Economic discount reference year — costs & benefits are discounted TO this
+#     year. Default = the first analysis year (kept separate from (5) the GBD rate
+#     reference year and (6) gdp_pc_base_year, which are their own anchors).
+discount_base_year <- ANALYSIS_YEAR_START
 
 cost_screen_per_person <- switch(COUNTRY,
                                  Indonesia = 1.10,
