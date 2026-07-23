@@ -408,3 +408,28 @@ Do not change any epidemiological assumptions, calibration methods, transition p
 Add validation throughout the pipeline to ensure every model, output, economic, and report object contains exactly the configured analysis years.
 
 Test the implementation using `2026:2050` and confirm that no results, tables, plots, or report text include years outside that range.
+
+##########################################################3
+########################################################3
+
+Creating meta data table
+
+Review the full scripts/00–08 R pipeline and create docs/metadata_inputs.csv as the project’s authoritative raw-input data manifest/source registry.
+
+Trace every external input file, dataset, sheet, and object read by the pipeline, including inputs loaded indirectly through helper functions or sourced scripts. Create one row per distinct input dataset or file component (such as an Excel sheet). Include, where identifiable:
+
+Input ID
+File name and relative path
+File format and sheet/table name
+Description and role in the model
+Variables or indicators used
+Geographic, age, sex, and time coverage
+Unit of observation
+Source institution
+Original source/publication and URL
+Script(s) and function(s) consuming it
+Pipeline stage
+Expected update frequency or reference version
+Data-processing notes, assumptions, and limitations
+
+Use clear, consistent snake_case column names and repository-relative paths. Infer metadata from the code and existing documentation, but do not invent unknown information; use NA and briefly flag what requires manual confirmation. Deduplicate repeated inputs while listing all consuming scripts. Only create or modify docs/metadata_inputs.csv; do not change the model code or other files.
