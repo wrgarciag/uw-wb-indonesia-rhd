@@ -4,174 +4,154 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Indonesia Rheumatic Heart Disease (RHD) Simulation Model — a Markov State-Transition population-level simulation projecting the future burden of RHD in Indonesia and evaluating prevention interventions. Built on a parent NCD Countdown Population-level Chronic disease Model (CCPM) framework.
+Rheumatic Heart Disease (RHD) secondary-prevention investment case — a population-level Markov
+state-transition model (WHF stages A/B/C/D) projecting RHD burden and evaluating echo screening +
+diagnosis + secondary antibiotic prophylaxis (SAP) scale-up, with benefit-cost / cost-effectiveness.
+Originally built for **Indonesia**; now **multi-country** (Indonesia, Uganda) via a single switch.
+Descends from the NCD Countdown CCPM framework (legacy helpers remain in `R/utils.R`, unused).
 
 ## Running the Pipeline
 
-The pipeline is a numbered sequence of R scripts under `scripts/`. Run them in order, or source the master orchestrator:
-
 ```r
-source("scripts/00_run_all.R")   # single control panel: sets every parameter, sources 01→08
+source("scripts/00_run_all.R")   # single control panel: sets every parameter, sources 01 → 08
 ```
 
-`00_run_all.R` is the SINGLE place to set every parameter (paths, year windows, ramp,
-calibration settings, clinical/effect/coverage parameters, economic parameters, cores,
-location list). Individual scripts can also be sourced standalone in R/RStudio — each reads
-`00`'s globals when present and otherwise falls back to documented defaults via `here::here()`.
+`00_run_all.R` is the SINGLE place to set parameters. Scripts can be sourced standalone (each reads
+`00`'s globals when present, else falls back to defaults via a `getp()` / `exists()` guard and
+`here::here()`). **Gotcha:** standalone fallbacks point at the *root* `data/` and `output/`, not the
+country-scoped folders — set `wd_data`/`wd_outp` to `data/<COUNTRY>/`, `output/<COUNTRY>/` first.
 
-**Run order and purpose (each script reads the persisted outputs of the previous ones):**
-
-| Script | Purpose | Writes |
+| Script | Purpose | Writes (under `data/<COUNTRY>/` or `output/<COUNTRY>/`) |
 |---|---|---|
-| `01_prepare_inputs.R` | Load & filter GBD 2023 epidemiology CSVs | `data-raw/temp_baseline_rates_gbd.rds` |
-| `02_build_demography.R` | WPP2024 population backbone; observed `OBS_YEARS`, projection `PROJ_YEARS` (stable filenames, no year in the name) | `data/pop_observed.rds`, `data/pop_projection.rds`, `data/wpp/indonesia_rhd_demography.Rda` |
-| `03_build_disease_model.R` | **Input builder only** (no run): data-fed rate arrays + A/B/C/D natural history + effects + surgery service + cascade params; **clips the model horizon to `ANALYSIS_YEARS`** | `data/disease_model_inputs.rds` (`meta$years` = analysis horizon) |
-| `04_calibration_random_tp.R` | Random-search calibration of IR/CF, **full 0–95+**, window 2000–2019 | `data/adjusted_searo_part{1..10}.rds` + calibration CSVs |
-| `05_build_baseline.R` | Assemble the initial state from 02+03+04 (no recompute) | `data/baseline_state.rds` |
-| `06_run_prevention_model.R` | **Run** ref vs SAP scale-up; matrix A/B/C/D engine + surgery service; parallel by location; no costs | `output/out_model/<location>.rds` (`$wsd` + `$stages`) |
-| `07_make_outputs.R` | Compile aggregate + stage + flow long tables | `output/tables/rhd_model_long.csv/.rds`, `rhd_stage_model_long.csv`, `rhd_annual_flows.csv` |
-| `08_economic_evaluation.R` | **All economics** (BCR, cost/death, cost/DALY) from `$stages`+`$wsd` | `output/tables/rhd_economic_summary.csv`, `rhd_budget_impact.csv` |
+| `01_prepare_inputs.R` | Read every CSV in `data-raw/epidemiology/` + `population/`, keep RHD + All causes for `LOCATION` (retains GBD `upper`/`lower` UIs) | `temp_baseline_rates_gbd.rds`, `temp_population_gbd.rds` |
+| `02_build_demography.R` | WPP2024 population backbone: observed `OBS_YEARS`, medium-variant `PROJ_YEARS` | `pop_observed.rds/.csv`, `pop_projection.rds/.csv`, `wpp/rhd_demography.Rda` |
+| `03_build_disease_model.R` | **Input builder only**: rate arrays + A/B/C/D priors + effects + surgery + cascade; clips horizon to `ANALYSIS_YEARS` | `disease_model_inputs.rds` |
+| `04_calibration_random_tp.R` | **Layer 1** aggregate calibration of IR + RHD CF (2000–2019) | `calibrated_rhd_parameters.rds` + `calibration_layer1_*.csv` |
+| `04b_calibrate_structural.R` | **Layer 2** structural A/B/C/D calibration on the real engine | fills `$stage_calibration` in the bundle + `calibration_structural_*.csv` |
+| `05_build_baseline.R` | Assemble initial state (uses 04b `best_parameters`); realise cascade trajectories | `baseline_state.rds` |
+| `06_run_prevention_model.R` | **Run** ref vs SAP arms (parallel by location); no costs | `out_model/<location>.rds` (`$wsd`, `$stages`, `$meta`) |
+| `07_make_outputs.R` | Long tables | `tables/rhd_model_long.*`, `rhd_stage_model_long.*`, `rhd_annual_flows.*` |
+| `08_economic_evaluation.R` | **All economics** (BCR, cost/death, cost/DALY, budget impact) | `tables/rhd_economic_summary.csv`, `rhd_budget_impact.csv`, `rhd_economic_results.rds` |
 
-## Parameters (all set in `00_run_all.R`)
+### Tests and report
 
-There are no longer any `run_*` trend/adjustment flags. `00_run_all.R` holds all parameters in
-labelled blocks A–L. Block C defines the **configurable analysis period** — set `ANALYSIS_YEAR_START`
-/ `ANALYSIS_YEAR_END` (→ `ANALYSIS_YEARS`) and it propagates through demography, disease inputs,
-baseline, model run, outputs, economics and the report. Block C keeps SEVEN periods conceptually
-separate (analysis; observed-data `OBS_YEARS`; projection `PROJ_YEARS`; calibration `CAL_YEAR_*`;
-GBD rate reference `RATE_BASE_YEAR`; GDP-pc reference `gdp_pc_base_year`; economic discount
-`discount_base_year`, default = `ANALYSIS_YEAR_START`), plus the independent intervention ramp
-(block D). Other blocks: paths, locations, incidence trend, calibration settings
-(`run_calibration_par`, `SEARCH_HALFWIDTH`, `GRANULARITY`, `N_ITER`, …),
-**A/B/C/D natural history** (transition + per-stage RHD-death probabilities, `rhd_d_fraction`),
-**intervention effects** (`sap_rrr_rhd_death = 0.55`; surgery RRRs on C→D and D→death),
-**care cascade + surgery service** (screening/diagnosis/optimal-treatment baseline+2050 targets;
-surgery requirement fractions and coverage per arm), economic parameters (block J — the ONLY
-monetary values in the pipeline), and parallel/core settings.
-
-> **Provenance discipline**: scripts 01–07 contain NO monetary values (all economics live in
-> `08`). Calibrated IR/CF from `04` are consumed AS-IS by 05/06 — no further adjustment is applied.
-> A/B/C/D stage parameters come from `00`/`03` (stage calibration is pending local echo targets).
-
-## Package Dependencies
-
-Install CRAN packages:
 ```r
-install.packages(c("here", "dplyr", "tidyr", "readr", "purrr", "tibble",
-                   "ggplot2", "scales", "abind", "stringr", "readxl",
-                   "cowplot", "data.table", "countrycode", "rlang",
-                   "forecast", "RColorBrewer", "parallel", "doParallel",
-                   "foreach", "gmodels"))
+Rscript tests/test_abcd_smoke.R          # deterministic engine test (mass balance, hazards, SAP, surgery)
+Rscript tests/verify_abcd_pipeline.R     # 23 spec checks on persisted 03–08 outputs (run after pipeline)
+rmarkdown::render("analysis/report.RMD", params = list(country = "Uganda"))   # reads outputs only
 ```
 
-Install the WPP2024 demographic package (GitHub-only, required for `02_build_demography.R`):
-```r
-devtools::install_github("PPgp/wpp2024")
-```
+Both test scripts exit non-zero on failure. `verify_abcd_pipeline.R` defaults to root `data/`/`output/`
+— point `wd_data`/`wd_outp` at the country folders. The report resolves the repo root from its own
+location and never re-runs the model.
 
-R >= 4.1.0 is required (uses the native pipe `|>`).
+### Windows / CLI notes
+
+- R is not on PATH; use R 4.5.1 (`C:/Program Files/R/R-4.5.1/bin/Rscript.exe`) — `wpp2024` segfaults under 4.3.
+- Load `data.table` **before** `wpp2024` (OpenMP segfault otherwise); `00` and `02` already do.
+- Pandoc is not available to CLI Rscript: `rmarkdown::render` works only from RStudio. To smoke-test the
+  report from the CLI use `knitr::knit()` with `knitr::opts_knit$set(rmarkdown.pandoc.to = "html")`.
+
+## Parameters (`00_run_all.R`, blocks A–L)
+
+- **A** `COUNTRY` (`"Indonesia"` | `"Uganda"`) → `ISO3`, paths. `data/<COUNTRY>/` and `output/<COUNTRY>/`
+  are country-scoped; `data-raw/` is shared. Most later parameters are `switch(COUNTRY, ...)`; adding a
+  country means adding an arm to every switch.
+- **B** `LOCATION`/`LOCATIONS`, per-country sanity bands (`POP2020_*`, `RHD_PREV_*`, `RHD_DEATH_*`,
+  `ALLC_DEATH_*`) — order-of-magnitude gates in 02/03/05/06; don't loosen globally.
+- **C** Year windows, kept conceptually separate: analysis `ANALYSIS_YEAR_START/END` (default
+  **2026–2100**; propagates to everything downstream), observed `OBS_YEARS` (1990–2024), projection
+  `PROJ_YEARS` (contiguous with observed, ends at analysis end), calibration `CAL_YEAR_*` (2000–2019),
+  `RATE_BASE_YEAR` (2023), `gdp_pc_base_year`, `discount_base_year` (= analysis start). `stopifnot`
+  checks enforce consistency.
+- **D** Intervention ramp `ramp_start`/`ramp_end` (2026→2050), independent of the analysis period.
+- **E** `incidence_trend` (annual multiplier).
+- **F** Layer-1 calibration: weights `W_INC/W_PREV/W_DEATH`, `USE_IV_WEIGHTS`, `INCIDENCE_CALIBRATION_MODE`
+  (`fixed`/`anchored`/`free`), `CALIB_AGE_BANDS`, priors `SIGMA_ALPHA/BETA`, `LAMBDA_*`, bounds
+  `MULT_LO/HI`, `CALIB_OPTIMIZER` (`multistart` default; `nloptr`/`deoptim` optional), `N_STARTS`, `SEED`.
+- **G** A/B/C/D transition and per-stage RHD-death **prior centers** + `rhd_d_fraction` (04b calibrates them).
+- **G2** Layer-2 settings: `run_structural_calibration`, `STRUCT_MATCH_FROM`, `STRUCT_BURN_YEARS`,
+  `SIGMA_MORT` (tight) / `SIGMA_TRANS` (loose), `RESID_MULT_LO/HI`, `MD_LO/HI`, `STRUCT_N_STARTS`.
+- **H** Effects: `sap_rrr_rhd_death = 0.55`; `eff_surgery_C_to_D`, `eff_surgery_D_to_rhd_death`.
+- **I** Care cascade (screen/diagnosis/treatment base + target) and surgery service (requirement
+  fractions, coverage per arm); optional `screen_age_restrict`.
+- **J** Economics — the ONLY monetary values in the pipeline (consumed by 08 only).
+- **K** `run_model_par`, `MAX_CORES`. **L** sources 01 → 08.
+
+Commented-out blocks in `00` are the superseded hand-tuned values, kept for reference.
+
+> **Provenance discipline**: scripts 01–07 contain NO monetary values. Calibrated IR/CF (04) and stage
+> parameters (04b) are baked in ONCE and consumed as-is by 05/06 — never re-adjust downstream. The former
+> hand-tuned mortality scalars (1/2.5 Indonesia, 1/8 Uganda) were removed; do not reintroduce them.
 
 ## Architecture
 
-### Data Flow
+### Directory layout
 
 ```
-data-raw/
-  epidemiology/*.csv         ← GBD 2023 RHD + All-causes rates (not tracked by git)
-  population/*.csv           ← GBD 2023 population (not tracked)
-  temp_baseline_rates_gbd.rds← from 01
-       ↓
-data/
-  pop_observed.rds                 ← 02 (observed OBS_YEARS; last year = WPP jump-off)
-  pop_projection.rds               ← 02 (medium-variant projection PROJ_YEARS)
-  wpp/indonesia_rhd_demography.Rda ← 02 (get.lt, locations, both tables)
-  disease_model_inputs.rds         ← 03 (rate arrays + A/B/C/D + effects + surgery + cascade)
-  calibrated_rhd_parameters.rds    ← 04 (single bundle: calibrated IR/CF + stage-calib interface)
-  calibration_targets_stage_template.csv ← 04 (Layer-2 stage-target schema)
-  baseline_state.rds               ← 05 (per-location initial state, seed A/B/C/D)
-       ↓
-output/
-  out_model/<location>.rds  ← 06 (list: $wsd aggregate + $stages A/B/C/D + surgery trace)  [gitignored]
-  tables/                   ← 07 (rhd_model_long.* + rhd_stage_model_long.* + rhd_annual_flows.*) + 08 (economics)
+scripts/        pipeline 00–08 (+ 04b)
+R/              abcd_engine.R (shared one-cycle engine), packages.R (dependency check), utils.R (legacy NCD helpers, unused)
+tests/          test_abcd_smoke.R, verify_abcd_pipeline.R
+analysis/       report.RMD (parameterised by country)
+docs/           metadata_inputs.csv (input-data catalogue), WHF guidelines/papers, state-diagram PNGs + generator .py
+dev/            refactor prompts / design notes
+data-raw/       GBD 2023 epidemiology + population CSVs (not tracked; shared across countries)
+data/<COUNTRY>/ processed inputs, calibration bundle + CSVs, baseline state
+output/<COUNTRY>/ out_model/ (gitignored) + tables/
 ```
 
-### Aggregate Well-Sick-Dead view (`$wsd`)
+Files directly under `data/`, `output/tables/`, and `data-raw/*.rds`, plus year-suffixed
+`pop_*_YYYY_YYYY.*` files, are stale pre-multi-country artifacts — the pipeline does not read them.
 
-The `$wsd` output preserves the aggregate well-sick-dead accounting, where the "sick" compartment
-is the sum of the four RHD stages:
-- **Well** (No RHD) → incident RHD enters via calibrated incidence rate (IR)
-- **Sick** = `A + B + C + D` (the four living RHD stages; see below)
-- **Dead** (RHD-specific + competing other-cause)
+### Disease structure and engine
 
-### Disease structure: WHF RHD stages A/B/C/D
+No RHD → A ↔ B ↔ C → D → RHD death, with competing other-cause death from every stage; incident RHD
+enters **A** (no ARF state). A minimal/early · B mild · C advanced w/o complications · D advanced with
+HF. **`R/abcd_engine.R`** (`abcd_one_cycle`, `abcd_compete`) is the single source of truth for one
+annual cycle, used by both 06 and 04b. Competing risks combine on the **hazard scale**
+(`p_any = 1 − exp(−Σh)`, split by hazard share) so no clipping is needed and stocks balance exactly.
 
-The living "sick" state is resolved into four stages (No RHD → A ↔ B ↔ C → D → RHD death, with
-competing other-cause death from every stage; incident RHD enters **A**; no separate ARF state):
-- **A** minimal/early RHD  · **B** mild established  · **C** advanced without complications
-- **D** advanced WITH complications (heart failure, requiring surgery)
+- **SAP** multiplies every stage's RHD-death probability by `1 − sap_rrr_rhd_death × effective_treatment_coverage` (`eff_cf`); no incidence effect (`eff_ir = 1`).
+- **Surgery is a SERVICE, not a state**: reach = requirement fraction × coverage; it reduces `C→D` and `D→death` only and never removes stock. Held equal in both arms.
+- Background mortality = GBD all-cause − RHD, same age×sex risk for every stage. Ages 0–100 (100+ open).
+- Only the care cascade differs between `ref` and `sap`.
 
-Per-cycle transitions (with optional adjacent regression) and per-stage RHD-death probabilities are
-scalar `[CALIBRATE]` parameters broadcast over the age×sex matrices. **Surgery is a clinical
-SERVICE, not a state** — see below.
+06 writes `$wsd` (aggregate well-sick-dead, `sick = A+B+C+D`) and `$stages` (stocks, all flows,
+per-stage deaths, cascade volumes, surgery trace); collapsing `$stages` reproduces `$wsd` exactly.
 
-### Calibration (`04_calibration_random_tp.R`) — two layers
+### Calibration — two layers
 
-**Layer 1 (runs):** BUILDS an RHD-native baseline IR/CF table (from GBD RHD rates + observed
-population) and calibrates by pure Monte Carlo random search — improving the IR/CF INPUTS only
-(does not run the model). For each `location × sex × cause` combo: draws `N_ITER` i.i.d. uniform
-multipliers in `[1 ± SEARCH_HALFWIDTH]` for IR and CF (candidate 0 = baseline); full age range
-**0–95+**, window **2000–2019**; minimises weighted relative squared error against GBD RHD
-Prevalence + All-causes Deaths (background held fixed). Calibrated IR drives the inflow into stage
-A; calibrated CF is a total-RHD-mortality anchor.
+**Layer 1 (04):** per location × sex, one log-scale incidence multiplier (α) and one aggregate
+RHD-mortality multiplier (β) per broad age band, for a well-sick-dead proxy with hazard competing risks.
+Loss = log-scale squared error vs GBD RHD **incidence, prevalence and RHD-specific deaths** (optional
+inverse-variance weights from GBD UIs) + Gaussian priors + 2nd-difference smoothness; bounded
+multi-start L-BFGS-B, sequenced mortality → incidence → joint. All-cause deaths are validation only.
+Bundle: `calibrated_rhd_parameters.rds` with `$tp`, `$factors`, `$diagnostics`, `$layer1`,
+`$stage_calibration`, `$meta`.
 
-**Layer 2 (interface):** A/B/C/D stage calibration against LOCAL echocardiographic stage-prevalence
-targets — target-table schema + weighted squared-log-error loss are defined, but run only if a
-local target file is supplied. None exists yet, so it falls back to Layer 1, preserves the
-uncalibrated stage params from `00`, writes `calibration_targets_stage_template.csv`, and prints a
-prominent "stage calibration pending local echo targets" message. Output is a single self-describing
-bundle `data/calibrated_rhd_parameters.rds` (`$tp` / `$factors` / `$diagnostics` /
-`$stage_calibration` / `$meta`) — replacing the former ten `adjusted_searo_part*.rds` chunks.
+**Layer 2 (04b):** runs the real engine (equilibrated by a burn-in) to fit transitions, severity-ordered
+stage mortality and `rhd_d_fraction` to GBD RHD prevalence + RHD deaths. Mortality has tight clinical
+priors, transitions loose priors, so excess deaths are resolved by moving the stock (notably
+`p_A_to_no_rhd`), not by suppressing mortality. A residual mortality multiplier at its bound is a
+validation FAILURE. Stage split is partially identified: near-optimal sets and an identifiability table
+are saved. A local echo stage-prevalence target file, if supplied, adds a stage loss
+(`calibration_targets_stage_template.csv` shows the schema).
 
-Key tunable constants (all controllable from `00`): `SEARCH_HALFWIDTH`, `GRANULARITY` ("combo" or "age_group"), `N_ITER`, `CONVERGE_TOL`, `SEED`.
+### Demography (02)
 
-### RHD Prevention Model (`06_run_prevention_model.R`)
+Built directly from `wpp2024`: observed table spline-smoothed with totals preserved (2024 is taken from
+`popprojAge1dt`, WPP's jump-off year), projection taken as-is. Stable filenames (no year in the name).
 
-Matrix-form (age × sex arrays) cohort state-transition model over the analysis horizon
-(`ANALYSIS_YEARS`, configurable in `00_run_all.R`; e.g. 2026–2050) with four living stocks
-**A, B, C, D** advanced by elementwise matrix arithmetic
-(`zero_mat`/`age_shift`/`melt_year`, terminal 100+ open group). Each cycle:
-- new incident RHD `= no_rhd × IR` enters **A** (`eff_ir = 1`: no incidence effect);
-- **SAP** cuts every stage's RHD-death probability by `1 − sap_rrr_rhd_death × effective_treatment_coverage`;
-- **Surgery** (a SERVICE, not a state): a fraction of the C/D stock is operated each cycle; its only
-  epidemiological effect is a risk reduction on `C→D` and `D→RHD-death` (population-average reach =
-  requirement fraction × surgery coverage). Surgery never removes people from C or D;
-- competing other-cause background mortality is data-fed and the same age×sex risk for every stage.
+## Dependencies
 
-Only the care cascade differs between the reference and SAP arms (surgery held equal in both).
-Writes two tables per location: `$wsd` (aggregate, `sick = A+B+C+D`, ref+sap row-bound with a
-`scenario` column) and `$stages` (four stocks + all transition flows + per-stage deaths + cascade
-volumes + surgery trace). NO costs here — `07` emits the long tables and `08` does all economics.
-`eff_ir`/`eff_cf` are reported RRR multipliers on [0,1] (1 = no reduction): `eff_ir = 1`;
-`eff_cf = 1 − sap_rrr_rhd_death × effective_treatment_coverage` (the SAP RHD-**mortality** multiplier).
+R ≥ 4.1 (native pipe). `R/packages.R` checks: here, dplyr, tidyr, readr, purrr, tibble, ggplot2,
+scales, abind, stringr, readxl, cowplot, data.table, countrycode, rlang. Also used: foreach,
+doParallel, parallel (06); optional nloptr / DEoptim (04 alternative optimisers); knitr, rmarkdown,
+kableExtra, DT (report). `wpp2024` is GitHub-only: `devtools::install_github("PPgp/wpp2024")`.
 
-### Demography (`02_build_demography.R`)
+## Conventions
 
-Builds two tidy single-year population tables directly from the `wpp2024` R package: observed
-`OBS_YEARS` (default 1990–2024; spline-smoothed, totals preserved; the last slice is WPP's jump-off
-year, taken from `popprojAge1dt`) and the `PROJ_YEARS` medium-variant projection (default starts the
-year after observed ends and runs to `ANALYSIS_YEAR_END` — no fixed 2100 endpoint). Written to the
-stable filenames `pop_observed.rds` / `pop_projection.rds`. This closes the former 2024–2025 gap.
-The former `get.par()` migration back-solve and 2020-anchored `sf.wpp` arrays are retired (the
-forward engine they fed is absent from this repo). `get.lt()` (life-table fn) and the `locations`
-lookup are saved alongside both tables in `data/wpp/indonesia_rhd_demography.Rda`.
-
-### Shared Utilities
-
-- `R/packages.R` — dependency checker; `source(here::here("R", "packages.R"))` at the top of any run script
-- `R/utils.R` — `get.bp.prob()` (BP distribution shifts for HTN intervention), `calc_mortality_reduction()` (TFA policy), `create_age_groups()` (GBD age binning)
-
-## File Path Conventions
-
-- Scripts loaded via `00_run_all.R` use `wd`, `wd_raw`, `wd_data`, `wd_outp` globals (hardcoded absolute paths in `00_run_all.R`)
-- Scripts meant to be sourced standalone use `here::here()` — requires the `.Rproj` file to be in the repo root
-- `data-raw/` is not tracked by git; raw GBD and WPP CSVs must be obtained separately
+- `data.table` throughout pipeline scripts; parameters tagged `[PAPER]`, `[LIT]`, `[CALIBRATE]`,
+  `[TODO: confirm for Uganda]`.
+- Scripts communicate only via persisted files — never rely on in-memory objects from an earlier script.
+- New country-specific values go in `00` as `switch(COUNTRY, ...)` arms, never hard-coded in 01–08.
