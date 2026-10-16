@@ -1,3 +1,43 @@
+##########################333333
+
+Write a prompt to ask claude to prepare a slideck
+
+This is an Indonesia rheumatic heart disease (RHD) prevention investment-case model. 
+
+Goal create a reports/slideck-technical.Rmd beamer slideck 
+use the reports/beamer_preamble.tex
+Use the dev/beautiful-deck-SKILL each slide, in particular so a fluid narrative and each slide has a message. avoid in main slides
+
+library/references.bib contains the reference, use only this not other ones do not allucinate
+
+context read scripts/00-08*.R and analysis/Report.Rmd
+
+include a schematic representation of the model proccess
+include a structure of the model docs/rhd_abcd_state_transition.png
+
+the main body must tell a narrative with modelling details (including math) and results high level at high level, a sugeted structure:
+
+sections 
+Background motivation
+Overview of study objectives
+Methods (including Table of data inputs (including provisional parameters like TPs))
+Description of analysis plan/scenarios
+economic evaluation
+Results
+Discussion
+Work in progress, updating paraemetres etc
+Limitations
+Questions
+Appendix (backup results, detailed math, reproducibility such as coude source objet source etc)
+References
+ 
+modify only reports/beamer_preamble.tex; reports/slideck-technical.Rmd, not other files sctipts folders
+
+Plan for a 40 minutes presentation
+
+export the prompt 
+############################################3
+
 
 ## Prompts used during the model development
 
