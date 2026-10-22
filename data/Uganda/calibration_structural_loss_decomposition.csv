@@ -1,0 +1,15 @@
+term,value
+prevalence_unweighted,0.0578410332560013
+deaths_unweighted,0.263197185369424
+incidence_unweighted,0.0390107353242723
+stage_unweighted,0
+prevalence_weighted,0.144602583140003
+deaths_weighted,0.263197185369424
+incidence_weighted,0
+stage_weighted,0
+prior_mortality,3.77569882848196e-07
+prior_transitions,0.0650554737879941
+prior_incidence_alpha,0.020319119439932
+smooth_incidence_alpha,0.00814031127428903
+prior_residual,0
+prior_age_structure,0.00658189262722557

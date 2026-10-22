@@ -7,7 +7,8 @@
 #   from every living stage. Incident RHD enters stage A (no separate ARF state).
 # Focus: scale-up of SECONDARY PREVENTION =
 #   (a) echocardiographic screening, (b) diagnosis, and (c) secondary antibiotic
-#   prophylaxis / optimal treatment (SAP) which reduces RHD-specific MORTALITY.
+#   prophylaxis / optimal treatment (SAP) — primary mechanism: hazard reductions on
+#   supported PROGRESSION pathways (legacy comparator: direct RHD-mortality RRR).
 #
 # ------------------------------------------------------------------------------
 # ROLE OF THIS SCRIPT
@@ -124,21 +125,47 @@ transitions <- list(
   p_D_to_C      = getp("p_D_to_C",      0.000)   # [CALIBRATE] D -> C regression (default 0)
 )
 
-p_rhd_death <- c(
+# MORTALITY STRUCTURE (00 block G): "D_only" (PRIMARY) imposes p_rhd_death_A = _B =
+# _C = 0 EXACTLY (structural zeros; competing background mortality stays in every
+# state) with ONE stage-D level whose PRIOR CENTER is the provisional workbook
+# column-K value (p_rhd_death_D_only_prior). "all_stage" keeps the legacy
+# severity-ordered clinical priors below. These are 04b PRIOR CENTERS.
+mortality_structure <- match.arg(getp("mortality_structure", "D_only"), c("D_only", "all_stage"))
+p_rhd_death <- if (mortality_structure == "D_only") c(
+  A = 0, B = 0, C = 0,                                             # EXACT structural zeros
+  D = getp("p_rhd_death_D_only_prior", getp("p_rhd_death_D", 0.0800))  # [PROVISIONAL col K] / clinical
+) else c(
   A = getp("p_rhd_death_A", 0.0005),  # [CALIBRATE] untreated RHD death /yr, stage A
   B = getp("p_rhd_death_B", 0.0020),  # [CALIBRATE]                         stage B
   C = getp("p_rhd_death_C", 0.0200),  # [CALIBRATE]                         stage C
   D = getp("p_rhd_death_D", 0.0800)   # [CALIBRATE]                         stage D
 )
+# optional explicit AGE variation in A -> No-RHD regression (00 block G; 1 = none)
+remission_adult_mult <- getp("remission_adult_mult", 1.0)
+remission_age_cutoff <- as.integer(getp("remission_age_cutoff", 20L))
 
 # ------------------------------------------------------------------------------
-# 3. INTERVENTION EFFECTS  (relative risk reductions on [0,1])
+# 3. INTERVENTION EFFECTS  (relative risk reductions on [0,1]; SAP mechanism)
+#    SAP mechanism (00 block H): "progression" (PRIMARY; pathway-specific HAZARD
+#    RATIOS on A->B, B->C, C->D) or "direct_mortality" (LEGACY comparator; the
+#    former 55% RRR on every stage's RHD death, used ONLY in that mode).
 # ------------------------------------------------------------------------------
 effects <- list(
-  sap_rrr_rhd_death          = getp("sap_rrr_rhd_death", 0.55),  # [PAPER] SAP: 55% RRR on RHD mortality (all stages)
+  sap_rrr_rhd_death          = getp("sap_rrr_rhd_death", 0.55),  # [LEGACY/PROVISIONAL] direct_mortality mode only
   eff_surgery_C_to_D         = getp("eff_surgery_C_to_D", 0.85), # [LIT] surgery RRR on C -> D progression
-  eff_surgery_D_to_rhd_death = getp("eff_surgery_D_to_rhd_death", 0.85) # [LIT] surgery RRR on D -> RHD death
+  eff_surgery_D_to_rhd_death = getp("eff_surgery_D_to_rhd_death", 0.85), # [LIT] surgery RRR on D -> RHD death
+  sap_mechanism    = match.arg(getp("sap_mechanism", "progression"), c("progression", "direct_mortality")),
+  sap_effect_scale = getp("sap_effect_scale", "hazard_ratio"),     # scale the sap_hr_* are stated on
+  sap_hr_A_to_B    = getp("sap_hr_A_to_B", log1p(-0.003) / log1p(-0.075)),  # [GOAL trial, workbook; provisional mapping]
+  sap_hr_B_to_C    = getp("sap_hr_B_to_C", log1p(-0.025) / log1p(-0.119)),  # [GOAL trial, workbook; provisional mapping]
+  sap_hr_C_to_D    = getp("sap_hr_C_to_D", 0.45),                  # [Coates2021 assumption; provisional]
+  sap_effect_sources = c(
+    A_to_B = "GOAL trial 24-mo arm risks (dev/Summary progression rates_Sep26Update.xlsx cols I/J) -> HR; stage mapping provisional",
+    B_to_C = "GOAL trial 24-mo arm risks (dev/Summary progression rates_Sep26Update.xlsx cols I/J) -> HR; stage mapping provisional",
+    C_to_D = "Coates 2021 appendix Table 6 (2b): ARF-recurrence RR 0.45 assumed for non-HF -> HF; provisional")
 )
+if (effects$sap_effect_scale != "hazard_ratio")
+  stop("Only sap_effect_scale = 'hazard_ratio' is implemented (h(c) = h0 [1 - c (1 - HR)]).", call. = FALSE)
 
 # ------------------------------------------------------------------------------
 # 4. SURGERY SERVICE  (fractions requiring surgery + coverage; NOT a state)
@@ -185,6 +212,10 @@ coverage <- list(
   # optimal treatment (SAP)
   treatment_ref_baseline = getp("treatment_base",   0.04), treatment_ref_target = getp("treatment_base",   0.04),
   treatment_up_baseline  = getp("treatment_base",   0.04), treatment_up_target  = getp("treatment_target", 0.65),
+  # annual population-average SAP ADHERENCE modifier (00 block H; default 1 = no
+  # additional attenuation; effective protection = effective treatment x adherence)
+  adherence_ref_baseline = getp("sap_adherence_ref_baseline", 1), adherence_ref_target = getp("sap_adherence_ref_target", 1),
+  adherence_up_baseline  = getp("sap_adherence_up_baseline",  1), adherence_up_target  = getp("sap_adherence_up_target",  1),
   ramp_start = ramp_start,
   ramp_end   = ramp_end,
   # optional school-age-only screening mask (OFF by default; sensitivity only)
@@ -336,13 +367,26 @@ if (any(ir_rhd0 + oth_mort0 > 1 + 1e-9))
 # cascade coverage keys are exactly the *_baseline / *_target entries (this
 # excludes screen_age_lo/hi/restrict, which are not probabilities).
 cascade_keys <- grep("_(baseline|target)$", names(coverage), value = TRUE)
-prob_params <- c(unlist(transitions), p_rhd_death, unlist(effects),
+prob_params <- c(unlist(transitions), p_rhd_death,
+                 unlist(effects[c("sap_rrr_rhd_death", "eff_surgery_C_to_D", "eff_surgery_D_to_rhd_death",
+                                  "sap_hr_A_to_B", "sap_hr_B_to_C", "sap_hr_C_to_D")]),
+                 remission_adult_mult,
                  surgery$frac_C_requiring_surgery, surgery$frac_D_requiring_surgery,
                  surgery$coverage_ref_baseline, surgery$coverage_ref_target,
                  surgery$coverage_up_baseline,  surgery$coverage_up_target,
                  unlist(coverage[cascade_keys]))
 if (any(prob_params < 0 | prob_params > 1))
   stop("A transition/effect/surgery/coverage parameter is outside [0,1].", call. = FALSE)
+# mortality-structure consistency of the PRIOR CENTERS
+if (mortality_structure == "D_only" && any(p_rhd_death[c("A", "B", "C")] != 0))
+  stop("mortality_structure = D_only requires p_rhd_death A/B/C == 0 exactly.", call. = FALSE)
+if (mortality_structure == "all_stage" &&
+    !(p_rhd_death[["A"]] <= p_rhd_death[["B"]] && p_rhd_death[["B"]] < p_rhd_death[["C"]] &&
+      p_rhd_death[["C"]] < p_rhd_death[["D"]]))
+  stop("mortality_structure = all_stage requires severity-ordered priors A <= B < C < D.", call. = FALSE)
+if (p_rhd_death[["D"]] <= 0) stop("Stage-D RHD-death prior must be > 0.", call. = FALSE)
+if (remission_age_cutoff < min(AGES) || remission_age_cutoff > max(AGES))
+  stop("remission_age_cutoff outside the model age range.", call. = FALSE)
 
 # baseline OUTGOING disease-side probabilities from each stage must sum to < 1
 # (competing other-cause mortality is data-fed age x sex and enforced in the
@@ -413,6 +457,21 @@ disease_model_inputs <- list(
     RATE_BASE_YEAR = as.integer(RATE_BASE_YEAR),
     incidence_trend = incidence_trend,
     rhd_d_fraction  = rhd_d_fraction,
+    # mortality structure + SAP mechanism + care interpretation (00 blocks G/H);
+    # 04b calibrates UNDER these and 05 refuses to mix a bundle from another spec.
+    mortality_structure = mortality_structure,
+    p_rhd_death_D_prior_source = if (mortality_structure == "D_only")
+      "PROVISIONAL: dev/TP Stage D to death_RHDparameters.xlsx col K (GBD deaths / GBD HF-due-to-RHD proxy D stock, all ages, 2023); not a validated TP"
+      else "clinical prior (all_stage legacy)",
+    d_share_proxy_gbd_hf = getp("d_share_proxy_gbd_hf", NA_real_),
+    sap_mechanism = effects$sap_mechanism,
+    baseline_care_interpretation = getp("baseline_care_interpretation",
+                                        "untreated_parameters_reference_care_applied_in_engine"),
+    remission_adult_mult = remission_adult_mult,
+    remission_age_cutoff = remission_age_cutoff,
+    incidence_denominator_note = paste(
+      "GBD incidence is per TOTAL population; 04b maps it to the per-SUSCEPTIBLE engine",
+      "probability IR/(1 - prev_GBD) x alpha (applied once); 05 consumes 04b's final values."),
     built_from = c("temp_baseline_rates_gbd.rds",
                    basename(POP_PROJ_FILE))
   )
@@ -427,4 +486,7 @@ message(sprintf(
   paste(sprintf("%s %.1f%%", names(stage_split), 100 * stage_split), collapse = " | ")))
 message(sprintf("  stage outgoing-prob sums (excl. background): A %.3f | B %.3f | C %.3f | D %.3f",
                 out_A, out_B, out_C, out_D))
+message(sprintf("  mortality_structure = %s (p_rhd_death A/B/C/D prior = %s) | sap_mechanism = %s (HR A->B %.3f, B->C %.3f, C->D %.2f)",
+                mortality_structure, paste(signif(p_rhd_death, 3), collapse = "/"),
+                effects$sap_mechanism, effects$sap_hr_A_to_B, effects$sap_hr_B_to_C, effects$sap_hr_C_to_D))
 message("  Next: 04_calibration_random_tp.R (calibrate IR/CF), then 05_build_baseline.R.")
