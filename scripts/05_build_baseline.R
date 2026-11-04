@@ -31,7 +31,8 @@
 #       oth_mort   [age x sex]        background (non-RHD) competing mortality (03)
 #       seed       list(A,B,C,D) [age x sex] prevalent pool at year 1 (prev x split)
 #       transitions / p_rhd_death / effects / surgery   A/B/C/D params (03)
-#       coverage   REALISED cascade + surgery trajectories per scenario (ref, sap)
+#       coverage   REALISED cascade + surgery trajectories per scenario (ref, sap),
+#                  plus the screening schedule / per-age encounter multipliers (03)
 #     plus a `meta` block (AGES, SEXES, years, base_year, scenarios, ramp window).
 #
 # NOTE on the calibrated inputs (documented modelling decision):
@@ -182,6 +183,15 @@ ramp_traj <- function(baseline, target, start, end) {
 # ------------------------------------------------------------------------------
 cov  <- dmi$coverage
 surg <- dmi$surgery
+# the screening schedule must come from 03 (no silent fallback to the retired
+# whole-population annual screening or the retired school-age mask)
+if (is.null(cov$screen_encounters_per_person) || is.null(cov$screen_schedule))
+  stop("disease_model_inputs.rds has no screening schedule (built before the screening-encounter ",
+       "revision). Re-run 03_build_disease_model.R, then 05 -> 08.", call. = FALSE)
+if (length(cov$screen_encounters_per_person) != n_age ||
+    !identical(as.integer(names(cov$screen_encounters_per_person)), as.integer(AGES)) ||
+    any(!is.finite(cov$screen_encounters_per_person)) || any(cov$screen_encounters_per_person < 0))
+  stop("Screening encounter multipliers from 03 are not a finite non-negative vector over AGES.", call. = FALSE)
 
 build_location_state <- function(loc) {
 
@@ -312,13 +322,20 @@ build_location_state <- function(loc) {
     adh_b <- cov[[paste0("adherence_", arm, "_baseline")]]; adh_t <- cov[[paste0("adherence_", arm, "_target")]]
     adherence <- ramp_traj(if (is.null(adh_b)) 1 else adh_b, if (is.null(adh_t)) 1 else adh_t,
                            cov$ramp_start, cov$ramp_end)
-    # cumulative-coverage logic: effective downstream <= upstream cascade stages.
-    # INTERPRETATION (documented): screen/diagnosis/treatment are CUMULATIVE
-    # population-level coverages of the eligible (living RHD) pool, so taking the
-    # minimum caps each downstream stage by its upstream stage; they are NOT
-    # multiplied as conditional proportions. eff_treatment = share of living RHD on
-    # effective (adherent) optimal treatment = DELIVERED SAP; effective PROTECTION
-    # = eff_treatment x adherence (adherence is a relative attenuation, default 1).
+    # PROGRAMME-REACH CEILING (documented simplification): effective diagnosis and
+    # treatment are capped by screening REACH (pmin), treating the three metrics as
+    # cumulative programme coverages; they are NOT multiplied as conditional
+    # proportions. This ceiling is kept because it reproduces the reference care
+    # embedded in the 04b calibration; it is NOT a mechanistic screening-only route
+    # to diagnosis or treatment and NOT a measured care cascade. Screening REACH
+    # (share of scheduled encounters delivered) and the annual encounter multipliers
+    # (2/15, 1/20; applied to population in 06) have different denominators and
+    # never multiply each other here.
+    # eff_treatment = c_SAP = share of ALL living prevalent RHD (any age) on SAP =
+    # DELIVERED SAP. SAP continues between screenings and after people age out of
+    # the screening windows; clinical diagnosis outside screening is subsumed in this
+    # provisional coverage. Effective PROTECTION = eff_treatment x adherence
+    # (adherence attenuates protection once; it does not reduce delivered volume).
     eff_diag <- pmin(screen, diagnosis)
     eff_trt  <- pmin(screen, diagnosis, treatment)
     list(screen = screen, diagnosis = diagnosis, treatment = treatment,
@@ -328,9 +345,9 @@ build_location_state <- function(loc) {
   coverage <- list(
     ref = cascade_for("ref"),
     sap = cascade_for("up"),
-    screen_age_restrict = isTRUE(cov$screen_age_restrict),
-    screen_age_lo = cov$screen_age_lo,
-    screen_age_hi = cov$screen_age_hi
+    # screening schedule from 03 (same in both arms; each arm has its own reach)
+    screen_schedule = cov$screen_schedule,
+    screen_encounters_per_person = cov$screen_encounters_per_person
   )
 
   list(pop = pop_arr, ir = ir_arr, cf = cf_base, oth_mort = oth_mort,
@@ -463,6 +480,18 @@ baseline_state <- list(
     sap_effect_sources = dmi$effects$sap_effect_sources,
     baseline_care_interpretation = dmi$meta$baseline_care_interpretation,
     adherence_convention = "annual population-average relative attenuation (default 1 = unattenuated effect; optimal-treatment coverage already denotes effective, adherent treatment)",
+    # programme-volume definitions carried to 06/07/08 and the reports (additive)
+    screen_schedule = cov$screen_schedule,
+    screening_volume_definition = paste(
+      "n_screened = annual screening ENCOUNTERS = screening reach (coverage$<arm>$screen) x population x",
+      "screen_encounters_per_person (n_screens / inclusive window years inside each window, 0 elsewhere);",
+      "expected volumes of a programme spread across each window, not unique people or individual histories"),
+    sap_volume_definition = paste(
+      "n_on_optimal_treatment = SAP person-years = living_rhd_start (all ages) x eff_treatment (c_SAP, share of",
+      "ALL prevalent RHD on SAP); continues between screenings and outside the screening ages"),
+    reach_ceiling_note = paste(
+      "eff_treatment = min(screen, diagnosis, treatment) is a simplifying programme-reach / cumulative-coverage",
+      "ceiling kept for calibration compatibility; not a mechanistic screening-only route or a measured cascade"),
     incidence_trend_anchor_year = states[[1]]$ir_anchor_year,
     incidence_source = states[[1]]$incidence_source,
     seed_source = states[[1]]$seed_source,

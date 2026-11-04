@@ -47,7 +47,9 @@
 #       surgery       : surgery-need fractions + coverage (ref/scale-up) [service];
 #       stage_split   : prevalent-pool split across A/B/C/D (Cannon + rhd_d_fraction);
 #       coverage      : 3-metric care-cascade STRUCTURE (baselines, targets, ramp
-#                       window) — realised into trajectories by 05;
+#                       window) — realised into trajectories by 05 — plus the
+#                       screening schedule and its per-age annual encounter
+#                       multipliers (screen_encounters_per_person);
 #       meta          : AGES, SEXES, years, LOCATION, RATE_BASE_YEAR, incidence_trend.
 #
 # GBD gives TOTAL RHD prevalence (not split by stage) and rates only to 2023:
@@ -197,11 +199,43 @@ stopifnot(abs(sum(stage_split) - 1) < 1e-9)
 
 # ------------------------------------------------------------------------------
 # 6. CARE-CASCADE STRUCTURE  (3 metrics; realised into trajectories by 05)
-#    Cumulative population coverages. Reference holds baselines flat over the
-#    horizon; scale-up ramps each linearly from the ramp_start baseline to the
-#    ramp_end target (held at target thereafter). Effective diagnosis/treatment are
-#    capped by earlier cascade stages in 05 (effective_treatment <= diagnosis <= screening).
+#    Reference holds baselines flat over the horizon; scale-up ramps each linearly
+#    from the ramp_start baseline to the ramp_end target (held at target
+#    thereafter). Denominators (kept separate):
+#      screen    = programme reach: share of the SCHEDULED annual encounters
+#                  delivered (encounter volumes from screen_schedule, section 6b);
+#      treatment = share of ALL living prevalent RHD (any age) on SAP.
+#    05 caps effective diagnosis/treatment by screening reach (pmin) — a
+#    simplifying programme-reach ceiling, not a measured care cascade.
 # ------------------------------------------------------------------------------
+
+## 6b. SCREENING SCHEDULE -> per-person ANNUAL encounter multiplier by age.
+##     Each inclusive window [age_lo, age_hi] with n_screens screens over the window
+##     contributes n_screens / (age_hi - age_lo + 1) encounters per person-year at
+##     every age inside it (00 primary: 2/15 at 5-19, 1/20 at 20-39); all other ages
+##     contribute 0. Both sexes. Derived ONCE here; 06 multiplies by population x
+##     screening reach and 08 costs the result (never re-applied).
+if (isTRUE(getp("screen_age_restrict", FALSE)))
+  stop("screen_age_restrict = TRUE is RETIRED: the school-age mask (screen_age_lo/_hi) no longer ",
+       "defines screening volumes. Set the age windows and screening counts in screen_schedule ",
+       "(00_run_all.R block I) and remove screen_age_restrict.", call. = FALSE)
+screen_schedule_in <- getp("screen_schedule", list(
+  children_adolescents = list(age_lo = 5L,  age_hi = 19L, n_screens = 2),   # [WHO 2024 window; frequency ASSUMPTION]
+  adults               = list(age_lo = 20L, age_hi = 39L, n_screens = 1)))  # [ASSUMPTION]
+screen_sched_tbl <- data.frame(
+  group     = names(screen_schedule_in),
+  age_lo    = vapply(screen_schedule_in, function(g) as.integer(g$age_lo), integer(1)),
+  age_hi    = vapply(screen_schedule_in, function(g) as.integer(g$age_hi), integer(1)),
+  n_screens = vapply(screen_schedule_in, function(g) as.numeric(g$n_screens), numeric(1)),
+  stringsAsFactors = FALSE, row.names = NULL)
+screen_sched_tbl$window_years      <- screen_sched_tbl$age_hi - screen_sched_tbl$age_lo + 1L   # inclusive
+screen_sched_tbl$annual_multiplier <- screen_sched_tbl$n_screens / screen_sched_tbl$window_years
+screen_encounters_per_person <- setNames(numeric(n_age), AGES)
+for (i in seq_len(nrow(screen_sched_tbl))) {
+  in_win <- AGES >= screen_sched_tbl$age_lo[i] & AGES <= screen_sched_tbl$age_hi[i]
+  screen_encounters_per_person[in_win] <- screen_encounters_per_person[in_win] + screen_sched_tbl$annual_multiplier[i]
+}
+
 coverage <- list(
   # screening
   screen_ref_baseline = getp("screen_base",   0.05), screen_ref_target = getp("screen_base",   0.05),
@@ -218,10 +252,10 @@ coverage <- list(
   adherence_up_baseline  = getp("sap_adherence_up_baseline",  1), adherence_up_target  = getp("sap_adherence_up_target",  1),
   ramp_start = ramp_start,
   ramp_end   = ramp_end,
-  # optional school-age-only screening mask (OFF by default; sensitivity only)
-  screen_age_restrict = isTRUE(getp("screen_age_restrict", FALSE)),
-  screen_age_lo = as.integer(getp("screen_age_lo",  5L)),
-  screen_age_hi = as.integer(getp("screen_age_hi", 15L))
+  # screening schedule (section 6b): windows, counts, derived annual multipliers,
+  # and the per-age encounter multiplier vector 06 applies to population x reach
+  screen_schedule = screen_sched_tbl,
+  screen_encounters_per_person = screen_encounters_per_person
 )
 stopifnot(coverage$ramp_end > coverage$ramp_start)
 
@@ -365,7 +399,7 @@ if (any(ir_rhd0 + oth_mort0 > 1 + 1e-9))
 # --- A/B/C/D parameter-block sanity -------------------------------------------
 # every transition / death / effect probability in [0,1]
 # cascade coverage keys are exactly the *_baseline / *_target entries (this
-# excludes screen_age_lo/hi/restrict, which are not probabilities).
+# excludes the screening schedule, which holds ages and counts, not probabilities).
 cascade_keys <- grep("_(baseline|target)$", names(coverage), value = TRUE)
 prob_params <- c(unlist(transitions), p_rhd_death,
                  unlist(effects[c("sap_rrr_rhd_death", "eff_surgery_C_to_D", "eff_surgery_D_to_rhd_death",
@@ -404,10 +438,19 @@ if (any(bad_stage >= 1))
 if (abs(sum(stage_split) - 1) > 1e-9 || any(stage_split < 0))
   stop("stage_split is not a valid distribution over A/B/C/D.", call. = FALSE)
 
-# screening age window valid (used only if screen_age_restrict = TRUE)
-if (coverage$screen_age_lo < min(AGES) || coverage$screen_age_hi > max(AGES) ||
-    coverage$screen_age_lo > coverage$screen_age_hi)
-  stop("Screening age window is invalid.", call. = FALSE)
+# screening schedule valid: windows inside the model ages, lo <= hi, non-negative
+# finite counts, windows non-overlapping (each age gets at most one multiplier)
+ss <- screen_sched_tbl
+if (!nrow(ss) || anyNA(ss[, c("age_lo", "age_hi", "n_screens")]) || any(!is.finite(ss$n_screens)) ||
+    any(ss$n_screens < 0) || any(ss$age_lo < min(AGES)) || any(ss$age_hi > max(AGES)) ||
+    any(ss$age_lo > ss$age_hi))
+  stop("screen_schedule is invalid (each window needs min(AGES) <= age_lo <= age_hi <= max(AGES) ",
+       "and a finite n_screens >= 0).", call. = FALSE)
+win_ages <- unlist(Map(seq, ss$age_lo, ss$age_hi))
+if (anyDuplicated(win_ages))
+  stop("screen_schedule windows overlap; each age may belong to at most one screening window.", call. = FALSE)
+if (abs(sum(screen_encounters_per_person) - sum(ss$n_screens)) > 1e-9)
+  stop("Screening encounter multipliers do not sum to the scheduled screens per person.", call. = FALSE)
 
 # order-of-magnitude anchors vs GBD (base-year rate x base-year population)
 rhd_prev_count  <- sum(prev_rhd0 * pop1)
@@ -489,4 +532,7 @@ message(sprintf("  stage outgoing-prob sums (excl. background): A %.3f | B %.3f 
 message(sprintf("  mortality_structure = %s (p_rhd_death A/B/C/D prior = %s) | sap_mechanism = %s (HR A->B %.3f, B->C %.3f, C->D %.2f)",
                 mortality_structure, paste(signif(p_rhd_death, 3), collapse = "/"),
                 effects$sap_mechanism, effects$sap_hr_A_to_B, effects$sap_hr_B_to_C, effects$sap_hr_C_to_D))
+message(sprintf("  screening schedule (annual encounters per person): %s",
+                paste(sprintf("ages %d-%d: %g screens / %d yr = %.4f", ss$age_lo, ss$age_hi, ss$n_screens,
+                              ss$window_years, ss$annual_multiplier), collapse = " | ")))
 message("  Next: 04_calibration_random_tp.R (calibrate IR/CF), then 05_build_baseline.R.")

@@ -106,6 +106,7 @@ ALLC_DEATH_HI <- switch(COUNTRY, Indonesia = 4e6, Uganda = 6e5)
 #      (4) CALIBRATION window       — in-sample fit years (04/04b)             [CAL_YEAR_*]
 #      (5) GBD rate reference year  — latest GBD rate year, held forward (03)  [RATE_BASE_YEAR]
 #      (6) GDP-per-capita ref year  — year gdp_pc_base refers to (block J)     [gdp_pc_base_year]
+#          GNI / VSL income anchor  — year gni_pc_base refers to (block J)     [gni_pc_base_year]
 #      (7) discount reference year  — economic discounting anchor (block J)    [discount_base_year]
 #    (The intervention scale-up ramp, block D, is an 8th, also independent.)
 #-------------------------------------------------------------------------------
@@ -575,11 +576,20 @@ eff_surgery_D_to_rhd_death <- 0.85 # [LIT]/[CALIBRATE] surgery RRR on D -> RHD d
 
 #===============================================================================
 # I. CARE CASCADE + SURGERY SERVICE  (03/05)
-#    Three cascade metrics (screening / diagnosis / optimal treatment) as
-#    CUMULATIVE population coverages. Reference holds baselines flat; scale-up
-#    ramps each linearly from the ramp_start baseline to the ramp_end target
-#    (held at target through the end of the analysis horizon).
-#    Effective diagnosis/treatment are capped by the earlier cascade stages (05).
+#    Three cascade metrics (screening / diagnosis / optimal treatment). Reference
+#    holds baselines flat; scale-up ramps each linearly from the ramp_start
+#    baseline to the ramp_end target (held at target through the end of the
+#    analysis horizon). Denominators differ and are kept separate:
+#      screening  = programme REACH: share of the scheduled annual encounters
+#                   delivered (encounter volumes: screen_schedule below);
+#      treatment  = c_SAP: share of ALL living prevalent RHD (any age) on SAP;
+#                   SAP continues between screenings and after people age out of
+#                   the screening windows; clinical diagnosis outside screening is
+#                   subsumed in this provisional coverage (no separate pathway).
+#    05 keeps effective diagnosis/treatment <= screening reach (pmin). That is a
+#    SIMPLIFYING programme-reach / cumulative-coverage CEILING (it preserves the
+#    calibrated reference care), not a mechanistic screening-only route to
+#    treatment and not a measured care cascade.
 #    [TODO: confirm for Uganda] the BASELINE cascade coverages and the surgery
 #    requirement/coverage fractions below are health-system-specific and were set
 #    for Indonesia; Uganda's baseline coverage and cardiac-surgery capacity likely
@@ -642,15 +652,27 @@ cov_surgery_scale_up <- switch(COUNTRY,
                                Indonesia = 0.05,
                                Uganda    = 0.03)
 
-screen_age_restrict <- switch(COUNTRY,
-                              Indonesia = FALSE,
-                              Uganda    = FALSE)
-screen_age_lo <- switch(COUNTRY,
-                        Indonesia = 5L,
-                        Uganda    = 5L)
-screen_age_hi <- switch(COUNTRY,
-                        Indonesia = 15L,
-                        Uganda    = 15L)
+# SCREENING SCHEDULE -> ANNUAL SCREENING ENCOUNTERS (03 -> 05 -> 06; costed ONCE in 08).
+# Scenario: echo screening of children/adolescents aged 5-19 (2 screens across the
+# window) and adults aged 20-39 (1 screen across the window), both sexes. Windows are
+# INCLUSIVE; 03 derives each per-person ANNUAL encounter multiplier as
+#     n_screens / (age_hi - age_lo + 1)   ->  2/15 (ages 5-19), 1/20 = 0.05 (ages 20-39)
+# so  N_screen,t = c_screen,t x [(2/15) P_5-19,t + (1/20) P_20-39,t]  and ages outside
+# the windows (< 5, > 39) generate NO encounters. These are EXPECTED annual volumes of
+# a programme spread evenly across each window (possibly fractional), not individual
+# screening histories or unique people ever screened. screen_base/screen_target is the
+# share of these scheduled encounters delivered (programme reach); the encounter
+# multipliers never touch SAP coverage, treatment volumes or health effects.
+# Evidence: the WHO 2024 RF/RHD guideline supports population echo screening at ages
+# 5-19 in populations with moderate/high RHD prevalence
+# (https://www.ncbi.nlm.nih.gov/books/NBK609692/). The ADULT window and BOTH screening
+# frequencies are SCENARIO ASSUMPTIONS, not WHO-prescribed schedules.
+# Replaces the retired whole-population annual screening default and the retired
+# school-age mask (screen_age_restrict / screen_age_lo / screen_age_hi); 03 stops if
+# screen_age_restrict = TRUE is still set, so the old mask can never override this.
+screen_schedule <- list(
+  children_adolescents = list(age_lo = 5L,  age_hi = 19L, n_screens = 2),  # [WHO 2024 window; frequency ASSUMPTION]
+  adults               = list(age_lo = 20L, age_hi = 39L, n_screens = 1))  # [ASSUMPTION] window and frequency
 
 #===============================================================================
 # J. ECONOMIC PARAMETERS  (08 ONLY) — the only monetary values in the pipeline
@@ -673,6 +695,35 @@ screen_age_hi <- switch(COUNTRY,
 disc_rate <- switch(COUNTRY,
                     Indonesia = 0.03,
                     Uganda    = 0.03)
+
+# BENEFIT VALUATION (08): VSL ALONE monetises RHD deaths averted (the former additive
+# one-year GDP-per-capita "productivity" benefit is RETIRED). VSL is anchored on GNI
+# PER CAPITA and projected with the GDP-per-capita growth path (unit income elasticity
+# over time):
+#     VSL_b = vsl_mult x gni_pc_base ;  VSL_t = VSL_b x GDPpc_t / GDPpc_b = VSL_b x (1 + gdp_growth)^(t - b)
+# with b = gni_pc_base_year (the GNI/VSL income anchor; distinct from the analysis,
+# calibration, GBD-rate and discount reference years).
+# GNI per capita: World Bank WDI indicator NY.GNP.PCAP.CD, "GNI per capita, Atlas
+# method (current US$)"; values for 2019 (WDI last updated 2026-10-08; retrieved
+# 2026-10-22 from api.worldbank.org). Current US$ of 2019 = the same 2019-US$ basis the
+# economic block already used (gdp_pc_base_year), so VSL is in constant 2019 US$ and is
+# grown with REAL per-capita growth (no nominal compounding). [TODO: confirm] unit
+# costs below carry no recorded price year; they are assumed to be on this basis.
+# (For reference, WDI 2024 values are 4,920 Indonesia / 1,010 Uganda; moving the anchor
+# to 2024 would require re-pricing the unit costs to 2024 US$ as well.)
+gni_pc_base <- switch(COUNTRY,
+                      Indonesia = 4020,     # [WDI NY.GNP.PCAP.CD 2019] US$, Atlas method
+                      Uganda    = 810)      # [WDI NY.GNP.PCAP.CD 2019] US$, Atlas method
+gni_pc_base_year <- switch(COUNTRY,
+                           Indonesia = 2019L,
+                           Uganda    = 2019L)
+gni_pc_source <- "World Bank WDI NY.GNP.PCAP.CD (GNI per capita, Atlas method, current US$), 2019; WDI updated 2026-10-08"
+
+# GDP-per-capita PATH: used ONLY as the growth index that carries VSL forward from the
+# GNI anchor year (08 aligns it to gni_pc_base_year before taking the ratio, so its
+# LEVEL cancels). gdp_growth is a constant REAL per-capita growth SCENARIO ASSUMPTION,
+# not an externally sourced forecast. [TODO: confirm] Uganda's 1340 does not match WDI
+# 2019 GDP per capita (822 current US$); harmless for valuation because the level cancels.
 gdp_pc_base <- switch(COUNTRY,
                       Indonesia = 4150,
                       Uganda    = 1340)
@@ -680,8 +731,11 @@ gdp_pc_base_year <- switch(COUNTRY,
                            Indonesia = 2019L,
                            Uganda    = 2019L)
 gdp_growth <- switch(COUNTRY,
-                     Indonesia = 0.03,
-                     Uganda    = 0.032)
+                     Indonesia = 0.03,      # [ASSUMPTION] constant real GDP-per-capita growth
+                     Uganda    = 0.032)     # [ASSUMPTION] constant real GDP-per-capita growth
+# VSL multiple of GNI per capita. [PROVISIONAL] the 30x multiple is RETAINED from the
+# previous 30 x GDP-per-capita specification (Coates 2021 used VSL ~30x income) and is
+# now applied to GNI per capita; it is not a newly estimated income-elasticity transfer.
 vsl_mult <- switch(COUNTRY,
                    Indonesia = 30,
                    Uganda    = 30)
@@ -690,7 +744,8 @@ dalys_per_death <- switch(COUNTRY,
                           Uganda    = 30)
 # (7) Economic discount reference year — costs & benefits are discounted TO this
 #     year. Default = the first analysis year (kept separate from (5) the GBD rate
-#     reference year and (6) gdp_pc_base_year, which are their own anchors).
+#     reference year, (6) gdp_pc_base_year and the GNI/VSL anchor gni_pc_base_year,
+#     which are their own anchors).
 discount_base_year <- ANALYSIS_YEAR_START
 
 cost_screen_per_person <- switch(COUNTRY,

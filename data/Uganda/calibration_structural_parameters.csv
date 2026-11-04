@@ -1,20 +1,20 @@
 parameter,theta,lower,upper,at_lower,at_upper,value,prior_center,source
-p_A_to_no_rhd,-2.08849237149272,-5.29330482472449,0.405465108108164,FALSE,FALSE,0.110220343369606,0.05,00 block G prior centre; bounds = literature workbook annualised ranges (widened)
-p_A_to_B,-5.85501059547775,-6.90675477864855,-1.09861228866811,FALSE,FALSE,0.00285731758105685,0.02,00 block G prior centre; bounds = literature workbook annualised ranges (widened)
-p_B_to_A,-4.349887060562,-6.21260609575152,-0.405465108108164,FALSE,FALSE,0.0127437703183971,0.01,00 block G prior centre; bounds = literature workbook annualised ranges (widened)
-p_B_to_C,-2.80420732016588,-6.90675477864855,-1.38629436111989,FALSE,FALSE,0.0570972432409749,0.03,00 block G prior centre; bounds = literature workbook annualised ranges (widened)
-p_C_to_B,-5.52569748470631,-6.90675477864855,-1.73460105538811,FALSE,FALSE,0.00396728751741387,0.005,00 block G prior centre; bounds = literature workbook annualised ranges (widened)
-p_C_to_D,-2.52329490898567,-6.90675477864855,-0.847297860387204,FALSE,FALSE,0.0742411700634228,0.06,00 block G prior centre; bounds = literature workbook annualised ranges (widened)
-log_mD,-2.81820819507982,-3.50655789731998,-1.38629436111989,FALSE,FALSE,0.0597128406719049,0.0597,"PROVISIONAL: dev/TP Stage D to death_RHDparameters.xlsx col K (GBD deaths / GBD HF-due-to-RHD proxy D stock, all ages, 2023); not a validated TP"
-log_adult_prog_mult,-0.275192711923157,-2.99573227355399,1.09861228866811,FALSE,FALSE,0.759425758723871,1,adult (age >= 20) hazard multiplier; weak prior (log-sd SIGMA_AGE_MULT); child-cohort evidence base
-log_adult_remission_mult,-0.23644623881316,-2.99573227355399,1.09861228866811,FALSE,FALSE,0.789428321764664,1,adult (age >= 20) hazard multiplier; weak prior (log-sd SIGMA_AGE_MULT); child-cohort evidence base
-alpha[0-14|Female],-0.210435574502227,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.81023125302368,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[15-24|Female],-0.0163439634692224,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.983788874417927,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[25-44|Female],0.122052182817087,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.12981305707018,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[45-64|Female],0.194532336576526,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.21474276287226,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[65+|Female],0.242714218825239,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.27470428557219,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[0-14|Male],-0.34954588545126,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.705008171503976,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[15-24|Male],-0.113022322262052,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.893130723195448,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[25-44|Male],0.0712975124030403,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.07390067711672,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[45-64|Male],0.186708142534217,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.20527546506897,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[65+|Male],0.274377000106676,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.31571073183635,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+p_A_to_no_rhd,-1.97188421418114,-5.29330482472449,0.405465108108164,FALSE,FALSE,0.122186647618821,0.05,00 block G prior centre; bounds = literature workbook annualised ranges (widened)
+p_A_to_B,-5.61973111944891,-6.90675477864855,-1.09861228866811,FALSE,FALSE,0.00361251823219261,0.02,00 block G prior centre; bounds = literature workbook annualised ranges (widened)
+p_B_to_A,-4.388751535646,-6.21260609575152,-0.405465108108164,FALSE,FALSE,0.0122639488607331,0.01,00 block G prior centre; bounds = literature workbook annualised ranges (widened)
+p_B_to_C,-2.43540683668989,-6.90675477864855,-1.38629436111989,FALSE,FALSE,0.0805122898316873,0.03,00 block G prior centre; bounds = literature workbook annualised ranges (widened)
+p_C_to_B,-5.44394590348167,-6.90675477864855,-1.73460105538811,FALSE,FALSE,0.00430379114712417,0.005,00 block G prior centre; bounds = literature workbook annualised ranges (widened)
+p_C_to_D,-2.07019242247823,-6.90675477864855,-0.847297860387204,FALSE,FALSE,0.112027895392744,0.06,00 block G prior centre; bounds = literature workbook annualised ranges (widened)
+log_mD,-2.81671289381459,-3.50655789731998,-1.38629436111989,FALSE,FALSE,0.0598021961481414,0.0597,"PROVISIONAL: dev/TP Stage D to death_RHDparameters.xlsx col K (GBD deaths / GBD HF-due-to-RHD proxy D stock, all ages, 2023); not a validated TP"
+log_adult_prog_mult,-0.671711662025017,-2.99573227355399,1.09861228866811,FALSE,FALSE,0.510833454817107,1,adult (age >= 20) hazard multiplier; weak prior (log-sd SIGMA_AGE_MULT); child-cohort evidence base
+log_adult_remission_mult,-0.361092837349545,-2.99573227355399,1.09861228866811,FALSE,FALSE,0.696914295787425,1,adult (age >= 20) hazard multiplier; weak prior (log-sd SIGMA_AGE_MULT); child-cohort evidence base
+alpha[0-14|Female],-0.18682490879782,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.829588977401189,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[15-24|Female],-0.00411700325515272,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.99589145998437,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[25-44|Female],0.124066077893267,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.13209067469448,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[45-64|Female],0.189445844729542,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.20857967125818,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[65+|Female],0.231919588742629,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.26101832468231,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[0-14|Male],-0.325030932341083,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.722505004525185,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[15-24|Male],-0.0894321750091184,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.914450285603294,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[25-44|Male],0.0889989674342949,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.09307952764931,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[45-64|Male],0.196800743466741,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.2175014214225,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[65+|Male],0.276913667005501,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.31905248836789,1,weak prior on GBD incidence pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only

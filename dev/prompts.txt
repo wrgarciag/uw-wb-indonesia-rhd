@@ -1,3 +1,67 @@
+
+##########################333333
+
+Write a prompt to ask claude to
+
+Task 1
+
+The eligible population still needs attention for a credible investment case. 
+
+1. Children: \(2/15=0.1333\) is correct for two screenings across ages 5–19 inclusive.
+2. Adults: \(1/20=\mathbf{0.05}\), not 0.04, for one screening across ages 20–39 inclusive.
+3. Screening costs: multiply annual screening encounters by the unit cost. With the same coverage and price for both groups:
+\[
+C_{\text{screen},t}
+=
+u_{\text{screen}}\;c_{\text{screen},t}
+\left(\frac{2}{15}P_{5–19,t}+\frac{1}{20}P_{20–39,t}\right).
+\]
+These frequencies are annualized programme assumptions, not annual probabilities of receiving treatment. They approximate a programme spread across the age windows.
+
+The coverage constraint needs careful interpretation. SAP coverage can be capped by programme reach or cumulative screening coverage as a simplifying assumption. It should not be capped by the annual screening fraction after multiplying by \(2/15\) or \(1/20\): previously diagnosed people continue SAP in years when they are not screened. Clinical diagnosis also provides a route to treatment independently of screening.
+
+Prevalence × SAP coverage is reasonable for this provisional run, provided coverage means the proportion of all prevalent RHD receiving SAP. It does not yet explicitly implement guideline eligibility, duration or discontinuation. My earlier recommendation described a more detailed implementation than is necessary for this immediate revision.
+
+Finally, the proposed adult screening window and screening frequencies should be labelled as scenario assumptions; WHO’s population-screening recommendation specifically addresses ages 5–19 in settings with moderate/high prevalence. www.ncbi.nlm.nih.gov
+
+Lower screening costs should improve BCRs if health effects remain unchanged. That would reflect revised costing, rather than new evidence of greater intervention effectiveness.
+
+
+
+update only scripts/00,03,05,06,07,08*.R relevant for this task
+
+Task 2
+Update the benefit- cost calculations accordingly to 1
+
+update scripts/08_economic_evaluation.R
+
+Benefit monetization shoul be VSL computed from GNI and that growths at a rate projected according to gdp projection, no VSL+GDP that is wrong
+Task 3
+Update report and slideck accordingly to reflect the changes
+analysis/report.Rmd 
+reports/slideck-technical.Rmd
+
+Final goal is that calibration outputs will feed the model that feeds so preserve current output structures
+analysis/report.Rmd 
+reports/slideck-technical.Rmd
+
+Export the pormpt as a .md File
+
+
+##########################333333
+
+Write a prompt to ask claude to
+
+update scripts/.R R/.R needed for improvingd model calibration
+
+Avoid touching files related to calibration, or lines of code and realted and make unnecesray refactors 
+
+Final goal is that calibration outputs will feed the model that feeds so preserve current output structures
+analysis/report.Rmd 
+reports/slideck-technical.Rmd
+
+Export the pormpt as a .md File
+
 ##########################333333
 
 Write a prompt to ask claude to prepare a slideck

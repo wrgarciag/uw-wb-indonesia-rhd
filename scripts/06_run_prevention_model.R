@@ -123,14 +123,15 @@ run_location <- function(loc, baseline_state) {
   sap_mech <- if (is.null(eff$sap_mechanism)) "direct_mortality" else eff$sap_mechanism
 
   zero_mat  <- function() matrix(0, n_age, n_sex, dimnames = list(AGES, SEXES))
-  # optional school-age screening mask (OFF by default; sensitivity only)
-  restrict_screen <- isTRUE(st$coverage$screen_age_restrict)
-  screen_mask <- zero_mat() + 1                      # default: whole population screened
-  if (restrict_screen) {
-    screen_mask <- zero_mat()
-    screen_ages <- as.character(st$coverage$screen_age_lo:st$coverage$screen_age_hi)
-    screen_mask[intersect(screen_ages, rownames(screen_mask)), ] <- 1
-  }
+  # annual screening ENCOUNTERS per person by age (03: n_screens / inclusive window
+  # years inside each window, 0 elsewhere; both sexes). No fallback to the retired
+  # whole-population annual screening or school-age mask.
+  enc <- st$coverage$screen_encounters_per_person
+  sched <- st$coverage$screen_schedule
+  if (is.null(enc) || is.null(sched))
+    stop("[", loc, "] baseline_state has no screening schedule (built before the screening-encounter ",
+         "revision). Re-run 03 -> 05.", call. = FALSE)
+  screen_rate <- zero_mat() + as.numeric(enc[as.character(AGES)])   # [age x sex]
 
   # melt a named list of [age x sex] matrices into a tidy DT (adds age/sex/year)
   melt_year <- function(iy, mats) {
@@ -185,11 +186,16 @@ run_location <- function(loc, baseline_state) {
       total_surg <- cyc$total_surgeries
 
       # --- program volumes (counts; costed in 08) ------------------------------
+      #  n_screened = annual screening ENCOUNTERS = population x per-person annual
+      #  encounter multiplier (2/15 at 5-19, 1/20 at 20-39, 0 elsewhere) x screening
+      #  reach of this arm-year. Expected volumes (may be fractional); not unique
+      #  people screened. 08 multiplies by the unit cost only (no re-scheduling).
       #  n_on_optimal_treatment keeps its LEGACY meaning (living RHD x effective
-      #  treatment coverage) = DELIVERED SAP person-years, which 08 costs.
+      #  treatment coverage) = DELIVERED SAP person-years at ALL ages, which 08 costs;
+      #  it never depends on the screening schedule.
       #  n_effectively_protected = living RHD x effective protection (coverage x
       #  adherence) is the additive diagnostic; at adherence = 1 the two coincide.
-      n_screened <- popm * screen_mask * c_screen                  # total pop (default)
+      n_screened <- popm * screen_rate * c_screen                  # scheduled encounters
       n_diagnosed <- rhd_start * c_dx                              # effective diagnosis
       n_on_optimal_treatment <- rhd_start * c_tx                   # effective treatment (delivered SAP)
       n_effectively_protected <- rhd_start * cyc$sap_c_eff        # effective protection (diagnostic)
@@ -333,6 +339,24 @@ run_location <- function(loc, baseline_state) {
   fail(stg_all[, any(total_surgeries > C_requiring_surgery + D_requiring_surgery + 1e-6)],
        "total_surgeries exceeds total requiring surgery.")
 
+  # programme volumes. Screening encounters must equal reach x sum_g (n_g / W_g) x
+  # P_g recomputed from the schedule TABLE (so the frequencies are applied exactly
+  # once) and be zero outside the windows; SAP volume = start-of-cycle prevalent
+  # RHD x realised SAP coverage at every age (independent of the schedule).
+  win <- rbindlist(lapply(seq_len(nrow(sched)), function(i)
+    data.table(age = sched$age_lo[i]:sched$age_hi[i], group = sched$group[i],
+               annual_multiplier = sched$n_screens[i] / (sched$age_hi[i] - sched$age_lo[i] + 1L))))
+  scr <- merge(stg_all[, .(scenario, year, age, pop, n_screened, screen_coverage)], win, by = "age", all.x = TRUE)
+  fail(scr[is.na(group), any(n_screened != 0)], "screening encounters outside the screening age windows.")
+  screening_by_year <- scr[!is.na(group), .(screen_coverage = screen_coverage[1], annual_multiplier = annual_multiplier[1],
+                                            pop_in_window = sum(pop), encounters = sum(n_screened)),
+                           by = .(scenario, year, group)]
+  fail(screening_by_year[, max(abs(encounters - screen_coverage * annual_multiplier * pop_in_window) /
+                                 pmax(encounters, 1))] > 1e-9,
+       "screening encounters do not reconcile with reach x sum_g (n_g / W_g) x P_g.")
+  fail(stg_all[, max(abs(n_on_optimal_treatment - living_rhd_start * effective_treatment_coverage))] > 1e-6,
+       "SAP volume != start-of-cycle prevalent RHD x realised SAP coverage.")
+
   # intervention effect direction: SAP averts RHD deaths vs reference (cumulative)
   d_ref <- wsd_all[scenario == "ref", sum(dead)]
   d_sap <- wsd_all[scenario == "sap", sum(dead)]
@@ -374,7 +398,10 @@ run_location <- function(loc, baseline_state) {
                    d_fatality_convention = "deaths_D / D_start (start-of-cycle stock); NA with D_start_zero = TRUE when D_start = 0 (zero deaths enforced)",
                    sap_trace_by_year = sap_tr,
                    all_cause_reconstruction_by_year = mx_recon,
-                   pop_deficit_total = pop_deficit_total))
+                   pop_deficit_total = pop_deficit_total,
+                   # additive: annual screening encounters by schedule group (both sexes)
+                   screen_schedule = sched,
+                   screening_by_year = screening_by_year))
 }
 
 # ==============================================================================

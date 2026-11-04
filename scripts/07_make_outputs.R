@@ -27,6 +27,11 @@
 #         other_deaths_[A..D], n_screened, n_diagnosed, n_on_optimal_treatment,
 #         C_requiring_surgery, D_requiring_surgery, surgeries_C, surgeries_D,
 #         total_surgeries
+#       * n_screened = annual screening ENCOUNTERS (screening reach x population x
+#                      scheduled encounters per person: 2/15 at ages 5-19, 1/20 at
+#                      20-39, 0 elsewhere; 06), not people in the whole population.
+#       * n_on_optimal_treatment = SAP person-years (start-of-cycle prevalent RHD at
+#                      all ages x SAP coverage; 06).
 #
 # ALL economic / benefit-cost / DALY content lives solely in 08.
 #

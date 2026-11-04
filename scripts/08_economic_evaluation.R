@@ -16,7 +16,8 @@
 #                 n_on_optimal_treatment, total_surgeries, by scenario x age x sex x year;
 #       $wsd    — well-sick-dead table for RHD deaths (`dead`), by scenario x ... .
 #     Economic PARAMETERS (globals from 00_run_all.R; fallbacks if absent):
-#       disc_rate, gdp_pc_base, gdp_pc_base_year, gdp_growth, vsl_mult,
+#       disc_rate, gni_pc_base + gni_pc_base_year (REQUIRED: no fallback, never
+#       replaced by GDP), gdp_pc_base, gdp_pc_base_year, gdp_growth, vsl_mult,
 #       dalys_per_death, and unit costs cost_screen_per_person, cost_sap_per_year,
 #       cost_surgery.
 #
@@ -28,8 +29,10 @@
 #                               cost per DALY averted (all discounted).
 #     rhd_economic_results.rds  list bundle of the above + parameters used.
 #
-# COSTS (screening applies to the TOTAL population screened; treatment to the
-#        living-RHD stock on optimal treatment; surgery to the surgery trace):
+# COSTS (screening applies to the annual screening ENCOUNTERS from 06, already
+#        scheduled by age — 2/15 at 5-19, 1/20 at 20-39 x reach x population — so
+#        the schedule is NOT re-applied here; treatment to SAP person-years =
+#        prevalent RHD x SAP coverage; surgery to the surgery trace):
 #   c_screen  = sum(n_screened)             x cost_screen_per_person
 #   c_sap     = sum(n_on_optimal_treatment) x cost_sap_per_year
 #   c_surgery = sum(total_surgeries)        x cost_surgery
@@ -37,17 +40,25 @@
 #   (HF-management cost is retired — HF management is not a modelled intervention.
 #    Surgery coverage/effects are held equal in both arms, so surgery is a
 #    background cost; any incremental surgery cost is only the second-order effect
-#    of scale-up changing the C/D stocks.)
+#    of scale-up changing the C/D stocks. Adherence attenuates protection in 06;
+#    it does not scale delivered SAP cost.)
 #
-# METHOD (discounted; matches the established investment-case calculation):
+# METHOD (discounted; incremental, not gross, programme costing):
 #   incremental cost   = cost(sap) - cost(ref)                        [per year]
-#   deaths averted     = RHD deaths(ref) - RHD deaths(sap)            [per year]
-#   monetised benefit  = deaths averted x (VSL + GDP-pc productivity)  [per year]
-#     VSL_y   = vsl_mult x GDP-pc_y ;  GDP-pc_y grows at gdp_growth from base year
+#   deaths averted     = RHD deaths(ref) - RHD deaths(sap)            [per year; signed, never clamped]
+#   monetised benefit  = deaths averted x VSL_t                       [per year; VSL ONLY]
+#     VSL_b = vsl_mult x GNI-pc_b  (b = gni_pc_base_year, the income anchor)
+#     VSL_t = VSL_b x GDP-pc_t / GDP-pc_b, GDP-pc_t = gdp_pc_base x (1 + gdp_growth)^(t - gdp_pc_base_year)
+#           = VSL_b x (1 + gdp_growth)^(t - b)   (GDP pc is a growth index only)
+#     benefit_gdp is a RETIRED compatibility column, identically 0 (the former
+#     additive one-year GDP-per-capita benefit is removed); benefit_total = benefit_vsl.
 #   discount factor    = 1 / (1 + disc_rate)^(year - discount_base_year)
-#   BCR = sum(disc benefit) / sum(disc cost) ; net = benefit - cost
+#   BCR = sum(disc benefit) / sum(disc incremental cost), defined ONLY when the
+#         denominator is > 0 (NA otherwise: cost-neutral / cost-saving is reported
+#         in incremental_cost_status, never given a fabricated ratio); net = benefit - cost
 #   cost per death averted = sum(disc cost) / sum(undiscounted deaths averted)
 #   cost per DALY averted  = sum(disc cost) / (sum(disc deaths averted) x DALYs/death)
+#   TOTAL row pools benefits and costs across locations (not a mean of ratios).
 # ==============================================================================
 
 library(data.table)
@@ -63,32 +74,50 @@ dir.create(OUT_DIR, recursive = TRUE, showWarnings = FALSE)
 # ------------------------------------------------------------------------------
 getp <- function(nm, default) if (exists(nm, inherits = TRUE)) get(nm, inherits = TRUE) else default
 
+# GNI per capita anchors VSL. REQUIRED, country-specific, no standalone fallback
+# and never substituted by GDP per capita (00_run_all.R block J sets it per COUNTRY).
+for (nm in c("gni_pc_base", "gni_pc_base_year"))
+  if (!exists(nm, inherits = TRUE) || is.null(get(nm, inherits = TRUE)) ||
+      length(get(nm, inherits = TRUE)) != 1L || !is.finite(get(nm, inherits = TRUE)))
+    stop("Required economic parameter '", nm, "' is missing or not a finite scalar. Set the ",
+         "country's GNI per capita (World Bank WDI NY.GNP.PCAP.CD) and its year in 00_run_all.R ",
+         "block J; VSL is anchored on GNI per capita and never falls back to GDP per capita.", call. = FALSE)
+
 econ <- list(
   disc_rate        = getp("disc_rate",        0.03),   # [PAPER] 3% discount, costs & benefits
-  gdp_pc_base      = getp("gdp_pc_base",       4150),   # [LIT] GDP pc base-yr US$ (4150 = Indonesia standalone fallback; 00 sets per COUNTRY)
-  gdp_pc_base_year = getp("gdp_pc_base_year",  2019),   # [LIT] year gdp_pc_base refers to
-  gdp_growth       = getp("gdp_growth",        0.03),   # [CALIBRATE] real per-capita growth
-  vsl_mult         = getp("vsl_mult",          30),     # [PAPER] VSL ~ 30 x GDP per capita
+  gni_pc_base      = getp("gni_pc_base",       NA_real_),     # [WDI] GNI pc (Atlas, US$) at the VSL anchor year (REQUIRED)
+  gni_pc_base_year = as.integer(getp("gni_pc_base_year", NA_integer_)),  # GNI / VSL income anchor year b
+  gni_pc_source    = getp("gni_pc_source",     "not recorded"),
+  gdp_pc_base      = getp("gdp_pc_base",       4150),   # GDP pc path level (growth INDEX only; level cancels in VSL_t)
+  gdp_pc_base_year = getp("gdp_pc_base_year",  2019),   # year gdp_pc_base refers to
+  gdp_growth       = getp("gdp_growth",        0.03),   # [ASSUMPTION] constant real per-capita GDP growth
+  vsl_mult         = getp("vsl_mult",          30),     # [PROVISIONAL] VSL = 30 x GNI per capita
   dalys_per_death  = getp("dalys_per_death",   30),     # [CALIBRATE] undiscounted DALYs per RHD death
-  cost_screen_per_person = getp("cost_screen_per_person", 1.10),  # [PAPER] echo screening cost/person
+  cost_screen_per_person = getp("cost_screen_per_person", 1.10),  # [PAPER] echo screening cost per encounter
   cost_sap_per_year      = getp("cost_sap_per_year",      110),   # [PAPER] annual optimal-treatment cost/person
-  cost_surgery           = getp("cost_surgery",           9000)   # [LIT] valve surgery + first-yr post-op
+  cost_surgery           = getp("cost_surgery",           9000),  # [LIT] valve surgery + first-yr post-op
+  valuation_method = "VSL only: VSL_t = vsl_mult x GNI-pc_b x GDP-pc_t / GDP-pc_b; no additive GDP-per-capita benefit"
 )
 
 # validate parameters
 with(econ, {
   if (disc_rate < 0 || disc_rate > 0.2) stop("disc_rate outside plausible [0,0.2].", call. = FALSE)
-  if (any(c(gdp_pc_base, vsl_mult, dalys_per_death,
+  if (any(c(gni_pc_base, gdp_pc_base, vsl_mult, dalys_per_death,
             cost_screen_per_person, cost_sap_per_year, cost_surgery) < 0))
     stop("A negative economic parameter was supplied.", call. = FALSE)
+  if (gni_pc_base <= 0 || gdp_pc_base <= 0) stop("GNI and GDP per capita must be positive.", call. = FALSE)
+  if (!is.finite(gdp_growth) || gdp_growth <= -1) stop("gdp_growth must be a finite rate > -1.", call. = FALSE)
+  if (gni_pc_base_year < 1960L || gni_pc_base_year > 2100L)
+    stop("gni_pc_base_year outside a plausible calendar range.", call. = FALSE)
 })
 
 message("── 08_economic_evaluation.R : economic parameters ─────")
-message(sprintf("  disc=%.1f%% | GDPpc(%d)=$%s g=%.1f%% | VSL=%dx | DALYs/death=%d",
-                100 * econ$disc_rate, econ$gdp_pc_base_year,
-                formatC(econ$gdp_pc_base, format = "d", big.mark = ","),
-                100 * econ$gdp_growth, econ$vsl_mult, econ$dalys_per_death))
-message(sprintf("  unit costs (US$): screen=%.2f/person  SAP=%d/yr  surgery=%d",
+message(sprintf("  disc=%.1f%% | VSL = %gx GNIpc(%d)=$%s -> VSL_%d=$%s, grown with GDP pc at g=%.1f%% | DALYs/death=%g",
+                100 * econ$disc_rate, econ$vsl_mult, econ$gni_pc_base_year,
+                formatC(econ$gni_pc_base, format = "d", big.mark = ","), econ$gni_pc_base_year,
+                formatC(econ$vsl_mult * econ$gni_pc_base, format = "d", big.mark = ","),
+                100 * econ$gdp_growth, econ$dalys_per_death))
+message(sprintf("  unit costs (US$): screen=%.2f/encounter  SAP=%g/person-yr  surgery=%g",
                 econ$cost_screen_per_person, econ$cost_sap_per_year, econ$cost_surgery))
 
 # ------------------------------------------------------------------------------
@@ -139,18 +168,23 @@ inc[, `:=`(inc_cost     = cost_sap - cost_ref,
 
 # Economic discount reference year: set in 00_run_all.R (default ANALYSIS_YEAR_START);
 # standalone fallback = the first analysis year in the data. Separate from the GDP-pc
-# reference year (econ$gdp_pc_base_year) and the GBD rate reference year.
+# reference year (econ$gdp_pc_base_year), the GNI/VSL anchor (econ$gni_pc_base_year)
+# and the GBD rate reference year.
 discount_base_year <- getp("discount_base_year", min(inc$year))
+# GDP-per-capita path (growth index), ALIGNED to the GNI/VSL anchor year b before the
+# ratio is taken: vsl_growth_index = GDPpc_t / GDPpc_b = (1 + g)^(t - b).
+gdp_pc_at_anchor <- econ$gdp_pc_base * (1 + econ$gdp_growth)^(econ$gni_pc_base_year - econ$gdp_pc_base_year)
 inc[, `:=`(
   df      = 1 / (1 + econ$disc_rate)^(year - discount_base_year),
   gdp_pc  = econ$gdp_pc_base * (1 + econ$gdp_growth)^(year - econ$gdp_pc_base_year)
 )]
-# NOTE: create `vsl` in its OWN := call before referencing it (columns created
+# NOTE: create each column in its OWN := call before referencing it (columns created
 # within a single := are not visible to sibling RHS expressions in that call).
-inc[, vsl := econ$vsl_mult * gdp_pc]
+inc[, vsl := econ$vsl_mult * econ$gni_pc_base * (gdp_pc / gdp_pc_at_anchor)]
 inc[, `:=`(benefit_vsl = deaths_avert * vsl,
-           benefit_gdp = deaths_avert * gdp_pc)]
-inc[, benefit_total := benefit_vsl + benefit_gdp]
+           benefit_gdp = 0)]          # RETIRED compatibility field: the additive GDP-pc benefit is removed
+inc[, benefit_total := benefit_vsl]
+inc[, vsl_growth_index := gdp_pc / gdp_pc_at_anchor]   # additive column (appended; schema order kept)
 
 # ------------------------------------------------------------------------------
 # 4. SUMMARISE per location, plus a pooled TOTAL  (safe zero-denominator guards)
@@ -167,10 +201,13 @@ summarise_econ <- function(d, label) {
     total_cost      = tot_cost_disc,
     total_benefit   = tot_benefit_disc,
     net_benefit     = tot_benefit_disc - tot_cost_disc,
-    bcr             = safe_ratio(tot_benefit_disc, tot_cost_disc),
+    bcr             = safe_ratio(tot_benefit_disc, tot_cost_disc),   # NA (undefined) unless cost > 0
     deaths_averted  = tot_deaths_avert,
     cost_per_death  = safe_ratio(tot_cost_disc, tot_deaths_avert),
-    cost_per_daly   = safe_ratio(tot_cost_disc, disc_deaths * econ$dalys_per_death)
+    cost_per_daly   = safe_ratio(tot_cost_disc, disc_deaths * econ$dalys_per_death),
+    # additive: why bcr may be undefined (zero / negative discounted incremental cost)
+    incremental_cost_status = if (!is.finite(tot_cost_disc)) "invalid" else if (tot_cost_disc > 0) "positive" else
+      if (tot_cost_disc == 0) "cost_neutral" else "cost_saving"
   )
 }
 
@@ -218,15 +255,46 @@ cum_da <- inc[, sum(deaths_avert)]
 cum_ic <- inc[, sum(inc_cost)]
 if (cum_da < -1e-6)
   stop("Cumulative deaths averted is negative (SAP worse than reference overall).", call. = FALSE)
-if (cum_ic < -1e-6)
-  stop("Cumulative incremental cost is negative (SAP cheaper than reference overall) — unexpected.",
-       call. = FALSE)
+# a cost-neutral or cost-saving scale-up is a legitimate result: reported, not a failure
+if (cum_ic <= 0)
+  message("  NOTE: cumulative undiscounted incremental cost is ", if (cum_ic == 0) "zero" else "negative",
+          " (scale-up is cost-neutral or cost-saving overall).")
 
-if (anyNA(econ_summary[, .(total_cost, total_benefit, net_benefit, deaths_averted)]))
-  stop("Economic summary contains NA in a required field.", call. = FALSE)
-if (summary_total$total_cost <= 0) stop("Total incremental cost is non-positive.", call. = FALSE)
-if (!is.finite(summary_total$bcr) || summary_total$bcr <= 0)
-  stop("Benefit-cost ratio is non-finite or non-positive.", call. = FALSE)
+if (anyNA(econ_summary[, .(total_cost, total_benefit, net_benefit, deaths_averted)]) ||
+    any(!is.finite(as.matrix(econ_summary[, .(total_cost, total_benefit, net_benefit, deaths_averted)]))))
+  stop("Economic summary contains NA / non-finite values in a required field.", call. = FALSE)
+for (i in seq_len(nrow(econ_summary))) {
+  r <- econ_summary[i]
+  if (r$total_cost > 0 && (!is.finite(r$bcr) || r$bcr <= 0))
+    stop("Benefit-cost ratio for ", r$location, " is non-finite or non-positive despite positive incremental cost.",
+         call. = FALSE)
+  if (r$total_cost <= 0 && !is.na(r$bcr))
+    stop("A BCR was reported for ", r$location, " although its discounted incremental cost is not positive.",
+         call. = FALSE)
+  if (r$total_cost <= 0)
+    message(sprintf("  NOTE: %s discounted incremental cost is %s -> BCR undefined (%s).",
+                    r$location, format(r$total_cost, big.mark = ","), r$incremental_cost_status))
+}
+
+# benefit / cost reconciliation (independent recomputation; VSL-only valuation)
+if (any(inc$benefit_gdp != 0)) stop("Retired benefit_gdp must be exactly zero.", call. = FALSE)
+if (inc[, max(abs(benefit_total - benefit_vsl))] > 0)
+  stop("benefit_total must equal benefit_vsl (VSL-only valuation).", call. = FALSE)
+vsl_chk <- econ$vsl_mult * econ$gni_pc_base * (1 + econ$gdp_growth)^(inc$year - econ$gni_pc_base_year)
+if (max(abs(inc$vsl - vsl_chk) / vsl_chk) > 1e-10)
+  stop("VSL path differs from vsl_mult x GNIpc_b x (1 + g)^(t - b).", call. = FALSE)
+if (max(abs(inc$benefit_vsl - inc$deaths_avert * vsl_chk)) > 1e-6 * max(1, max(abs(inc$benefit_vsl))))
+  stop("benefit_vsl != deaths averted x VSL.", call. = FALSE)
+for (loc in c(unique(inc$location), "TOTAL")) {
+  d <- if (loc == "TOTAL") inc else inc[location == loc]
+  r <- econ_summary[location == loc]
+  pvb <- sum((1 + econ$disc_rate)^-(d$year - discount_base_year) * d$deaths_avert * d$vsl)
+  pvc <- sum((1 + econ$disc_rate)^-(d$year - discount_base_year) * (d$cost_sap - d$cost_ref))
+  if (abs(r$total_benefit - pvb) > 1e-6 * max(1, abs(pvb)) || abs(r$total_cost - pvc) > 1e-6 * max(1, abs(pvc)) ||
+      abs(r$net_benefit - (pvb - pvc)) > 1e-6 * max(1, abs(pvb), abs(pvc)) ||
+      (pvc > 0 && abs(r$bcr - pvb / pvc) > 1e-10 * max(1, abs(pvb / pvc))))
+    stop("Discounted benefits / costs / net benefit / BCR do not reconcile for ", loc, ".", call. = FALSE)
+}
 
 # ------------------------------------------------------------------------------
 # 6. WRITE + report
@@ -243,7 +311,8 @@ message("── ECONOMIC RESULTS (discounted; base-year US$) ──────�
 message(sprintf("  Total incremental cost : $%.2f billion", t$total_cost   / 1e9))
 message(sprintf("  Total monetised benefit: $%.2f billion", t$total_benefit / 1e9))
 message(sprintf("  Net benefit            : $%.2f billion", t$net_benefit  / 1e9))
-message(sprintf("  Benefit-cost ratio     : %.2f", t$bcr))
+message(sprintf("  Benefit-cost ratio     : %s", if (is.finite(t$bcr)) sprintf("%.2f", t$bcr) else
+                paste0("undefined (", t$incremental_cost_status, ")")))
 message(sprintf("  RHD deaths averted     : %s", formatC(round(t$deaths_averted), format = "d", big.mark = ",")))
 message(sprintf("  Cost per death averted : $%s", formatC(round(t$cost_per_death), format = "d", big.mark = ",")))
 message(sprintf("  Cost per DALY averted  : $%s", formatC(round(t$cost_per_daly),  format = "d", big.mark = ",")))
