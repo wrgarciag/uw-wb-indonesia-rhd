@@ -29,19 +29,25 @@
 #                               cost per DALY averted (all discounted).
 #     rhd_economic_results.rds  list bundle of the above + parameters used.
 #
-# COSTS (screening applies to the annual screening ENCOUNTERS from 06, already
-#        scheduled by age — 2/15 at 5-19, 1/20 at 20-39 x reach x population — so
-#        the schedule is NOT re-applied here; treatment to SAP person-years =
-#        prevalent RHD x SAP coverage; surgery to the surgery trace):
+# COSTS (each service volume from 06 is costed ONCE, never re-derived here):
+#   screening : n_screened = screening ENCOUNTERS (one screen per person across ages
+#               5-39 among people without a prior confirmed diagnosis: annual probability
+#               x never-screened people; people without RHD included);
+#   SAP       : n_on_optimal_treatment = on-BPG PERSON-YEARS of SAP-eligible confirmed
+#               disease (A at age <= 20, B; start of cycle, after the care update) — NOT
+#               the adherence-weighted protected volume (adherence enters the health
+#               effect only). Adult B on BPG is costed although its progression HR is 1;
+#   surgery   : the surgery trace (service; equal coverage in both arms).
+#   UNCOSTED  : confirmatory echoes (n_confirm_completed) — no unit cost exists in 00
+#               block J; their volume is reported and flagged, never priced here, so
+#               total programme cost is understated by the confirmation cost.
 #   c_screen  = sum(n_screened)             x cost_screen_per_person
 #   c_sap     = sum(n_on_optimal_treatment) x cost_sap_per_year
 #   c_surgery = sum(total_surgeries)        x cost_surgery
 #   cost      = c_screen + c_sap + c_surgery
 #   (HF-management cost is retired — HF management is not a modelled intervention.
-#    Surgery coverage/effects are held equal in both arms, so surgery is a
-#    background cost; any incremental surgery cost is only the second-order effect
-#    of scale-up changing the C/D stocks. Adherence attenuates protection in 06;
-#    it does not scale delivered SAP cost.)
+#    Any incremental surgery cost is only the second-order effect of scale-up
+#    changing the C/D stocks.)
 #
 # METHOD (discounted; incremental, not gross, programme costing):
 #   incremental cost   = cost(sap) - cost(ref)                        [per year]
@@ -94,9 +100,10 @@ econ <- list(
   vsl_mult         = getp("vsl_mult",          30),     # [PROVISIONAL] VSL = 30 x GNI per capita
   dalys_per_death  = getp("dalys_per_death",   30),     # [CALIBRATE] undiscounted DALYs per RHD death
   cost_screen_per_person = getp("cost_screen_per_person", 1.10),  # [PAPER] echo screening cost per encounter
-  cost_sap_per_year      = getp("cost_sap_per_year",      110),   # [PAPER] annual optimal-treatment cost/person
+  cost_sap_per_year      = getp("cost_sap_per_year",      110),   # [PAPER] cost per on-BPG person-year
   cost_surgery           = getp("cost_surgery",           9000),  # [LIT] valve surgery + first-yr post-op
-  valuation_method = "VSL only: VSL_t = vsl_mult x GNI-pc_b x GDP-pc_t / GDP-pc_b; no additive GDP-per-capita benefit"
+  valuation_method = "VSL only: VSL_t = vsl_mult x GNI-pc_b x GDP-pc_t / GDP-pc_b; no additive GDP-per-capita benefit",
+  uncosted_items = "confirmatory echo after a true screen positive (n_confirm_completed): no unit cost in 00 block J; omitted from total costs"
 )
 
 # validate parameters
@@ -148,6 +155,10 @@ cost_ty <- stg[, .(
   c_surgery = sum(total_surgeries)        * econ$cost_surgery
 ), by = .(location, scenario, year)]
 cost_ty[, cost := c_screen + c_sap + c_surgery]
+# UNCOSTED volume (reported, flagged; never priced): completed confirmatory echoes
+if (!"n_confirm_completed" %in% names(stg))
+  stop("Model $stages lacks n_confirm_completed (re-run 06 under the first-diagnosis engine).", call. = FALSE)
+conf_ty <- stg[, .(confirmations = sum(n_confirm_completed)), by = .(location, scenario, year)]
 
 # RHD deaths per location x scenario x year (from WSD `dead`)
 death_ty <- wsd[, .(rhd_deaths = sum(dead)), by = .(location, scenario, year)]
@@ -224,11 +235,28 @@ budget_impact <- merge(
   budget_impact,
   cost_ty[scenario == "sap", .(location, year, c_screen, c_sap, c_surgery)],
   by = c("location", "year"), all.x = TRUE)
+# additive (appended): incremental confirmatory echoes, UNCOSTED (volume only; flagged)
+conf_w <- dcast(conf_ty, location + year ~ scenario, value.var = "confirmations")
+budget_impact <- merge(budget_impact, conf_w[, .(location, year, confirmations_incremental_uncosted = sap - ref)],
+                       by = c("location", "year"), all.x = TRUE)
 
 # ------------------------------------------------------------------------------
 # 5. VALIDATION  (fail loudly; deaths-averted / incremental-cost checks CUMULATIVE)
 # ------------------------------------------------------------------------------
 if (any(cost_ty$cost < -1e-6)) stop("Negative annual cost computed.", call. = FALSE)
+# service volumes costed here reconcile with 06's own diagnostics (each costed once;
+# SAP cost uses on-BPG person-years, never the protection-weighted volume)
+for (f in files) {
+  o <- readRDS(f); d6 <- o$diag
+  if (!is.null(d6$sap_trace_by_year) && !is.null(d6$screening_by_year)) {
+    v <- merge(as.data.table(o$stages)[, .(sap_py = sum(n_on_optimal_treatment), enc = sum(n_screened)), by = .(scenario, year)],
+               merge(as.data.table(d6$sap_trace_by_year)[, .(scenario, year, on_bpg_person_years)],
+                     as.data.table(d6$screening_by_year)[, .(scenario, year, encounters)], by = c("scenario", "year")),
+               by = c("scenario", "year"))
+    if (v[, max(abs(sap_py - on_bpg_person_years) / pmax(on_bpg_person_years, 1), abs(enc - encounters) / pmax(encounters, 1))] > 1e-9)
+      stop("Costed SAP person-years / screening encounters do not reconcile with 06 diagnostics (", basename(f), ").", call. = FALSE)
+  }
+}
 
 # analysis-horizon integrity: the incremental (and hence budget/summary) table must
 # span EXACTLY the analysis years — no economic row outside the configured window.
@@ -303,7 +331,8 @@ fwrite(budget_impact, paste0(OUT_DIR, "rhd_budget_impact.csv"))
 fwrite(econ_summary,  paste0(OUT_DIR, "rhd_economic_summary.csv"))
 saveRDS(list(summary = econ_summary, budget_impact = budget_impact,
              incremental = inc, params = econ,
-             discount_base_year = discount_base_year),
+             discount_base_year = discount_base_year,
+             uncosted_confirmations = conf_ty),
         paste0(OUT_DIR, "rhd_economic_results.rds"))
 
 t <- summary_total
@@ -316,5 +345,8 @@ message(sprintf("  Benefit-cost ratio     : %s", if (is.finite(t$bcr)) sprintf("
 message(sprintf("  RHD deaths averted     : %s", formatC(round(t$deaths_averted), format = "d", big.mark = ",")))
 message(sprintf("  Cost per death averted : $%s", formatC(round(t$cost_per_death), format = "d", big.mark = ",")))
 message(sprintf("  Cost per DALY averted  : $%s", formatC(round(t$cost_per_daly),  format = "d", big.mark = ",")))
+message(sprintf("  NOTE (UNCOSTED): %s incremental confirmatory echoes over %d-%d are NOT priced (no unit cost in 00 block J); total cost is understated by their cost.",
+                formatC(round(sum(budget_impact$confirmations_incremental_uncosted)), format = "d", big.mark = ","),
+                min(analysis_years), max(analysis_years)))
 message("── 08_economic_evaluation.R complete ──────────────────")
 message("  Wrote: ", OUT_DIR, "rhd_budget_impact.csv, rhd_economic_summary.csv, rhd_economic_results.rds")

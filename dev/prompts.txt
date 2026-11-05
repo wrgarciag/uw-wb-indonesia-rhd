@@ -1,4 +1,73 @@
 
+
+
+##########################333333
+
+Write a prompt to ask claude to
+
+Goal: adjust the model for more realistic history and capture in a better way and approximate better to GBD
+the number of deaths above 20 which is currently overestimated,adjust prevalence over 20 wich is undertestimated.
+
+Also more realistic since entry defined from screening is what is in practice implemented 
+
+Assign more weigth to prevalence than death in calibration
+
+In writing the prompt, no call any excel cell. put explicitly the parameters to feed the updated model. excel is only for reference, which is in dev/RHD_first_diagnosis_model
+
+
+write a prompt asking Claude Code to modify 
+the codebase scripts/00*.R-08*.R to generate a simplified yet plausible model and a credible, calibrated baseline. 
+Also modify R/abcd_engine.R 
+
+Mantain as possible current 
+code only the defalut implementation, not sensitiity alternatives
+
+use the existing calibration period window
+
+user modifble assumptions and inputs will be must be 00*
+
+update only the needed lines. Avoid doing a whole refactor  or modifying files scripts outside thes
+if possible minimize creating new folders/scripts unrealted to this task
+
+Also the model ouputs will still feed report.Rmd and slideck-technical.Rmd, do not update these yet
+
+export the prompt as a MD file
+
+Ask in the prompt claude to plan, test scripts/00*.R-04*.R if calibration looks fine and anticipated futur model is plausible before continue adjusting 
+
+scripts/05*.R-08*.R 
+
+if you have doubt during witing the prompt, ask me suggesting alternatives
+
+
+
+
+##########################333333
+
+Write a prompt to ask claude to
+
+Goal: adjust the model for more realistic history and capture in a better way and approximate better to GBD
+the number of deaths below 20 which is currently underestimated
+
+In writing the prompt, no call any excel cell. put explicitly the parameters to feed the updated model. excel is only for reference.
+Task Based on the default implementation dev/ Excel version, write a prompt asking Claude Code to modify 
+the codebase scripts/00*.R-08*.R to generate a simplified yet plausible model and a credible, calibrated baseline. 
+Also modify R/abcd_engine.R 
+
+Mantain as possible current 
+code only teh defalut implementation, not sensitiity alternatives
+
+use the existing calibration period window
+
+user modifble assumptions and inputs will be must be 00*
+
+update only the needed lines. Avoid doing a whole refactor  or modifying files scripts outside thes
+if possible minimize creating new folders/scripts unrealted to this task
+
+Also the model ouputs will still feed report.Rmd and slideck-technical.Rmd, do not update these yet
+
+export the prompt as a MD file
+
 ##########################333333
 
 Write a prompt to ask claude to

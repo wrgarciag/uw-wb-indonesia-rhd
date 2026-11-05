@@ -11,12 +11,15 @@
 #   (1) rhd_model_long.csv/.rds  — the WELL-SICK-DEAD aggregate (contract UNCHANGED)
 #         scenario, age, cause, sex, year, well, sick, newcases, dead, pop, all.mx,
 #         intervention, location, eff_ir, eff_cf
-#       * sick   = A + B + C + D (all RHD stages collapsed), from 06's $wsd.
+#       * sick   = total CLASSIFIABLE RHD A + B + C + D (undiagnosed + diagnosed), from 06's
+#                  $wsd; adult prior-A and normalised history are excluded.
+#       * well   = population - sick: never-onset, normalised and adult prior-A people;
+#                  newcases = new modelled classifiable disease (NOT diagnoses); dead =
+#                  RHD deaths.
 #       * eff_ir = RRR multiplier on INCIDENCE, [0,1] (1 = no reduction). Always 1
 #                  here (secondary prevention does not reduce incidence).
-#       * eff_cf = SAP RRR multiplier on RHD-specific MORTALITY, [0,1]
-#                  (= 1 - sap_rrr_rhd_death x effective_treatment_coverage). NOTE:
-#                  this is the SAP mortality multiplier, NOT a progression rate.
+#       * eff_cf = direct SAP multiplier on RHD-specific MORTALITY: always 1 in the
+#                  default (SAP acts through progression hazards only).
 #
 #   (2) rhd_stage_model_long.csv — per-stage prevalence
 #         scenario, age, sex, year, location, stage, cases, prevalence, prevalence_per_1000
@@ -27,11 +30,18 @@
 #         other_deaths_[A..D], n_screened, n_diagnosed, n_on_optimal_treatment,
 #         C_requiring_surgery, D_requiring_surgery, surgeries_C, surgeries_D,
 #         total_surgeries
-#       * n_screened = annual screening ENCOUNTERS (screening reach x population x
-#                      scheduled encounters per person: 2/15 at ages 5-19, 1/20 at
-#                      20-39, 0 elsewhere; 06), not people in the whole population.
-#       * n_on_optimal_treatment = SAP person-years (start-of-cycle prevalent RHD at
-#                      all ages x SAP coverage; 06).
+#       * n_screened = screening ENCOUNTERS (annual probability x never-screened people
+#                      without a prior confirmed diagnosis at ages 5-39; one screen per
+#                      person; people without RHD included; 06).
+#       * n_on_optimal_treatment = on-BPG persons (confirmed A at age <= 20, B; start of
+#                      cycle, after the care update) = SAP person-years (costed in 08);
+#                      n_effectively_protected = adherence-weighted (health effect only).
+#       * plus (additive) new disease into B/C/D + total, adult B normalisation, prior-A
+#         re-entry and the A -> prior-A reclassification at the boundary age, D deaths by
+#         diagnosis status, first confirmed diagnoses (route, stage), true positives,
+#         confirmations (uncosted), on BPG by stage, and undiagnosed / diagnosed / on-BPG /
+#         prior-A / normalised / never-onset stocks (end of cycle). The previous Y/O
+#         onset-pathway columns are retired (no longer meaningful in this engine).
 #
 # ALL economic / benefit-cost / DALY content lives solely in 08.
 #
@@ -64,7 +74,23 @@ FLOW_COLS  <- c("scenario", "age", "sex", "year", "location",
                 "other_deaths_A", "other_deaths_B", "other_deaths_C", "other_deaths_D",
                 "n_screened", "n_diagnosed", "n_on_optimal_treatment",
                 "C_requiring_surgery", "D_requiring_surgery",
-                "surgeries_C", "surgeries_D", "total_surgeries")
+                "surgeries_C", "surgeries_D", "total_surgeries",
+                # additive (first-diagnosis engine): new disease into B/C/D + total, adult B
+                # normalisation, total RHD exits, new diagnoses, protection-weighted volume,
+                # never-onset stock (end of cycle) -- kept from the previous contract
+                "new_rhd_B", "new_rhd_C", "new_rhd_D", "new_rhd_total",
+                "B_to_no_rhd", "rhd_exits_total",
+                "n_new_diagnoses", "n_effectively_protected",
+                "never_onset_end",
+                # additive (new): prior-A re-entry + A -> prior-A reclassification (boundary age),
+                # D deaths by diagnosis status, first confirmed diagnoses by route and stage,
+                # screening true positives + confirmations (uncosted), on BPG by stage, and
+                # undiagnosed / diagnosed / on-BPG / prior-A / normalised stocks (end of cycle)
+                "reentry_prior_A_to_B", "reclass_A_to_prior_A",
+                "rhd_deaths_D_undiagnosed", "rhd_deaths_D_diagnosed",
+                "n_dx_screen", "n_dx_clinical", "n_dx_A", "n_dx_B", "n_dx_C", "n_dx_D",
+                "n_screen_true_positive", "n_confirm_completed", "n_on_bpg_A", "n_on_bpg_B",
+                "undiagnosed_end", "diagnosed_end", "on_bpg_end", "prior_A_end", "normalised_end")
 
 # ------------------------------------------------------------------------------
 # 1. LOAD per-location model outputs ($wsd aggregate + $stages stock/flow)
@@ -169,6 +195,26 @@ if (flow[, any(surgeries_C > C_requiring_surgery + 1e-6)] ||
 # total living RHD does not exceed population
 if (long[, any(sick > pop + 1e-3)])
   stop("Total living RHD (sick) exceeds population somewhere.", call. = FALSE)
+
+# classifiable stock-flow identity (incl. prior-A re-entry) + new-disease composition +
+# care-state reconstruction (06 volumes)
+if (flow[, max(abs(new_rhd_total - (new_rhd_A + new_rhd_B + new_rhd_C + new_rhd_D)))] > 1e-6)
+  stop("New disease by entry stage does not sum to the total.", call. = FALSE)
+idn <- merge(flow[, .(location, scenario, sex, age, year, end_flow = living_rhd_start + new_rhd_total + reentry_prior_A_to_B -
+                        A_to_no_rhd - B_to_no_rhd - (rhd_deaths_A + rhd_deaths_B + rhd_deaths_C + rhd_deaths_D) -
+                        (other_deaths_A + other_deaths_B + other_deaths_C + other_deaths_D),
+                      care = undiagnosed_end + diagnosed_end)],
+             long[, .(location, scenario, sex, age, year, sick, newcases)], by = c("location", "scenario", "sex", "age", "year"))
+if (idn[, max(abs(end_flow - sick), abs(care - sick))] > 1e-6)
+  stop("Classifiable stock-flow identity (end = start + new disease + prior-A re-entry - normalisation - deaths) or care-state reconstruction violated.", call. = FALSE)
+if (flow[, max(abs(n_new_diagnoses - n_dx_screen - n_dx_clinical))] > 1e-6 ||
+    flow[, any(n_dx_screen > n_confirm_completed + 1e-6 | n_confirm_completed > n_screen_true_positive + 1e-6)])
+  stop("First diagnoses do not split by route, or screen diagnoses > confirmations > true positives violated.", call. = FALSE)
+if (merge(long[, .(location, scenario, sex, age, year, newcases)], flow[, .(location, scenario, sex, age, year, new_rhd_total)],
+          by = c("location", "scenario", "sex", "age", "year"))[, max(abs(newcases - new_rhd_total))] > 1e-6)
+  stop("Aggregate newcases != total onset.", call. = FALSE)
+if (flow[, any(n_on_optimal_treatment > n_diagnosed + 1e-6 | n_effectively_protected > n_on_optimal_treatment + 1e-6)])
+  stop("Care volumes violate protected <= on BPG <= diagnosed.", call. = FALSE)
 
 # completeness: every (location, scenario) covers the same full age x sex x year grid
 grid_n <- long[, .N, by = .(location, scenario)]

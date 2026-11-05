@@ -1,0 +1,36 @@
+parameter,value
+p_A_to_no_rhd,0.11324941571304
+p_A_to_B,0.0440479780755357
+p_B_to_A,0.229197766531458
+p_B_to_C,0.00289245670935603
+p_C_to_B,0.15
+p_C_to_D,0.0313937125198092
+alpha[0-14|Female],0.2
+alpha[15-24|Female],0.2
+alpha[25-44|Female],0.214430987677931
+alpha[45-64|Female],0.295173327364094
+alpha[65+|Female],0.440910184598328
+alpha[0-14|Male],0.2
+alpha[15-24|Male],0.2
+alpha[25-44|Male],0.210064122928071
+alpha[45-64|Male],0.286015970964741
+alpha[65+|Male],0.424302739008571
+y_last_onset_age,20
+p_D_to_C,0
+p_rhd_death_A/B/C,0
+p_rhd_death_D_Y,0.0597
+d_death_hr_O,2
+p_rhd_death_D_O (derived),0.11583591
+residual_rhd_mortality_mult,1
+p_B_to_no_rhd_adult,0.02
+o_progression_hr,0.48
+p_B_to_C_O (derived at fit),0.00138942486841309
+p_C_to_D_O (derived at fit),0.0151939765478941
+entry_mix_Y[A],0.5
+entry_mix_Y[B],0.3
+entry_mix_Y[C],0.15
+entry_mix_Y[D],0.05
+entry_mix_O[A],0
+entry_mix_O[B],0.6
+entry_mix_O[C],0.3
+entry_mix_O[D],0.1

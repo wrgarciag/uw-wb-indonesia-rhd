@@ -17,16 +17,20 @@
 #   07 make outputs    -> output/tables/rhd_model_long.csv/.rds    (+ stage + flow tables)
 #   08 economics       -> output/tables/rhd_economic_summary.csv, rhd_budget_impact.csv
 #
-# DISEASE STRUCTURE: World Heart Federation RHD stages A/B/C/D (living states)
-#   No RHD -> A <-> B <-> C -> D -> RHD death, with competing other-cause death
-#   from every living state. Incident RHD enters stage A (no separate ARF state).
+# DISEASE STRUCTURE (DEFAULT, engine "abcd_first_diagnosis_v1"): World Heart
+#   Federation RHD stages A/B/C/D in a national population model that separates
+#   disease history from FIRST CONFIRMED DIAGNOSIS: undiagnosed and diagnosed (off /
+#   on BPG) stocks by stage, adult prior-A lesion history (excluded from classifiable
+#   prevalence), normalised history (no recurrence) and never-onset people, with
+#   screening history. Rules depend on ATTAINED AGE only (<= 20 / > 20). New modelled
+#   disease enters A (age <= 20) or B (age > 20); screening finds existing disease and
+#   never creates it. RHD death occurs only from D (A/B/C exact zeros); competing
+#   other-cause death from every living state. See R/abcd_engine.R.
 #   SURGERY is a clinical SERVICE flow (fraction of C/D receiving surgery each
 #   cycle), NOT a health state: it modifies C->D and D->RHD-death risk only.
-#   Secondary antibiotic prophylaxis (SAP): selectable mechanism (block H). PRIMARY
-#   = pathway-specific hazard reductions on supported PROGRESSION transitions (its
-#   mortality benefit arises through reduced entry into D); LEGACY comparator =
-#   the former 55% direct RHD-mortality RRR. It does not reduce incidence here.
-#   RHD mortality structure (block G): PRIMARY = exact D-only; LEGACY = all-stage.
+#   Secondary antibiotic prophylaxis (SAP) lowers PROGRESSION hazards only (block H)
+#   for confirmed, SAP-eligible people on BPG (block I). It does not reduce incidence
+#   and has no direct mortality effect.
 #
 # PARAMETER TAGS: [PAPER] article main text; [LIT] literature value; [CALIBRATE]
 #   tune to setting/appendix. All economic/monetary values live ONLY in block J
@@ -179,17 +183,19 @@ incidence_trend <- switch(COUNTRY,
 #    proxy with hazard competing risks, against GBD RHD-SPECIFIC incidence,
 #    prevalence and DEATHS (all-cause deaths are retained for VALIDATION only).
 #    The loss is log-scale + priors + 2nd-difference smoothness; the optimiser is
-#    a bounded multi-start local search (see CALIB_OPTIMIZER). Calibrated IR feeds
-#    the inflow into stage A (06); calibrated aggregate CF is the RHD-mortality
-#    anchor consumed by the Stage-2 structural stage calibration.
+#    a bounded multi-start local search (see CALIB_OPTIMIZER). Layer 1 is a PROXY:
+#    its alpha are STARTING VALUES for 04b and its CF is diagnostic only (it never
+#    overrides the fixed D-only mortality); the final incidence, natural history,
+#    mortality and initial state come from Layer 2 (04b) on the production engine.
 #===============================================================================
 run_calibration_par <- switch(COUNTRY, Indonesia = TRUE, Uganda = TRUE)
 SEED                <- switch(COUNTRY, Indonesia = 42L,  Uganda = 42L)  # master RNG
 
 ## --- objective weights (log-scale, normalized loss terms) -------------------
-W_INC   <- switch(COUNTRY, Indonesia = 1, Uganda = 1)   # weight on RHD INCIDENCE fit
-W_PREV  <- switch(COUNTRY, Indonesia = 1, Uganda = 1)   # weight on RHD PREVALENCE fit
-W_DEATH <- switch(COUNTRY, Indonesia = 2, Uganda = 2)   # weight on RHD-SPECIFIC DEATHS fit
+# Prevalence-led (5 Nov 2026; replaces the former death-led 1/1/2 weighting).
+W_INC   <- switch(COUNTRY, Indonesia = 1,   Uganda = 1)     # weight on RHD INCIDENCE fit
+W_PREV  <- switch(COUNTRY, Indonesia = 2.5, Uganda = 2.5)   # weight on RHD PREVALENCE fit
+W_DEATH <- switch(COUNTRY, Indonesia = 1,   Uganda = 1)     # weight on RHD-SPECIFIC DEATHS fit
 # Inverse-variance weight the log-residuals using GBD 95% UIs when present
 # (01 now retains upper/lower); FALSE => unit weights.
 USE_IV_WEIGHTS <- switch(COUNTRY, Indonesia = TRUE, Uganda = TRUE)
@@ -203,8 +209,9 @@ TARGET_MIN_COUNT <- switch(COUNTRY, Indonesia = 1, Uganda = 1)
 # "free"     : same parameterisation but weak prior (alpha free to move)
 INCIDENCE_CALIBRATION_MODE <- switch(COUNTRY, Indonesia = "anchored", Uganda = "anchored")
 # Lower edges of the broad calibration age bands (last band is open-ended).
-# Default 0-14 / 15-24 / 25-44 / 45-64 / 65+ — one alpha & one beta per band x sex.
-CALIB_AGE_BANDS <- c(0L, 15L, 25L, 45L, 65L)
+# 0-14 / 15-24 / 25-44 / 45-64 / 65-79 / 80+ — one alpha & one beta per band x sex
+# (65+ split at 80; used by the dynamic band logic of 04 and 04b).
+CALIB_AGE_BANDS <- c(0L, 15L, 25L, 45L, 65L, 80L)
 
 ## --- priors + smoothness (all on the log-multiplier scale) ------------------
 SIGMA_ALPHA   <- switch(COUNTRY, Indonesia = 0.75, Uganda = 0.75)  # incidence prior sd (GENEROUS:
@@ -226,419 +233,252 @@ N_STARTS        <- 8L     # reproducible random starts (+ the baseline start-0),
 CONVERGE_TOL    <- 1e-8   # optimiser convergence tolerance
 
 #===============================================================================
-# G. A/B/C/D NATURAL HISTORY  (03) — annual transition probabilities
-#    Stages: A minimal/early, B mild established, C advanced w/o complications,
-#    D advanced WITH complications (HF, requiring surgery). Adjacent regression
-#    (A->No-RHD, B->A, C->B, D->C) is permitted; set any to 0 for an
-#    irreversible specification. Competing OTHER-cause mortality is data-fed
-#    (age x sex GBD background, 03/05) and NOT set here. Per-stage RHD-specific
-#    death probabilities ARE the lever SAP (and, for D, surgery) act on.
-#    Starting values from the standalone A/B/C/D prototype; all [CALIBRATE].
+# G. DEFAULT A/B/C/D NATURAL HISTORY — POPULATION BURDEN + FIRST DIAGNOSIS (03/04b/05/06)
+#    Stages: A minimal/early, B mild, C advanced w/o complications, D advanced WITH
+#    clinical complications (HF). Values marked [PROVISIONAL] are reference modelling
+#    inputs, NOT validated untreated WHF-stage transition estimates. Nothing is read
+#    from any workbook at run time.
+#
+#    Rules depend on ATTAINED AGE only (R/abcd_engine.R), never on when diagnosis
+#    occurred: child rules at age <= nh_child_last_age (20), adult rules at > 20. This
+#    is a declared MODELLING CONVENTION; it is separate from the GBD reporting split
+#    0-19 / 20+ used for the calibration components (a 21+ diagnostic is reported) and
+#    is not asserted to verify a clinical guideline.
+#    At the 20 -> 21 ageing step surviving A becomes ADULT PRIOR-A lesion history:
+#    excluded from classifiable RHD prevalence, not SAP-eligible, people conserved (not
+#    remission, not dropped). Prior-A -> B (shared A->B parameter; an extrapolation)
+#    is tracked as RE-ENTRY into classifiable disease, separately from first entry and
+#    from first diagnosis. Normalised people keep an explicit history stock, face
+#    background mortality only and have no recurrence (simplified assumption;
+#    normalisation is not proven anatomical healing).
+#    All inputs are ANNUAL PROBABILITIES, converted ONCE to hazards h = -log1p(-p).
 #===============================================================================
-# p_A_to_no_rhd <- 0.005   # [CALIBRATE] A regression to No RHD /yr
-# p_A_to_B      <- 0.020   # [CALIBRATE] A -> B progression /yr
-# p_B_to_A      <- 0.010   # [CALIBRATE] B -> A regression /yr
-# p_B_to_C      <- 0.030   # [CALIBRATE] B -> C progression /yr
-# p_C_to_B      <- 0.005   # [CALIBRATE] C -> B regression /yr
-# p_C_to_D      <- 0.060   # [CALIBRATE] C -> D progression /yr (surgery lowers this)
-# p_D_to_C      <- 0.000   # [CALIBRATE] D -> C regression /yr (default 0)
+mortality_structure <- "D_only"   # the implemented default: RHD death only from D (03 rejects anything else)
 
-# # annual UNTREATED RHD-specific death probability by stage -- [CALIBRATE]
-# p_rhd_death_A <- 0.0005  # [CALIBRATE]
-# p_rhd_death_B <- 0.0020  # [CALIBRATE]
-# p_rhd_death_C <- 0.0200  # [CALIBRATE]
-# p_rhd_death_D <- 0.0800  # [CALIBRATE]
+nh_child_last_age <- 20L          # [MODELLING CONVENTION] child rules at attained age <= 20; adult rules at > 20
 
+# Annual transition PROBABILITIES = 04b STARTING VALUES and PRIOR CENTRES. The six
+# non-zero ones are calibrated (shared across sexes) within TRANS_BOUNDS (block G2).
+p_A_to_no_rhd <- 0.311   # [PROVISIONAL] A -> normalised history, age <= 20 (adult: 0)             [calibrated]
+p_A_to_B      <- 0.054   # [PROVISIONAL] A -> B, age <= 20; the SAME fitted value drives adult
+                         #   prior-A -> B (provisional extrapolation)                                [calibrated]
+p_B_to_A      <- 0.177   # [PROVISIONAL] B -> A, age <= 20 (adult: structural zero)                [calibrated]
+p_B_to_C      <- 0.074   # [PROVISIONAL] B -> C, ONE shared parameter at every attained age        [calibrated]
+p_C_to_B      <- 0.050   # [PROVISIONAL] C -> B, age <= 20 (adult: structural zero)                [calibrated]
+p_C_to_D      <- 0.112   # [PROVISIONAL] C -> D, ONE shared parameter at every attained age        [calibrated]
+p_D_to_C      <- 0       # EXACT structural zero (D = clinical complications; no valve-regression rate)
 
-# Temporal hard-coded fix scaling the per-stage RHD-specific death probabilities
-# to match observed GBD 2023 mortality: 1/2.5 scales the untreated death probs
-# down by a factor of 2.5 to better align with the observed data.
-# [TODO: confirm for Uganda] — this multiplier was HAND-TUNED to INDONESIA's
-# GBD-2023 RHD mortality and almost certainly needs re-tuning for other countries.
+# Fixed inputs (not calibrated):
+p_B_to_no_rhd_adult <- 0.02   # [PROVISIONAL extrapolation] adult (> 20) B -> normalised history (child: 0)
+# New modelled CLASSIFIABLE disease (first entry from the never-onset pool) enters:
+entry_mix_child <- c(A = 1, B = 0, C = 0, D = 0)   # [NEW SIMPLIFYING ASSUMPTION] age <= 20 (fixed)
+entry_mix_adult <- c(A = 0, B = 1, C = 0, D = 0)   # [NEW SIMPLIFYING ASSUMPTION] age  > 20 (fixed; no adult A)
+#   Not estimates of biological onset age. Advanced first diagnoses arise from the
+#   progression of previously undiagnosed disease, not from direct C/D entry.
+# PROVISIONAL DIAGNOSIS-COMPOSITION BENCHMARKS (stage at FIRST CONFIRMED DIAGNOSIS by
+# age at diagnosis): illustrative reference values, compared as a DIAGNOSTIC only —
+# not observed national stage targets, not a fit term, never applied to new disease.
+dx_mix_benchmark_child <- c(A = 0.50, B = 0.30, C = 0.15, D = 0.05)   # age <= 20 at first diagnosis
+dx_mix_benchmark_adult <- c(A = 0,    B = 0.60, C = 0.30, D = 0.10)   # age  > 20 at first diagnosis
 
+# Stage-D annual RHD-death probability (FIXED; applied to EVERY disease / diagnosis
+# history — the former late-entry D-death hazard multiplier of 2 is removed, i.e.
+# effective value 1; not fitted and never lowered to manufacture fit).
+p_rhd_death_D <- switch(COUNTRY,
+                        Indonesia = 0.119,   # [PROVISIONAL reference input; dev/TP Stage D to death_RHDparameters.xlsx col K]
+                        Uganda    = 0.0597)  # [PROVISIONAL] Uganda-specific input (not replaced by Indonesia's value)
+residual_rhd_mortality_mult <- 1     # fixed; no second mortality scale
+# Removed (effective value 1): late-onset 0.48 progression multiplier and any adult
+# progression reduction. Realised annual D fatality can be smaller than the input
+# because of competing other-cause mortality and the reference surgery service.
+# For Uganda every shared input above except p_rhd_death_D is an EXTRAPOLATION of the
+# illustrative reference values, not a Uganda-specific estimate.
 
-# rhd_mortality_calibration_mult <- 1 / 2.5
-# 
-# scale_probability <- function(p, multiplier) {
-#   1 - (1 - p)^multiplier
-# }
-# 
-# p_rhd_death_A <- scale_probability(0.0005, rhd_mortality_calibration_mult)
-# p_rhd_death_B <- scale_probability(0.0020, rhd_mortality_calibration_mult)
-# p_rhd_death_C <- scale_probability(0.0200, rhd_mortality_calibration_mult)
-# p_rhd_death_D <- scale_probability(0.0800, rhd_mortality_calibration_mult)
-# 
-# 
-# # Stage-D share of prevalent RHD at the seed year. GBD gives only TOTAL RHD
-# # prevalence; A/B/C come from Cannon et al (56.5/27.2/16.2, normalised to the
-# # non-D share in 03) and D is this RHD-with-heart-failure fraction.
-# rhd_d_fraction <- 0.10   # [CALIBRATE] complicated-RHD / RHD-with-HF fraction
-#                          # [TODO: confirm for Uganda] may be higher (later presentation)
-
-#===============================================================================
-# G. A/B/C/D NATURAL HISTORY  (03) — annual transition probabilities
-#===============================================================================
-# p_A_to_no_rhd <- switch(COUNTRY,
-#                         Indonesia = 0.005,
-#                         Uganda    = 0.055) # https://pubmed.ncbi.nlm.nih.gov/28972003/
-# p_A_to_B <- switch(COUNTRY,
-#                    Indonesia = 0.020,
-#                    Uganda    = 0.020)
-# p_B_to_A <- switch(COUNTRY,
-#                    Indonesia = 0.010,
-#                    Uganda    = 0.010)
-# p_B_to_C <- switch(COUNTRY,
-#                    Indonesia = 0.030,
-#                    Uganda    = 0.030)
-# p_C_to_B <- switch(COUNTRY,
-#                    Indonesia = 0.005,
-#                    Uganda    = 0.005)
-# p_C_to_D <- switch(COUNTRY,
-#                    Indonesia = 0.060,
-#                    Uganda    = 0.060)
-# p_D_to_C <- switch(COUNTRY,
-#                    Indonesia = 0.000,
-#                    Uganda    = 0.000)
-
-# A/B/C/D annual transition PRIOR CENTERS (shared clinical priors; 04b calibrates
-# them per country against GBD RHD prevalence + RHD deaths using the real engine).
-# These are NOT final values and are NOT the former hand-tuned per-country hacks.
-# 04b gives transitions LOOSER priors than mortality, so the penalized objective
-# reconciles GBD deaths by moving the STOCK/progression, not by suppressing
-# mortality (Part 10 excess-death rule). p_A_to_no_rhd (regression) is the lever
-# that reconciles high GBD incidence with observed prevalence (mass balance).
-p_A_to_no_rhd <- 0.05     # regression A -> No RHD  (loose prior; data-identified)
-p_A_to_B      <- 0.020    # A -> B progression
-p_B_to_A      <- 0.010    # B -> A regression
-p_B_to_C      <- 0.030    # B -> C progression
-p_C_to_B      <- 0.005    # C -> B regression
-p_C_to_D      <- 0.060    # C -> D progression (surgery lowers this in the engine)
-p_D_to_C      <- 0.000    # D -> C regression (fixed at 0 unless calibrate_p_D_to_C = TRUE)
-
-# Per-stage UNTREATED RHD-death PRIOR CENTERS (annual), clinical and severity-
-# ordered (A <= B < C < D). The former hand-tuned mortality scalars
-# (rhd_mortality_calibration_mult = 1/2.5 Indonesia, 1/8 Uganda) and
-# scale_probability() are REMOVED: they hid a stock/progression problem behind
-# implausible stage mortality. 04b now calibrates the stock/progression to
-# reproduce GBD RHD deaths while these mortalities stay near their clinical priors
-# (TIGHT priors). An optional BOUNDED residual multiplier (RESID_MULT_LO/HI) may
-# move mortality modestly, but a solution sitting AT that bound is a VALIDATION
-# FAILURE (the 1/8 must not reappear under a new name).
-p_rhd_death_A <- 0.001    # stage A (minimal/early)      ~0.1%/yr  [clinical prior]  (all_stage structure only)
-p_rhd_death_B <- 0.005    # stage B (mild established)    ~0.5%/yr  [clinical prior]  (all_stage structure only)
-p_rhd_death_C <- 0.020    # stage C (advanced, no compl.) ~2%/yr    [clinical prior]  (all_stage structure only)
-p_rhd_death_D <- 0.080    # stage D (advanced w/ HF)      ~10%/yr   [clinical prior]  (all_stage structure)
-
-# --- MORTALITY STRUCTURE (03/04b/05/06) ---------------------------------------
-# "D_only"    (PRIMARY structural experiment): RHD-attributable death occurs ONLY
-#             from stage D; p_rhd_death_A = _B = _C = 0 EXACTLY (structural zeros,
-#             not tiny values). Competing non-RHD mortality remains in every living
-#             state incl. No-RHD. ONE D-mortality scale is estimated (the residual
-#             multiplier is FIXED at 1, reported as a documented fixed field).
-#             This is an explicit MODELLING ASSUMPTION requiring clinical review —
-#             it is not established by Coates 2021 or the WHF staging.
-# "all_stage" (LEGACY comparator): severity-ordered A<=B<C<D mortality + bounded
-#             residual multiplier (the previous specification). Selected only
-#             explicitly; never a silent fallback if D-only fails to fit.
-mortality_structure <- "D_only"
-
-# D-only prior CENTER for the annual stage-D RHD-death probability. PROVISIONAL:
-# column K of dev/TP Stage D to death_RHDparameters.xlsx = GBD 2023 RHD deaths /
-# GBD "HF due to RHD" proxy D stock (all ages, both sexes pooled; Indonesia 11.9%,
-# Uganda 5.97%). Column K is the previously requested provisional scenario, NOT a
-# validated annual transition probability; its age strata (0-39 / 40+: 40% and 73%
-# for 40+) are NOT used because the proxy D denominators are tiny (377 cases) and
-# the implied annual probabilities are implausible. No sex difference is imposed
-# (evidence pooled). Column J (literature 16.2% severe proxy -> 2.4% / 0.3%) is
-# the alternative definition and is reported as a diagnostic, not mixed in.
-# Coates's 25% untreated severe-RHD fatality is NOT applied automatically.
-p_rhd_death_D_only_prior <- switch(COUNTRY,
-                                   Indonesia = 0.119,   # [PROVISIONAL workbook col K]
-                                   Uganda    = 0.0597)  # [PROVISIONAL workbook col K]
-# D definition used with that prior (kept consistent in diagnostics: model D share
-# is compared with the GBD HF-due-to-RHD proxy share, col G of the workbook).
+# Diagnostic only: GBD "HF due to RHD" proxy D share (not a validated stage target).
 d_share_proxy_gbd_hf <- switch(COUNTRY, Indonesia = 0.0321, Uganda = 0.00863)
 
-# Stage-D share of prevalent RHD at the seed year (PRIOR CENTER; 04b calibrates it).
-rhd_d_fraction <- 0.10
-
-# Optional parsimonious AGE variation in A -> No-RHD regression: evidence for
-# regression of early/borderline disease is mainly in people under ~20 (Coates 2021
-# appendix; GOAL trial ages 5-17). Multiplier applied to p_A_to_no_rhd at ages
-# >= remission_age_cutoff. Default 1 = NO age restriction (explicit; sensitivity-
-# test with e.g. 0.5 or 0). Both calibration (04b) and projection (05/06) use it.
-remission_adult_mult <- 1.0
-remission_age_cutoff <- 20L
-# PARSIMONIOUS AGE STRUCTURE calibrated in 04b (two parameters, log scale, weak
-# priors centred on 1 and remission_adult_mult): a multiplier on the three
-# PROGRESSION hazards (A->B, B->C, C->D) and one on A->No-RHD REMISSION at ages
-# >= remission_age_cutoff. Justification (diagnosed, not assumed): progression /
-# regression evidence comes from child and adolescent cohorts, while GBD's age
-# pattern (deaths at ages 5-19 alongside a large adult prevalence with low adult
-# case fatality) cannot be reproduced by one all-age set of transitions under
-# D-only mortality. FALSE = fixed at remission_adult_mult / 1 (sensitivity).
-STRUCT_CALIB_AGE_STRUCTURE <- TRUE
-SIGMA_AGE_MULT <- 1.0                  # log-sd prior on the two adult multipliers
-AGE_MULT_LO <- 0.05; AGE_MULT_HI <- 3.0
-
 #===============================================================================
-# G2. STRUCTURAL (LAYER-2) A/B/C/D CALIBRATION  (04b)
-#     Runs the REAL engine (R/abcd_engine.R) inside the objective and calibrates
-#     transitions + severity-ratio stage mortality + rhd_d_fraction against GBD
-#     RHD prevalence + RHD-SPECIFIC deaths (2000-2019). Mortality carries TIGHT
-#     clinical priors, stock/progression LOOSER priors, so excess deaths are
-#     resolved by moving the stock, not by suppressing mortality.
+# G2. STRUCTURAL (LAYER-2) CALIBRATION  (04b)
+#     Runs the REAL engine (R/abcd_engine.R) inside the objective — the same burn-in,
+#     care update, ageing, prior-A reclassification and observation as production —
+#     and jointly estimates the band x sex incidence multipliers and the six non-zero
+#     transition probabilities against GBD RHD prevalence (TOTAL classifiable disease,
+#     diagnosed + undiagnosed; prior-A and normalised history excluded) + RHD deaths
+#     (diagnosed + undiagnosed D). Entry mixes, adult normalisation and D mortality
+#     are FIXED (block G).
 #===============================================================================
 run_structural_calibration <- switch(COUNTRY, Indonesia = TRUE, Uganda = TRUE)
-calibrate_p_D_to_C <- FALSE          # keep D->C fixed at its prior (0) unless TRUE
-STRUCT_MATCH_FROM  <- 2010L          # first GBD year matched (skip the seed transient)
-# The structural projection is EQUILIBRATED by a zero-start burn-in using the
-# first-window-year rates, so the scored stage distribution (and hence the 06
-# seed) is the transition-implied EQUILIBRIUM — not the Cannon clinical-cohort
-# split, whose slow-draining C/D would otherwise contaminate the fit. Prevalence
-# is therefore GENERATED from incidence + natural history and fit to GBD (rather
-# than seeded to match), so the regression rate that reconciles the mass balance
-# is genuinely data-identified.
-STRUCT_BURN_YEARS  <- 120L           # burn-in cycles to reach the stage equilibrium (04b CHECKS
-                                     #   convergence against a 2x burn-in; 60 was not converged
-                                     #   at adult ages where exit rates are small)
+STRUCT_MATCH_FROM  <- 2010L          # first GBD year SCORED (2000-2009 = initialisation / validation years)
+# Zero-start burn-in under first-window-year inputs and the provisional initial care
+# shares (block I) generates prevalence from incidence + natural history; 04b CHECKS
+# convergence of stage / prior-A / normalised totals, age profiles and deaths vs a 2x run.
+STRUCT_BURN_YEARS  <- 120L
+# Burn-in INITIALISATION reconciliation (R/abcd_engine.R abcd_burn_in; 04b, recorded in the bundle and
+# checked by 05). The burn-in holds the first-window-year (2000) cross-section constant for 120 cycles:
+#   "per_capita"  (DEFAULT): after each burn-in ageing step every population count stock (classifiable
+#                 disease by care state, prior-A, normalised, never-onset) is rescaled to that population, giving an
+#                 equilibrium in per-capita rates. The adjustments are INITIALISATION BALANCING (recorded
+#                 separately, never deaths or onset). Adopted 4 Nov 2026: the previous rule built older cohorts'
+#                 RHD counts from today's larger young cohorts (x1.5 at age 40, x2.7 at 60, x7 at 80 for Indonesia
+#                 2000) and the calibration compensated with fast progression to D; a scratch recalibration
+#                 lowered L 2.52 -> 1.50 with all three data components improved, but remained OUTSIDE the
+#                 diagnostic tolerances (prevalence 0.73x, adult deaths 2.7-3.4x).
+#   "no_rhd_only" : the previous rule (only No-RHD pools absorb the residual during the burn-in), kept to
+#                 reproduce engine-v2 results.
+# Observed years, the bridge and production ALWAYS use the No-RHD-only convention (disease stocks never rescaled).
+STRUCT_BURNIN_RECONCILIATION <- "per_capita"
 # Count-scale epsilon inside log() for the structural MSLE terms: ONE case
-# (log(x + 1)), so a near-zero model cell against a small GBD count is penalised
-# strongly but boundedly; cells with GBD count < TARGET_MIN_COUNT are masked.
+# (log(x + 1)); cells with GBD count < TARGET_MIN_COUNT are masked from the cell loss
+# (still reported, and aggregated childhood fit is always shown).
 STRUCT_EPS_COUNT   <- 1
 
-# priors: mortality TIGHT (log-sd), transitions LOOSE (logit-sd) so the objective
-# reconciles GBD deaths by moving the STOCK/progression, not the mortality.
-SIGMA_MORT   <- 0.35                  # log-sd on stage mortalities -> stay near clinical
-SIGMA_TRANS  <- 2.00                  # logit-sd on transitions      -> data-driven stock
-SIGMA_RESID  <- 0.25                  # log-sd on the residual mortality multiplier (all_stage only)
-# PRIOR STRENGTH (transparent): the data terms are MEANS over ~400 target cells
-# while the prior penalties are SUMS over ~20 parameters, so at LAMBDA = 1 a
-# one-sigma move of a single parameter costs as much as a 2.7x misfit of EVERY
-# target cell — the priors, not the data, were setting the age structure (04b
-# exports the prior/data ratio). The MORTALITY prior keeps full strength (it is
-# the provisional column-K evidence on the one D-mortality scale, bounded by
-# MD_LO/MD_HI); the STRUCTURAL priors (transitions, incidence multipliers, adult
-# age multipliers) are down-weighted so the literature RANGES (TRANS_BOUNDS) carry
-# the clinical constraint and the data pick the value within them. 0.05 ~ treats
-# the target grid as ~20 effective independent observations.
-LAMBDA_PRIOR_MORT   <- 1.0
+# priors: logit-sd on the six calibrated Y transitions (literature RANGES in
+# TRANS_BOUNDS carry the clinical constraint; the data pick the value within them).
+SIGMA_TRANS  <- 2.00
+# PRIOR STRENGTH: data terms are MEANS over ~400 target cells while prior penalties
+# are SUMS over the parameters; 0.05 ~ treats the target grid as ~20 effective
+# independent observations (04b exports the prior/data ratio).
 LAMBDA_PRIOR_STRUCT <- 0.05
 
 # --- PREVALENCE-LED JOINT OBJECTIVE (04b) -------------------------------------
-#   L = wP * MSLE(prevalence) + wD * MSLE(RHD deaths) + wI * MSLE(incidence)
+#   L = wP * L_prev + wD * L_death + wI * MSLE(incidence)
 #       + prior penalty + smoothness penalty + optional stage-target error
+#   L_prev  = p * MSLE(prevalence, ages 0-19) + (1 - p) * MSLE(prevalence, ages 20+)
+#   L_death = s * MSLE(deaths, ages 0-19)     + (1 - s) * MSLE(deaths, ages 20+)
+# Each MSLE is a NORMALISED MEAN over its own usable cells, so a larger target grid or
+# very small death cells cannot dominate; raw and weighted components are exported.
 # Prevalence (incl. its age pattern) is the PRINCIPAL target; RHD deaths are fit
-# jointly. The prevalence:death weight RATIO is the primary configurable setting
-# (2.5:1 primary; 2:1 and 3:1 sensitivity). The TOTAL data weight is held fixed
-# across ratio comparisons so prior strength does not change accidentally. These
-# ratios are operational choices for this implementation, not published weights.
-STRUCT_PREV_DEATH_RATIO <- 2.5        # wP / wD  (sensitivity: 2, 3)
-STRUCT_DATA_WEIGHT_TOTAL <- 3.5       # wP + wD  (fixed scale; 2.5:1 -> wP=2.5, wD=1)
+# jointly. Operational choices for this implementation, not published weights.
+STRUCT_PREV_DEATH_RATIO  <- 2.5       # wP / wD
+STRUCT_DATA_WEIGHT_TOTAL <- 3.5       # wP + wD (2.5:1 -> wP = 2.5, wD = 1)
 W_PREV_STRUCT  <- STRUCT_DATA_WEIGHT_TOTAL * STRUCT_PREV_DEATH_RATIO / (1 + STRUCT_PREV_DEATH_RATIO)
 W_DEATH_STRUCT <- STRUCT_DATA_WEIGHT_TOTAL / (1 + STRUCT_PREV_DEATH_RATIO)
-# Direct incidence weight: 0 in the PRIMARY objective (incidence is estimated and
-# REPORTED as a validation output, not fit directly). A weak non-zero value is an
-# explicitly labelled sensitivity analysis.
-W_INC_STRUCT   <- 0
-# Incidence corrections estimated JOINTLY in 04b: one log-multiplier per broad
-# age band (CALIB_AGE_BANDS) x sex on the GBD incidence pattern, with a WEAK prior
-# centred on the GBD pattern (log-sd below) and a 2nd-difference smoothness
-# penalty across bands. Layer-1 alpha is used ONLY as a starting value.
-SIGMA_ALPHA_STRUCT  <- 1.0            # weak log-sd prior on the structural incidence multipliers
-LAMBDA_SMOOTH_STRUCT <- 0.5           # 2nd-difference smoothness across bands (log scale)
-STRUCT_ALPHA_LO <- 0.2; STRUCT_ALPHA_HI <- 5.0   # incidence-multiplier bounds (same as Layer 1)
-# Optional inverse-variance weights from GBD UIs in the STRUCTURAL objective.
-# Default FALSE: GBD UIs are not independent measurement errors across age/year.
-# When TRUE, weights are normalised to mean 1 and capped at STRUCT_IV_WEIGHT_CAP.
-USE_IV_WEIGHTS_STRUCT <- FALSE
+W_INC_STRUCT   <- 0                   # incidence = anchored input + VALIDATION output (not fit directly)
+# Childhood shares p (prevalence) and s (deaths): each component is a normalised mean
+# log-count error over its own usable target cells (04b stops if any has no usable cell).
+STRUCT_PREV_CHILD_SHARE    <- 0.50    # equal weight on prevalence ages 0-19 and 20+ (explicit adult contribution)
+STRUCT_DEATH_CHILD_SHARE   <- 0.50
+STRUCT_DEATH_CHILD_AGE_MAX <- 19L     # childhood component = GBD groups wholly below age 20 (ages 0-19; GBD reporting split)
+# 21+ DIAGNOSTIC (reported, not fitted): isolates the <= 20 / > 20 modelling convention
+# from the 0-19 / 20+ GBD split; target at single age 20 = GBD 20-24 rate x WPP age-20 population.
+STRUCT_DIAG_ADULT_CONVENTION_AGE_MIN <- 21L
+# Incidence corrections estimated JOINTLY: one log-multiplier per broad band
+# (CALIB_AGE_BANDS) x sex on the GBD incidence pattern, weak prior + smoothness.
+SIGMA_ALPHA_STRUCT  <- 1.0
+LAMBDA_SMOOTH_STRUCT <- 0.5
+STRUCT_ALPHA_LO <- 0.2; STRUCT_ALPHA_HI <- 5.0
+USE_IV_WEIGHTS_STRUCT <- FALSE        # GBD UIs are not independent measurement errors across age/year
 STRUCT_IV_WEIGHT_CAP  <- 5
-# Optional documented AGE weights on the prevalence/death targets (named by band
-# label, e.g. c("0-14"=1.5, "15-24"=1.25)); NULL = equal weights. Older ages are
-# never excluded — only re-weighted when a documented reason is supplied here.
-STRUCT_AGE_WEIGHTS <- NULL
-# Target construction basis for Layer 2 (built in 04, consumed by 04b):
-#   "rate_x_pop" (DEFAULT): GBD Rate x WPP population of the SAME age-sex-year cell
-#                 (the model's own denominator; avoids mixing a WPP denominator with
-#                 a GBD count — the two population sources differ by up to 5x at 95+)
-#   "number"    : published GBD Number directly.
-# Both are saved side by side with their ratio (target reconciliation table).
+STRUCT_AGE_WEIGHTS <- NULL            # documented band weights (e.g. c("0-14" = 1.5)); NULL = equal
+# Target basis (built in 04): "rate_x_pop" = GBD Rate x the model's WPP population of
+# the same cell (published GBD Numbers are reported side by side); or "number".
 STRUCT_TARGET_BASIS <- "rate_x_pop"
-# Prevalence OBSERVATION convention vs GBD annual prevalence: "mid" = mean of
-# start-of-year and end-of-year (pre-ageing) stocks (mid-year point prevalence
-# approximation); "start" / "end" alternatives. Deaths/incidence are within-year flows.
-STRUCT_PREV_OBS <- "mid"
-# Prevalence-only preliminary optimisation to supply starting values (then the
-# final fit ALWAYS evaluates prevalence and deaths together).
-STRUCT_PREV_FIRST <- TRUE
-# Fit-status TOLERANCES (|log(model/GBD)| at the last matched year, total): used to
-# LABEL epidemiological fit status (within/outside tolerance), never to certify or
-# fail a run. Configurable, not a universal acceptance threshold.
-STRUCT_FIT_TOL_PREV  <- 0.15          # ~ +/-16%
-STRUCT_FIT_TOL_DEATH <- 0.25          # ~ +/-28%
-# EXPLICIT (never silent) age floor for the RHD-DEATH target cells: GBD age groups
-# whose lower age is below this are MASKED from the deaths loss (still reported as
-# validation). Diagnosed conflict: GBD attributes ~15% of RHD deaths to ages 1-19,
-# which a D-only natural history entered through stage A cannot produce (it would
-# require acute-carditis / rapidly fatal childhood pathways that are NOT modelled
-# — a clinical question, not an automatic new pathway). Including them forces
-# faster progression everywhere and inflates adult deaths 1.4-1.6x (see the
-# labelled all-ages comparison). 20 = PRIMARY (documented observation-definition
-# decision, flagged for clinical review); 0 = all published cells in the loss.
-STRUCT_DEATH_TARGET_AGE_MIN <- 20L
+STRUCT_PREV_OBS <- "mid"              # prevalence observation: mean of start and end (pre-ageing) stock
+STRUCT_PREV_FIRST <- TRUE             # prevalence-only preliminary fit supplies a START only
+# Fit tolerances on |log(model/target)| across EVERY scored year (operational checkpoint
+# criteria, not external validation): prevalence tolerance on all-age and adult (20+)
+# prevalence; death tolerance on all-age, childhood (0-19) and adult (20+) deaths.
+STRUCT_FIT_TOL_PREV  <- 0.15
+STRUCT_FIT_TOL_DEATH <- 0.25
+# Age floor on the RHD-DEATH target cells: 0 = every published cell enters the loss
+# (childhood deaths are no longer excluded).
+STRUCT_DEATH_TARGET_AGE_MIN <- 0L
 
-# bounds (documented plausible ranges)
-MD_LO <- 0.03; MD_HI <- 0.25         # stage-D untreated annual mortality bounds: col-K all-ages
-                                     # values (0.119 / 0.0597) lie inside; Coates's 25% is the upper
-                                     # plausible untreated severe-RHD fatality. NOT widened for the
-                                     # implausible age-stratified col-K values (see block G).
-RESID_MULT_LO <- 0.5; RESID_MULT_HI <- 2.0   # bounded residual mult (all_stage only; bound-hit = FAILURE)
-# Transition-specific bounds (annual probabilities), informed by the ANNUALISED
-# literature ranges in dev/Summary progression rates_Sep26Update.xlsx (Table 2 /
-# "Range TPS, annualized"), widened modestly; replaces the former universal
-# 0.0001-0.60 range. lo/hi per transition:
+# Annual-probability bounds of the calibrated transitions (literature ranges, widened
+# modestly). D->C is a fixed structural zero and never enters a transform or the optimiser.
 TRANS_BOUNDS <- list(
-  p_A_to_no_rhd = c(0.005, 0.60),   # lit 0.007-0.588 (children; see remission_adult_mult)
-  p_A_to_B      = c(0.001, 0.25),   # lit 0.0015-0.21
-  p_B_to_A      = c(0.002, 0.40),   # lit 0.004-0.20
-  p_B_to_C      = c(0.001, 0.20),   # lit 0.001-0.125
-  p_C_to_B      = c(0.001, 0.15),   # lit 0.012-0.081
-  p_C_to_D      = c(0.001, 0.30),   # lit 0.006-0.25
-  p_D_to_C      = c(0.000, 0.10))   # lit 0.004-0.071 (fixed at prior unless calibrate_p_D_to_C)
+  p_A_to_no_rhd = c(0.005, 0.60),
+  p_A_to_B      = c(0.001, 0.25),
+  p_B_to_A      = c(0.002, 0.40),
+  p_B_to_C      = c(0.001, 0.20),
+  p_C_to_B      = c(0.001, 0.15),
+  p_C_to_D      = c(0.001, 0.30),
+  p_D_to_C      = c(0, 0))
 
-STRUCT_N_STARTS      <- 2L           # reproducible multi-starts (+ prior-center + Layer-1 starts)
-STRUCT_NEAROPT_DELTA <- 0.05         # near-optimal set: keep solutions with L <= L_min*(1+delta)
-# Forward-project the calibrated end-of-window state to the ANALYSIS start (bridge
-# years CAL_YEAR_END+1 .. ANALYSIS_YEAR_START-1) with the calibrated incidence x
-# trend (anchored at CAL_YEAR_END), the held background mortality and REFERENCE
-# care, so 05 seeds 06 with a dynamically consistent state (no 2019-shares x 2023-
-# prevalence x 2026-population mix). TRUE = primary; FALSE = legacy seed.
+STRUCT_N_STARTS      <- 2L           # reproducible random starts (+ prior-centre, Layer-1 and prevalence-first starts)
+STRUCT_PARALLEL_STARTS <- TRUE       # compute only: run the independent starts on parallel workers (<= MAX_CORES; identical results)
+STRUCT_NEAROPT_DELTA <- 0.05         # near-optimal set: L <= L_min * (1 + delta)
+# Forward-project the calibrated end-of-window state (all stage, diagnosis, BPG,
+# prior-A, normalised and screening histories) through CAL_YEAR_END+1 ..
+# ANALYSIS_YEAR_START-1 under REFERENCE care; 05 seeds 06 with it (no reseeding).
 STRUCT_BRIDGE_TO_ANALYSIS_START <- TRUE
 
 #===============================================================================
-# H. INTERVENTION EFFECTS  (03) — relative risk reductions
+# H. INTERVENTION EFFECTS  (03)
 #===============================================================================
-# --- SAP MECHANISM (R/abcd_engine.R; 03/04b/05/06) -----------------------------
-# "progression"      (PRIMARY): SAP lowers the HAZARD of the SUPPORTED progression
-#                    pathways; its mortality benefit arises through the stage
-#                    trajectories (less entry into D). NO direct mortality effect.
-# "direct_mortality" (LEGACY comparator, provisional): the former 55% RRR applied
-#                    to every stage's RHD-death probability. Coates 2021's 55% is an
-#                    ARF-recurrence risk ratio (Padmavati 1973; RR 0.45) that Coates
-#                    applied to the non-HF -> HF progression — NOT evidence for a
-#                    uniform direct mortality reduction. Kept for attribution only.
-# A calibration fitted under one mechanism is never consumed under another: 04b
-# applies the selected mechanism + REFERENCE care in the objective (05 checks).
-sap_mechanism <- "progression"
-sap_rrr_rhd_death <- 0.55   # [LEGACY/PROVISIONAL] used ONLY when sap_mechanism == "direct_mortality"
-
-# Pathway-specific SAP effects, HAZARD-RATIO scale (sap_effect_scale). Applied as
-# h_ij(c) = h_ij(0) x [1 - c (1 - HR_ij)], c = effective protection.
+# SAP acts through PROGRESSION hazards only, for confirmed SAP-ELIGIBLE people on BPG
+# (block I): h = h(0) x [1 - adh x (1 - HR)], adh = good + rel x partial adherence.
+# Screening alone has no treatment or mortality effect. No direct mortality effect.
+sap_mechanism    <- "progression"     # the implemented default (03 rejects anything else)
 sap_effect_scale <- "hazard_ratio"
-# A->B and B->C: GOAL trial (Uganda, children 5-17 with latent RHD, 24-month
-# follow-up; control vs prophylaxis arm, near-perfect adherence) as curated in
-# dev/Summary progression rates_Sep26Update.xlsx, Table 1 columns I (control) and J
-# (trial arm): A->B 0.075 vs 0.003; B->C 0.119 vs 0.025 (2-year risks). Converted to
-# a hazard ratio over the common follow-up: HR = log(1-p_sap)/log(1-p_ctrl).
-# PROVISIONAL stage mapping: GOAL "borderline" ~ WHF stage A, "mild definite" ~ B.
-# [TODO: confirm against Beaton et al. 2022 supplement; not in library/references.bib]
+# Child HRs from the GOAL trial (Uganda, children 5-17 with latent RHD, 24-month
+# follow-up; control vs prophylaxis 2-year risks): A->B 0.075 vs 0.003; B->C 0.119 vs
+# 0.025 -> HR = log(1 - p_sap) / log(1 - p_ctrl) (a hazard ratio; NOT annualised again).
+# PROVISIONAL stage mapping (borderline ~ A, mild definite ~ B). Explicit conservative
+# choices for this default: the child trial effect is NOT extrapolated to adults.
 goal_ctrl_A_to_B <- 0.075; goal_sap_A_to_B <- 0.003
 goal_ctrl_B_to_C <- 0.119; goal_sap_B_to_C <- 0.025
 hr_from_arm_risks <- function(p_sap, p_ctrl) log1p(-p_sap) / log1p(-p_ctrl)
-sap_hr_A_to_B <- hr_from_arm_risks(goal_sap_A_to_B, goal_ctrl_A_to_B)   # ~0.039
-sap_hr_B_to_C <- hr_from_arm_risks(goal_sap_B_to_C, goal_ctrl_B_to_C)   # ~0.20
-# C->D: NO pathway-specific trial evidence. Coates 2021 (appendix Table 6, 2b)
-# ASSUMED the ARF-recurrence RR 0.45 (55% reduction) for "RHD without HF -> RHD
-# with HF", which maps most closely to C->D here. PROVISIONAL assumption, kept with
-# its actual source; set to 1 for the no-C->D-effect sensitivity.
-sap_hr_C_to_D <- 0.45   # [Coates2021 assumption, provisional]
-
-# Annual population-average ADHERENCE modifier (default 1 = no additional
-# attenuation of the chosen effect; it does NOT mean 100% treatment coverage).
-# Effective protection c = effective treatment coverage x adherence. It is a
-# RELATIVE scenario attenuation on top of the cascade's "optimal treatment"
-# coverage (which is interpreted as effective, adherent treatment), so 1 preserves
-# the unattenuated effect. Country-specific values / trajectories may be set per
-# arm (baseline -> target over the ramp) when evidence exists; none is invented here.
-sap_adherence_ref_baseline <- 1.0; sap_adherence_ref_target <- 1.0
-sap_adherence_up_baseline  <- 1.0; sap_adherence_up_target  <- 1.0
-# Baseline-care interpretation: calibrated transitions/mortality are UNTREATED
-# natural-history parameters; REFERENCE care (treatment_base x adherence, surgery
-# cov_surgery_ref) is applied inside the engine in BOTH calibration and projection
-# (applied once; no renormalisation).
+sap_hr_A_to_B_child <- hr_from_arm_risks(goal_sap_A_to_B, goal_ctrl_A_to_B)   # ~0.03853835 (age <= 20)
+sap_hr_B_to_C_child <- hr_from_arm_risks(goal_sap_B_to_C, goal_ctrl_B_to_C)   # ~0.19982855 (age <= 20)
+sap_hr_B_to_C_adult <- 1              # age > 20: adult B on BPG has programme cost but NO quantified progression benefit
+sap_hr_prior_A_to_B_adult <- 1        # adult prior-A: not SAP-eligible
+sap_hr_C_to_D <- 1                    # C is not SAP-eligible in this simplified default
+sap_hr_D_to_rhd_death <- 1            # no direct SAP mortality benefit (03 enforces 1)
+# Calibrated transitions are UNTREATED natural history; reference care (block I) is
+# applied inside the engine in calibration, bridge and projection (applied once).
 baseline_care_interpretation <- "untreated_parameters_reference_care_applied_in_engine"
 
-# Surgery effects (applied to C and D only; parameterised separately so either
-# can be set to 0). Scaled in the engine by effective surgery reach = fraction
-# requiring surgery x surgery coverage.
+# Surgery effects (C and D only), scaled by surgery reach = fraction requiring x coverage.
 eff_surgery_C_to_D        <- 0.85  # [LIT]/[CALIBRATE] surgery RRR on C -> D progression
 eff_surgery_D_to_rhd_death <- 0.85 # [LIT]/[CALIBRATE] surgery RRR on D -> RHD death
 
 #===============================================================================
-# I. CARE CASCADE + SURGERY SERVICE  (03/05)
-#    Three cascade metrics (screening / diagnosis / optimal treatment). Reference
-#    holds baselines flat; scale-up ramps each linearly from the ramp_start
-#    baseline to the ramp_end target (held at target through the end of the
-#    analysis horizon). Denominators differ and are kept separate:
-#      screening  = programme REACH: share of the scheduled annual encounters
-#                   delivered (encounter volumes: screen_schedule below);
-#      treatment  = c_SAP: share of ALL living prevalent RHD (any age) on SAP;
-#                   SAP continues between screenings and after people age out of
-#                   the screening windows; clinical diagnosis outside screening is
-#                   subsumed in this provisional coverage (no separate pathway).
-#    05 keeps effective diagnosis/treatment <= screening reach (pmin). That is a
-#    SIMPLIFYING programme-reach / cumulative-coverage CEILING (it preserves the
-#    calibrated reference care), not a mechanistic screening-only route to
-#    treatment and not a measured care cascade.
-#    [TODO: confirm for Uganda] the BASELINE cascade coverages and the surgery
-#    requirement/coverage fractions below are health-system-specific and were set
-#    for Indonesia; Uganda's baseline coverage and cardiac-surgery capacity likely
-#    differ. Targets (0.80/0.65) are policy-scenario assumptions held common.
+# I. SCREENING, CONFIRMATION, CARE + SURGERY SERVICE  (03/05)
+#    ONE echo screen per person across ages 5-39 inclusive among people WITHOUT a
+#    prior confirmed diagnosis (never-screened history tracked by the engine). True
+#    screen positives -> confirmatory echo -> FIRST CONFIRMED DIAGNOSIS (entry into
+#    the diagnosed / care cohort, any stage A-D). Screening detects existing disease;
+#    confirmation failure leaves disease undiagnosed. Clinical detection (confirmed
+#    clinical diagnosis) continues at all ages. BPG for confirmed SAP-ELIGIBLE people
+#    (A at age <= 20, B); C/D and adult prior-A have no SAP programme volume.
+#    Per arm: baseline -> target, reference held flat, scale-up ramped linearly over
+#    ramp_start..ramp_end (block D) and held after. Historical initialisation,
+#    calibration and the bridge use the REFERENCE values throughout.
+#    Screening target c = probability of one screen across the window; annual
+#    probability among never-screened q = 1 - (1 - c)^(1/35), derived from the CURRENT
+#    year's target during the ramp (cumulative realised cohort reach during a changing
+#    ramp need not equal the current target).
+#    Uganda: baseline screening/diagnosed/on-BPG values retain the previous Uganda-
+#    specific cascade inputs; every other care value is a shared [ASSUMPTION].
 #===============================================================================
-# screen_base    <- 0.05   # [PAPER] 2026 baseline screened
-# diagnosis_base <- 0.05   # [PAPER] 2026 baseline diagnosed
-# treatment_base <- 0.04   # [PAPER] 2026 baseline on optimal treatment
-# 
-# screen_target    <- 0.80 # [PAPER] 2050 screening target
-# diagnosis_target <- 0.80 # [PAPER] 2050 diagnosis target
-# treatment_target <- 0.65 # [PAPER] 2050 optimal-treatment target
-# 
-# # SURGERY as a clinical service (NOT a health state). A fixed fraction of the
-# # prevalent C / D stock requires surgery each cycle; surgery coverage is the
-# # share actually delivered. Held equal in both arms (tertiary care fixed) so
-# # surgery is a background cost, not a driver of incremental program cost.
-# frac_C_requiring_surgery <- 0.03  # [CALIBRATE] share of stage C needing surgery /yr
-# frac_D_requiring_surgery <- 0.20  # [CALIBRATE] share of stage D needing surgery /yr
-# cov_surgery_ref      <- 0.05      # [CALIBRATE] surgery coverage, reference arm
-# cov_surgery_scale_up <- 0.05      # [CALIBRATE] surgery coverage, scale-up arm
-# 
-# # Optional school-age-only screening mask (RETIRED from the primary spec:
-# # screening cost now applies to the TOTAL population screened). Kept OFF by
-# # default for a sensitivity analysis only.
-# screen_age_restrict <- FALSE      # [CALIBRATE] TRUE => restrict screening to [lo,hi]
-# screen_age_lo       <- 5L         # [LIT] school-based echo screening window (low)
-# screen_age_hi       <- 15L        # [LIT] school-based echo screening window (high)
+screen_age_lo <- 5L; screen_age_hi <- 39L        # one screen across ages 5-39 inclusive (35 years)
+screen_sensitivity  <- 0.90                      # [PROVISIONAL] screening sensitivity (true positives among screened disease)
+confirm_completion  <- 0.90                      # [PROVISIONAL, new] confirmatory echo completed among true screen positives
+confirm_sensitivity <- 1.00                      # [SIMPLIFYING] confirmation sensitivity
+screen_specificity  <- 1                         # [SIMPLIFYING, declared] perfect specificity: no false positives modelled
+#   No confirmation unit cost exists in block J: confirmation is UNCOSTED (flagged in 08).
+sap_eligibility <- c("A", "B")                   # confirmed A (age <= 20) and B; the engine implements exactly this
+partial_adherence_relative_protection <- 0.50    # relative protection under partial adherence
+# baseline / target per arm: c(baseline, target)
+screen_base_c <- switch(COUNTRY, Indonesia = 0.05, Uganda = 0.01)   # Uganda: previous country-specific screen_base
+care_inputs <- list(
+  screen_window_prob = list(ref = c(screen_base_c, screen_base_c), up = c(screen_base_c, 0.80)),
+  clinical_detection = list(ref = c(0.02, 0.02), up = c(0.02, 0.02)),   # annual confirmed clinical diagnosis, among undiagnosed
+  bpg_initiation     = list(ref = c(0.50, 0.50), up = c(0.50, 0.90)),   # among diagnosed untreated
+  bpg_retention      = list(ref = c(0.90, 0.90), up = c(0.90, 0.95)),   # annual
+  adherence_good     = list(ref = c(0.60, 0.60), up = c(0.60, 0.85)),   # share of those on BPG
+  adherence_partial  = list(ref = c(0.20, 0.20), up = c(0.20, 0.10)))   # share of those on BPG
+# Provisional initial care state, set ONCE at the first observed-history year
+# (CAL_YEAR_START) and carried forward (never reset in 2026); also the static
+# pre-history care labels held during the burn-in. Diagnosed share applies to every
+# stage stock; the on-BPG share is allocated to the SAP-ELIGIBLE stage stocks only
+# (A at age <= 20, B), so the realised on-BPG share of all classifiable disease is lower.
+care_init_diagnosed_share     <- switch(COUNTRY, Indonesia = 0.05, Uganda = 0.009)   # Uganda: previous diagnosis_base
+care_init_on_bpg_share        <- switch(COUNTRY, Indonesia = 0.04, Uganda = 0.0075)  # Uganda: previous treatment_base
+care_init_ever_screened_share <- 0
 
-screen_base <- switch(COUNTRY,
-                      Indonesia = 0.05,
-                      Uganda    = 0.01)
-diagnosis_base <- switch(COUNTRY,
-                         Indonesia = 0.05,
-                         Uganda    = 0.009)
-treatment_base <- switch(COUNTRY,
-                         Indonesia = 0.04,
-                         Uganda    = 0.0075)
-
-screen_target <- switch(COUNTRY,
-                        Indonesia = 0.80,
-                        Uganda    = 0.80)
-diagnosis_target <- switch(COUNTRY,
-                           Indonesia = 0.80,
-                           Uganda    = 0.80)
-treatment_target <- switch(COUNTRY,
-                           Indonesia = 0.65,
-                           Uganda    = 0.65)
-
+# SURGERY as a clinical service (NOT a health state), held equal in both arms.
 frac_C_requiring_surgery <- switch(COUNTRY,
                                    Indonesia = 0.03,
                                    Uganda    = 0.1)
@@ -651,28 +491,6 @@ cov_surgery_ref <- switch(COUNTRY,
 cov_surgery_scale_up <- switch(COUNTRY,
                                Indonesia = 0.05,
                                Uganda    = 0.03)
-
-# SCREENING SCHEDULE -> ANNUAL SCREENING ENCOUNTERS (03 -> 05 -> 06; costed ONCE in 08).
-# Scenario: echo screening of children/adolescents aged 5-19 (2 screens across the
-# window) and adults aged 20-39 (1 screen across the window), both sexes. Windows are
-# INCLUSIVE; 03 derives each per-person ANNUAL encounter multiplier as
-#     n_screens / (age_hi - age_lo + 1)   ->  2/15 (ages 5-19), 1/20 = 0.05 (ages 20-39)
-# so  N_screen,t = c_screen,t x [(2/15) P_5-19,t + (1/20) P_20-39,t]  and ages outside
-# the windows (< 5, > 39) generate NO encounters. These are EXPECTED annual volumes of
-# a programme spread evenly across each window (possibly fractional), not individual
-# screening histories or unique people ever screened. screen_base/screen_target is the
-# share of these scheduled encounters delivered (programme reach); the encounter
-# multipliers never touch SAP coverage, treatment volumes or health effects.
-# Evidence: the WHO 2024 RF/RHD guideline supports population echo screening at ages
-# 5-19 in populations with moderate/high RHD prevalence
-# (https://www.ncbi.nlm.nih.gov/books/NBK609692/). The ADULT window and BOTH screening
-# frequencies are SCENARIO ASSUMPTIONS, not WHO-prescribed schedules.
-# Replaces the retired whole-population annual screening default and the retired
-# school-age mask (screen_age_restrict / screen_age_lo / screen_age_hi); 03 stops if
-# screen_age_restrict = TRUE is still set, so the old mask can never override this.
-screen_schedule <- list(
-  children_adolescents = list(age_lo = 5L,  age_hi = 19L, n_screens = 2),  # [WHO 2024 window; frequency ASSUMPTION]
-  adults               = list(age_lo = 20L, age_hi = 39L, n_screens = 1))  # [ASSUMPTION] window and frequency
 
 #===============================================================================
 # J. ECONOMIC PARAMETERS  (08 ONLY) — the only monetary values in the pipeline
@@ -766,7 +584,13 @@ MAX_CORES     <- 14L             # cap on worker cores (04 and 06)
 
 #===============================================================================
 # L. RUN THE PIPELINE  (01 -> 08, in order; each reads the prior persisted output)
+#    PIPELINE_RUN_THROUGH = last script sourced: "04b" stops after the structural
+#    calibration (checkpoint stage: 05-08 are NOT run); "08" runs the full pipeline.
+#    Set to "08" on 5 Nov 2026 by explicit user override although the epidemiological
+#    fit checkpoint FAILED: outputs are PRELIMINARY (05 labels the baseline INADEQUATE).
 #===============================================================================
+PIPELINE_RUN_THROUGH <- "08"
+stopifnot("PIPELINE_RUN_THROUGH must be '04b' or '08'" = PIPELINE_RUN_THROUGH %in% c("04b", "08"))
 setwd(wd_code)   # scripts use absolute wd_* globals for I/O and here() for R/packages.R
 
 source(paste0(wd_code, "01_prepare_inputs.R"))        # GBD inputs
@@ -774,10 +598,11 @@ source(paste0(wd_code, "02_build_demography.R"))      # WPP2024 population backb
 source(paste0(wd_code, "03_build_disease_model.R"))   # disease-model INPUTS (builder)
 source(paste0(wd_code, "04_calibration_random_tp.R")) # Layer 1: calibrate IR + CF anchor (2000-2019)
 source(paste0(wd_code, "04b_calibrate_structural.R")) # Layer 2: structural A/B/C/D stage calibration
-source(paste0(wd_code, "05_build_baseline.R"))        # assemble initial state (uses 04b stage params)
-source(paste0(wd_code, "06_run_prevention_model.R"))  # run ref + SAP (parallel by location)
-source(paste0(wd_code, "07_make_outputs.R"))          # standard long table
-source(paste0(wd_code, "08_economic_evaluation.R"))   # benefit-cost & cost-effectiveness
-
-message("\n================ PIPELINE COMPLETE (01 -> 08) ================")
+if (PIPELINE_RUN_THROUGH == "08") {
+  source(paste0(wd_code, "05_build_baseline.R"))        # assemble initial state (uses 04b stage params)
+  source(paste0(wd_code, "06_run_prevention_model.R"))  # run ref + SAP (parallel by location)
+  source(paste0(wd_code, "07_make_outputs.R"))          # standard long table
+  source(paste0(wd_code, "08_economic_evaluation.R"))   # benefit-cost & cost-effectiveness
+  message("\n================ PIPELINE COMPLETE (01 -> 08) ================")
+} else message("\n================ PIPELINE STOPPED AFTER 04b (PIPELINE_RUN_THROUGH = '04b'; 05-08 not run) ================")
 

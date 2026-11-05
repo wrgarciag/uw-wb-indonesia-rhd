@@ -663,8 +663,9 @@ fwrite(calibration_targets_stage_template, STAGE_TMPL)
 
 stage_params_uncalibrated <- if (file.exists(DISEASE_INPUTS_FILE)) {
   dmi_ <- readRDS(DISEASE_INPUTS_FILE)
-  list(transitions = dmi_$transitions, p_rhd_death = dmi_$p_rhd_death,
-       stage_split = dmi_$stage_split, rhd_d_fraction = dmi_$meta$rhd_d_fraction)
+  list(transitions = dmi_$transitions, natural_history = dmi_$natural_history,
+       p_rhd_death = dmi_$p_rhd_death, p_rhd_death_pathway = dmi_$p_rhd_death_pathway,
+       engine_spec = dmi_$meta$engine_spec)
 } else NULL
 
 stage_target_file <- STAGE_TARGET_CANDIDATES[file.exists(STAGE_TARGET_CANDIDATES)][1]
@@ -806,8 +807,8 @@ stage_calibration <- list(
   stage_targets_n_detected = stage_targets_n_detected,
   stage_targets_n_usable   = stage_targets_n_usable,
   stage_targets_validation = stage_targets_validation_note,
-  calibratable_params = c("p_A_to_B","p_B_to_C","p_C_to_D","p_A_to_no_rhd",
-                          "p_B_to_A","p_C_to_B","rhd_d_fraction", "incidence_alpha_band_sex"),
+  calibratable_params = c("p_A_to_no_rhd","p_A_to_B","p_B_to_A","p_B_to_C","p_C_to_B","p_C_to_D",
+                          "incidence_alpha_band_sex"),   # Y-pathway transitions + incidence (04b); all else fixed
   stage_params = stage_params_uncalibrated,
   loss_note = "Weighted squared-log-error on stage prevalence; Stage-2 in 04b."
 )
@@ -854,7 +855,11 @@ calibrated_rhd_parameters <- list(
     incidence_mode = INCIDENCE_CALIBRATION_MODE, optimizer = CALIB_OPTIMIZER,
     age_lo = AGE_LO, age_hi = AGE_HI,
     layer2_target_basis = STRUCT_TARGET_BASIS,
-    tp_role = "Layer-1 aggregate proxy (IR = IR_GBD x alpha_L1 per TOTAL population; CF = aggregate case-fatality anchor, DIAGNOSTIC/legacy only); 04b persists the FINAL incidence",
+    tp_role = paste("Layer-1 aggregate PROXY: IR = IR_GBD x alpha_L1 per TOTAL population (the proxy's own",
+                    "well-sick-dead projection maps it to its sick-free pool by 1 - prev_GBD; that proxy",
+                    "conversion is NOT used by the engine); CF = aggregate case-fatality, DIAGNOSTIC/legacy only",
+                    "(never overrides the fixed D-only mortality). 04b persists the FINAL incidence per total",
+                    "population; the engine converts it to a first-onset probability per NEVER-ONSET susceptible."),
     tp_schema = tps_input_cols,
     built_from = c("temp_baseline_rates_gbd.rds", "pop_observed.rds",
                    basename(DISEASE_INPUTS_FILE)))

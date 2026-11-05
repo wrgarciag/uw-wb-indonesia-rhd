@@ -1,0 +1,9 @@
+age_at_diagnosis,stage,first_dx,model_share,benchmark_share,note
+<=20,A,14310.1933258516,0.496133733670566,0.5,benchmark = PROVISIONAL diagnosis-composition reference (not a fit term or national stage target)
+<=20,B,12866.5820010184,0.446083796520887,0.3,benchmark = PROVISIONAL diagnosis-composition reference (not a fit term or national stage target)
+<=20,C,900.011813679129,0.0312033675087804,0.15,benchmark = PROVISIONAL diagnosis-composition reference (not a fit term or national stage target)
+<=20,D,766.632193145313,0.026579102299766,0.05,benchmark = PROVISIONAL diagnosis-composition reference (not a fit term or national stage target)
+>20,A,0,0,0,benchmark = PROVISIONAL diagnosis-composition reference (not a fit term or national stage target)
+>20,B,112205.187394091,0.748244465303691,0.6,benchmark = PROVISIONAL diagnosis-composition reference (not a fit term or national stage target)
+>20,C,12428.7864237514,0.0828818245216295,0.3,benchmark = PROVISIONAL diagnosis-composition reference (not a fit term or national stage target)
+>20,D,25323.951161329,0.16887371017468,0.1,benchmark = PROVISIONAL diagnosis-composition reference (not a fit term or national stage target)

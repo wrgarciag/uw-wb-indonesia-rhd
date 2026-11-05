@@ -1,24 +1,40 @@
-parameter,value
-p_A_to_no_rhd,0.122186647618821
-p_A_to_B,0.00361251823219261
-p_B_to_A,0.0122639488607331
-p_B_to_C,0.0805122898316873
-p_C_to_B,0.00430379114712417
-p_C_to_D,0.112027895392744
-p_D_to_C,0
-A,0
-B,0
-C,0
-D,0.0598021961481414
-rhd_d_fraction,0.00910173247284536
-residual_mult,1
-alpha[0-14|Female],0.829588977401189
-alpha[15-24|Female],0.99589145998437
-alpha[25-44|Female],1.13209067469448
-alpha[45-64|Female],1.20857967125818
-alpha[65+|Female],1.26101832468231
-alpha[0-14|Male],0.722505004525185
-alpha[15-24|Male],0.914450285603294
-alpha[25-44|Male],1.09307952764931
-alpha[45-64|Male],1.2175014214225
-alpha[65+|Male],1.31905248836789
+parameter,role,value
+p_A_to_no_rhd,calibrated,0.348053410133734
+p_A_to_B,calibrated,0.25
+p_B_to_A,calibrated,0.159101667129617
+p_B_to_C,calibrated,0.00379600003670273
+p_C_to_B,calibrated,0.0459341660860076
+p_C_to_D,calibrated,0.228558234514702
+alpha[0-14|Female],calibrated,0.775997312271611
+alpha[15-24|Female],calibrated,0.592020924073607
+alpha[25-44|Female],calibrated,0.510472559092571
+alpha[45-64|Female],calibrated,0.542965525007927
+alpha[65-79|Female],calibrated,0.637221641192927
+alpha[80+|Female],calibrated,0.767890732209489
+alpha[0-14|Male],calibrated,0.73401557948084
+alpha[15-24|Male],calibrated,0.539870001943782
+alpha[25-44|Male],calibrated,0.457701356836967
+alpha[45-64|Male],calibrated,0.493795430004762
+alpha[65-79|Male],calibrated,0.59601757818749
+alpha[80+|Male],calibrated,0.741380940492245
+child_last_age (modelling convention),fixed,20
+p_D_to_C,fixed (structural zero),0
+p_rhd_death_A/B/C,fixed (structural zeros),0
+p_rhd_death_D (all histories),fixed,0.0597
+late-entry D-death multiplier (removed),fixed at 1,1
+late-onset / adult progression multiplier (removed),fixed at 1,1
+residual_rhd_mortality_mult,fixed,1
+p_B_to_no_rhd_adult,fixed,0.02
+entry_mix_child[A],fixed (new simplifying assumption),1
+entry_mix_child[B],fixed (new simplifying assumption),0
+entry_mix_child[C],fixed (new simplifying assumption),0
+entry_mix_child[D],fixed (new simplifying assumption),0
+entry_mix_adult[A],fixed (new simplifying assumption),0
+entry_mix_adult[B],fixed (new simplifying assumption),1
+entry_mix_adult[C],fixed (new simplifying assumption),0
+entry_mix_adult[D],fixed (new simplifying assumption),0
+sap_hr_A_to_B_child,fixed (applied in reference care),0.0385383480580098
+sap_hr_B_to_C_child,fixed (applied in reference care),0.19982854753518
+sap_hr_B_to_C_adult,fixed (applied in reference care),1
+sap_hr_C_to_D,fixed (applied in reference care),1
+sap_hr_D_to_rhd_death,fixed (applied in reference care),1

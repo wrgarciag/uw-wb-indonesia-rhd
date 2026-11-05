@@ -1,11 +1,13 @@
 location,sex,cause,band,band_lo,alpha,beta
-Uganda,Female,Rheumatic heart disease,0-14,0,0.91568205224736,0.973255562904121
-Uganda,Female,Rheumatic heart disease,15-24,15,0.94851879470654,0.977472261073053
-Uganda,Female,Rheumatic heart disease,25-44,25,0.964367160597026,0.966468209269281
-Uganda,Female,Rheumatic heart disease,45-64,45,0.984738357734623,0.955879126197269
-Uganda,Female,Rheumatic heart disease,65+,65,1.00199091456438,0.960520556887455
-Uganda,Male,Rheumatic heart disease,0-14,0,0.914756435768733,0.971764653749186
-Uganda,Male,Rheumatic heart disease,15-24,15,0.940539935165584,0.972466606001154
-Uganda,Male,Rheumatic heart disease,25-44,25,0.955963053300476,0.96405877656322
-Uganda,Male,Rheumatic heart disease,45-64,45,0.981565313097364,0.962880530268805
-Uganda,Male,Rheumatic heart disease,65+,65,1.00282210249524,0.978708475256278
+Uganda,Female,Rheumatic heart disease,0-14,0,0.908460172953418,0.986225020790321
+Uganda,Female,Rheumatic heart disease,15-24,15,0.939443215586102,0.98853064674512
+Uganda,Female,Rheumatic heart disease,25-44,25,0.953739093830453,0.983836445556275
+Uganda,Female,Rheumatic heart disease,45-64,45,0.97853024154653,0.981005955406841
+Uganda,Female,Rheumatic heart disease,65-79,65,0.995550770304884,0.983878078090485
+Uganda,Female,Rheumatic heart disease,80+,80,1.00461749364357,0.969130893971305
+Uganda,Male,Rheumatic heart disease,0-14,0,0.912441704012526,0.985402928237701
+Uganda,Male,Rheumatic heart disease,15-24,15,0.933301566738683,0.985930327030377
+Uganda,Male,Rheumatic heart disease,25-44,25,0.945835616758232,0.982146347182429
+Uganda,Male,Rheumatic heart disease,45-64,45,0.975151659870793,0.982644639587658
+Uganda,Male,Rheumatic heart disease,65-79,65,0.994984558974965,0.989731000130675
+Uganda,Male,Rheumatic heart disease,80+,80,1.00545745156168,0.987137565202402

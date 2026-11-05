@@ -1,0 +1,181 @@
+quantity,year,ratio,abs_log_ratio,tol,role,within
+"prevalence, all ages",2000,0.866290387044785,0.143535106713713,0.15,checkpoint,TRUE
+"prevalence, all ages",2001,0.867070028649832,0.142635534241002,0.15,checkpoint,TRUE
+"prevalence, all ages",2002,0.867654858285552,0.141961272100323,0.15,checkpoint,TRUE
+"prevalence, all ages",2003,0.868028328520658,0.14153092830981,0.15,checkpoint,TRUE
+"prevalence, all ages",2004,0.868464887149947,0.141028123421721,0.15,checkpoint,TRUE
+"prevalence, all ages",2005,0.868480621334316,0.141010006348627,0.15,checkpoint,TRUE
+"prevalence, all ages",2006,0.868854357916961,0.140579765096509,0.15,checkpoint,TRUE
+"prevalence, all ages",2007,0.868904720426268,0.14052180250555,0.15,checkpoint,TRUE
+"prevalence, all ages",2008,0.868531411415651,0.140951526521899,0.15,checkpoint,TRUE
+"prevalence, all ages",2009,0.867862723677311,0.141721729274699,0.15,checkpoint,TRUE
+"prevalence, all ages",2010,0.867260464354368,0.142415927071469,0.15,checkpoint,TRUE
+"prevalence, all ages",2011,0.866848905758627,0.142890589870208,0.15,checkpoint,TRUE
+"prevalence, all ages",2012,0.866614571557269,0.143160955188949,0.15,checkpoint,TRUE
+"prevalence, all ages",2013,0.86627540961865,0.143552396015123,0.15,checkpoint,TRUE
+"prevalence, all ages",2014,0.86558579230461,0.144348784720779,0.15,checkpoint,TRUE
+"prevalence, all ages",2015,0.864261759279945,0.145879593932275,0.15,checkpoint,TRUE
+"prevalence, all ages",2016,0.862426006007503,0.148005923893035,0.15,checkpoint,TRUE
+"prevalence, all ages",2017,0.860486812071832,0.150256989337779,0.15,checkpoint,FALSE
+"prevalence, all ages",2018,0.858585365575831,0.152469167856118,0.15,checkpoint,FALSE
+"prevalence, all ages",2019,0.856741468356111,0.15461907642569,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2000,0.835015697555583,0.180304754840225,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2001,0.836460259623692,0.178576267605263,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2002,0.837768414280826,0.177013571966687,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2003,0.838911650486743,0.175649881412826,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2004,0.840058522884306,0.174283719471262,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2005,0.840620906768555,0.173614485475395,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2006,0.841478562079778,0.172594741516815,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2007,0.842033874044736,0.171935035092103,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2008,0.842054883323484,0.171910084769672,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2009,0.841743599420786,0.172279824865573,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2010,0.84148756310708,0.172584044893553,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2011,0.841425386042477,0.172657937087042,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2012,0.841574622902779,0.172480590848302,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2013,0.841502520870548,0.172566269668837,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2014,0.840897985122286,0.173284928242854,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2015,0.839543270514517,0.174897260595089,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2016,0.837598507956043,0.177216400759724,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2017,0.835505463791738,0.179718391420809,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2018,0.833414971251849,0.182223596090043,0.15,checkpoint,FALSE
+"prevalence, ages 20+",2019,0.831418967560168,0.184621438423152,0.15,checkpoint,FALSE
+"RHD deaths, all ages",2000,2.4139528431894,0.881265587765975,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2001,2.47913120957846,0.907908180082591,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2002,2.53157060780044,0.928839903723807,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2003,2.55889034158989,0.939573704203942,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2004,2.44547757891686,0.894240432653,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2005,2.60234608316496,0.956413377842554,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2006,2.63527968812787,0.968989319862542,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2007,2.6663447281308,0.98070851877269,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2008,2.7417273777038,1.00858815158149,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2009,2.82473196589881,1.03841348076922,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2010,2.91196689731527,1.06882876258963,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2011,3.01673133757549,1.10417390668427,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2012,3.10706707568868,1.13367921874843,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2013,3.23821507685361,1.17502227579619,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2014,3.36491944352753,1.2134040232938,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2015,3.45390500225701,1.23950547565691,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2016,3.56543164737162,1.27128512574339,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2017,3.67980421697918,1.30285954885774,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2018,3.78071986648538,1.32991443236908,0.25,checkpoint,FALSE
+"RHD deaths, all ages",2019,3.89647042873338,1.36007112508582,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2000,0.301106233833632,1.20029214017628,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2001,0.300949102031755,1.20081412477166,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2002,0.303693661627096,1.19173577765499,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2003,0.304428428868791,1.18931926422541,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2004,0.301859262146835,1.19779438960939,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2005,0.309051334286963,1.174247885504,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2006,0.3152606782275,1.15435543245858,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2007,0.319830860295191,1.13996298450381,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2008,0.329618440822262,1.10981953341525,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2009,0.34281715039238,1.07055806319383,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2010,0.356224702771411,1.03219355968505,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2011,0.371631691228248,0.989851992502732,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2012,0.381246856703863,0.964308195805683,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2013,0.397733229955558,0.92197377492699,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2014,0.414631509694708,0.880365081639897,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2015,0.427962829125964,0.848718935008364,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2016,0.445327638738197,0.808945000899941,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2017,0.466345075504329,0.762829413521224,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2018,0.48175879721059,0.730311710908693,0.25,checkpoint,FALSE
+"RHD deaths, ages 0-19",2019,0.502951386753881,0.687261760165546,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2000,3.03398290879733,1.10987624768613,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2001,3.11683756764786,1.13681888766855,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2002,3.16731192610495,1.15288325531929,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2003,3.18122510047089,1.1572663743221,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2004,2.98669000373813,1.09416575203981,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2005,3.18826165596592,1.1594758328316,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2006,3.20495580758348,1.16469830169207,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2007,3.22445145719645,1.17076284498886,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2008,3.29804492081381,1.19332984466739,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2009,3.37646906150611,1.21683050710202,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2010,3.46225184446828,1.24191919947743,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2011,3.57054156688615,1.27271728369424,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2012,3.67071863643745,1.30038745664064,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2013,3.81545119948709,1.33905892759554,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2014,3.9523434892942,1.37430869141594,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2015,4.04169767745003,1.39666482089714,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2016,4.15414588322854,1.42410684357308,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2017,4.2641724728506,1.45024813465026,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2018,4.36706352295214,1.47409082052819,0.25,checkpoint,FALSE
+"RHD deaths, ages 20+",2019,4.48413286226671,1.50054513507128,0.25,checkpoint,FALSE
+"prevalence, ages 0-19",2000,1.07986186619721,0.076833131286759,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2001,1.0812802236537,0.0781457313853834,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2002,1.08202210420007,0.0788316092360184,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2003,1.08198445729051,0.0787968155249173,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2004,1.08195064312286,0.0787655630463638,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2005,1.08196020069419,0.0787743966555312,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2006,1.08192725384189,0.0787439451158863,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2007,1.08098758609961,0.0778750548719949,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2008,1.08059042840211,0.0775075847188866,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2009,1.07983519966186,0.0768084365869596,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2010,1.0787138954618,0.0757694939903265,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2011,1.07727019966636,0.0744302484787496,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2012,1.07516074687369,0.0724701823763587,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2013,1.07384419154448,0.071244912512731,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2014,1.07403346699352,0.0714211566752184,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2015,1.07498999725226,0.0723113566547134,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2016,1.07657873992526,0.0737881795275347,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2017,1.07872977947583,0.0757842188373462,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2018,1.08108720529865,0.0779672063549182,0.15,diagnostic,TRUE
+"prevalence, ages 0-19",2019,1.08260160380613,0.0793670368188891,0.15,diagnostic,TRUE
+"prevalence, ages 21+ (convention diagnostic)",2000,0.839324902654844,0.175157397590232,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2001,0.840727323689588,0.17348790025141,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2002,0.842008801176653,0.171964812090576,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2003,0.84310895506343,0.170659082518848,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2004,0.844168332159805,0.169403358585854,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2005,0.844613381829596,0.168876292622968,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2006,0.845324947801637,0.168034171935348,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2007,0.845762677000778,0.167516482369772,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2008,0.845852336305829,0.167410477984106,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2009,0.845465763319661,0.167867604284576,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2010,0.845060746479318,0.16834676488424,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2011,0.844957174386052,0.168469334109237,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2012,0.845084961902763,0.168318110048949,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2013,0.844975411260094,0.168447751148831,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2014,0.844350973456576,0.169187025498189,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2015,0.842974648237053,0.170818394698146,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2016,0.840971606937416,0.173197380652334,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2017,0.838793688487215,0.175790504437599,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2018,0.836583473298669,0.178428974772715,0.15,diagnostic,FALSE
+"prevalence, ages 21+ (convention diagnostic)",2019,0.834430985078512,0.18100524142307,0.15,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2000,3.08444460680476,1.12637161094082,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2001,3.1721351161227,1.15440489937318,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2002,3.2259579044283,1.17122993077358,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2003,3.24161527517518,1.17607174729434,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2004,3.0401398198966,1.11190350774751,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2005,3.24663844126869,1.17762013529414,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2006,3.26072346248573,1.18194909176569,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2007,3.27842346946751,1.18736265729444,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2008,3.3521872133298,1.20961303229226,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2009,3.42976828271823,1.23249270283701,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2010,3.51484633658665,1.25699580783098,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2011,3.62324344492202,1.28736960394809,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2012,3.72397034306138,1.31479039565093,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2013,3.86952122313206,1.35313078443541,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2014,4.00711617408133,1.38807182401669,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2015,4.09700174944354,1.41025542557063,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2016,4.21035344846336,1.43754659867467,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2017,4.32070719269517,1.46341909087108,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2018,4.42307416930547,1.48683496774977,0.25,diagnostic,FALSE
+"RHD deaths, ages 21+ (convention diagnostic)",2019,4.53916066708512,1.51274211987037,0.25,diagnostic,FALSE
+incidence (validation),2000,1.02163473805057,0.0214040287314687,,validation,
+incidence (validation),2001,1.02082164530744,0.020607837642435,,validation,
+incidence (validation),2002,1.02009993700695,0.0199005999545007,,validation,
+incidence (validation),2003,1.01935959942677,0.0191745864205449,,validation,
+incidence (validation),2004,1.0182995344851,0.0181341130463038,,validation,
+incidence (validation),2005,1.01799681424275,0.0178367886958825,,validation,
+incidence (validation),2006,1.01747291449334,0.0173220183177341,,validation,
+incidence (validation),2007,1.01706755683022,0.0169235424218851,,validation,
+incidence (validation),2008,1.01675940274009,0.0166205136012228,,validation,
+incidence (validation),2009,1.01649138106765,0.016356875021939,,validation,
+incidence (validation),2010,1.01637738330847,0.016244720453673,,validation,
+incidence (validation),2011,1.01651478961758,0.0163799035304243,,validation,
+incidence (validation),2012,1.01692211051367,0.0167805266345997,,validation,
+incidence (validation),2013,1.0175017391599,0.0173503475812114,,validation,
+incidence (validation),2014,1.01814257218379,0.0179799595831621,,validation,
+incidence (validation),2015,1.01865690633515,0.0184850011129856,,validation,
+incidence (validation),2016,1.01895446697792,0.0187770692166291,,validation,
+incidence (validation),2017,1.01915483765985,0.018973693295746,,validation,
+incidence (validation),2018,1.01922198435255,0.0190395758077447,,validation,
+incidence (validation),2019,1.01912507234207,0.0189444869854229,,validation,
