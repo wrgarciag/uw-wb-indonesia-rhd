@@ -1,12 +1,20 @@
-parameter,flatness,status
-p_A_to_no_rhd,0.142857142857143,data-identified
-p_A_to_B,0.142857142857143,data-identified
-p_B_to_A,0.333333333333333,data-identified
-p_B_to_C,0.238095238095238,data-identified
-p_C_to_B,0.428571428571429,data-identified
-p_C_to_D,0.380952380952381,data-identified
-log_mD,0.142857142857143,data-identified
-ratio_C,0,data-identified
-ratio_B,0.0476190476190476,data-identified
-ratio_A,0.0476190476190476,data-identified
-log_resid,0.380952380952381,data-identified
+parameter,flatness,status,note
+p_A_to_no_rhd,0,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+p_A_to_B,0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+p_B_to_A,0.272727272727273,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+p_B_to_C,0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+p_C_to_B,0.545454545454545,prior-dominated,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+p_C_to_D,0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+log_mD,0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+log_adult_prog_mult,0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+log_adult_remission_mult,0,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+alpha[0-14|Female],0.181818181818182,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+alpha[15-24|Female],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+alpha[25-44|Female],0,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+alpha[45-64|Female],0,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+alpha[65+|Female],0.181818181818182,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+alpha[0-14|Male],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+alpha[15-24|Male],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+alpha[25-44|Male],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+alpha[45-64|Male],0,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification
+alpha[65+|Male],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification and not proof of data identification

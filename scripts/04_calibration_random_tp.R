@@ -102,7 +102,13 @@ CAL_YEAR_START <- as.integer(getp("CAL_YEAR_START", 2000))
 CAL_YEAR_END   <- as.integer(getp("CAL_YEAR_END",   2019))
 LOCATION  <- getp("LOCATION", "Indonesia")
 AGE_LO    <- as.integer(getp("AGE_LO", 0L))
-AGE_HI    <- as.integer(getp("AGE_HI", 95L))
+# Internal single-age grid 0-100 (100 = open 100+), the SAME grid as the population
+# backbone (02) and production (05/06). GBD's "95+ years" target is compared with
+# the model AGGREGATED over ages 95-100 (never age 95 alone).
+AGE_HI    <- as.integer(getp("AGE_HI", 100L))
+# Layer-2 target basis (00 block G2): "rate_x_pop" (GBD Rate x WPP population of the
+# same cell; default) or "number" (published GBD Number). Both are persisted.
+STRUCT_TARGET_BASIS <- match.arg(getp("STRUCT_TARGET_BASIS", "rate_x_pop"), c("rate_x_pop", "number"))
 RHD_CAUSE <- "Rheumatic heart disease"
 ALL_CAUSE <- "All causes"
 TP_EPS    <- 0.005                 # buffer kept below 1 when capping IR/CF vs background
@@ -265,10 +271,22 @@ alld_t <- grab_target(ALL_CAUSE, "Deaths",     "gbdAllDeath")   # validation onl
 keyc <- c("location", "sex", "age", "year")
 targets <- Reduce(function(x, y) merge(x, y, by = keyc, all = TRUE),
                   list(inc_t, prev_t, dth_t, alld_t))
-for (cc in c("gbdInc", "gbdPrev", "gbdDeath", "gbdAllDeath"))
+# MISSING observations (cell absent from the GBD extract, e.g. Deaths for "<1 year")
+# are flagged and MASKED from every loss; they are never silently treated as zeros.
+# A published zero (e.g. prevalence 0 at <1 year) stays a genuine zero.
+for (cc in c("gbdInc", "gbdPrev", "gbdDeath", "gbdAllDeath")) {
+  targets[, paste0(cc, "_missing") := is.na(get(cc))]
   targets[is.na(get(cc)), (cc) := 0]
+}
 if (nrow(targets) == 0)
   stop("No GBD calibration targets built -- check ages / years / measures.", call. = FALSE)
+# completeness of the target grid: every (sex, age group, year) cell present per measure
+exp_cells <- length(unique(targets$sex)) * length(age_groups_keep) * (CAL_YEAR_END - CAL_YEAR_START + 1L)
+miss_rep <- targets[, .(present = .N, missing_inc = sum(gbdInc_missing), missing_prev = sum(gbdPrev_missing),
+                        missing_death = sum(gbdDeath_missing)), by = location]
+cat(sprintf("Target grid: %d of %d (sex x age-group x year) cells present | missing cells: incidence %d, prevalence %d, deaths %d (masked, not zero-filled)\n",
+            nrow(targets), exp_cells, miss_rep$missing_inc, miss_rep$missing_prev, miss_rep$missing_death))
+if (anyDuplicated(targets, by = keyc)) stop("Duplicate GBD target keys (location, sex, age, year).", call. = FALSE)
 
 #===============================================================================
 # 4. HAZARD HELPERS + MATRIX PROJECTOR  (aggregate well-sick-dead proxy)
@@ -343,9 +361,13 @@ combo_data <- function(loc, sx) {
   }
   WT <- list(inc = wmat("gbdInc_logvar", TGT$inc), prev = wmat("gbdPrev_logvar", TGT$prev),
              death = wmat("gbdDeath_logvar", TGT$death))
-  # loss mask: keep cells with GBD Number >= TARGET_MIN_COUNT.
-  MSK <- list(inc = TGT$inc >= TARGET_MIN_COUNT, prev = TGT$prev >= TARGET_MIN_COUNT,
-              death = TGT$death >= TARGET_MIN_COUNT)
+  # loss mask: keep OBSERVED cells (not missing) with GBD Number >= TARGET_MIN_COUNT.
+  mmat <- function(col) { m <- matrix(TRUE, G, n_yr)   # TRUE = missing where no row
+    ri <- match(tg$age, grp_present); ci <- match(tg$year, yrs); ok <- !is.na(ri) & !is.na(ci)
+    m[cbind(ri[ok], ci[ok])] <- tg[[col]][ok]; m }
+  MSK <- list(inc   = TGT$inc   >= TARGET_MIN_COUNT & !mmat("gbdInc_missing"),
+              prev  = TGT$prev  >= TARGET_MIN_COUNT & !mmat("gbdPrev_missing"),
+              death = TGT$death >= TARGET_MIN_COUNT & !mmat("gbdDeath_missing"))
 
   list(ages = ages, yrs = yrs, n_age = n_age, n_yr = n_yr,
        IR0 = IR0, PREV0 = PREV0, CFBASE = CFBASE, BG0 = BG0, NX = NX,
@@ -659,13 +681,133 @@ if (!stage_targets_present) {
   cat(strrep("!", 70), "\n", sep = "")
 }
 
+## 8a. READ + VALIDATE a supplied stage-target table (schema = the template).
+##     Detected -> usable (passes validation) -> actually USED (04b decides, and
+##     labels the fit "with_echo_targets" ONLY if rows entered the objective).
+##     target_type: "prevalence_fraction" (stage cases / population of the age band)
+##                  or "share_of_rhd" (stage cases / all living RHD in the band).
+##     sex: Female | Male | Both. Nothing is fabricated: absent file => no targets.
+stage_targets_validated <- NULL; stage_targets_n_detected <- 0L; stage_targets_n_usable <- 0L
+stage_targets_validation_note <- "no stage-target file supplied"
+if (stage_targets_present) {
+  stt <- fread(stage_target_file)
+  stage_targets_n_detected <- nrow(stt)
+  need <- names(calibration_targets_stage_template)
+  miss_cols <- setdiff(need, names(stt))
+  if (length(miss_cols))
+    stop("Stage-target file ", stage_target_file, " lacks column(s): ", paste(miss_cols, collapse = ", "), call. = FALSE)
+  stt[, `:=`(year = as.integer(year), age_lo = as.integer(age_lo), age_hi = as.integer(age_hi),
+             stage = toupper(trimws(as.character(stage))), sex = as.character(sex),
+             target_type = as.character(target_type), weight = as.numeric(weight),
+             target_prevalence = as.numeric(target_prevalence))]
+  stt[is.na(weight), weight := 1]
+  stt[, reason := fcase(
+    location != LOCATION,                                   "location mismatch",
+    !stage %in% c("A", "B", "C", "D"),                     "stage not in A/B/C/D",
+    !sex %in% c("Female", "Male", "Both"),                 "sex not Female/Male/Both",
+    is.na(age_lo) | is.na(age_hi) | age_lo > age_hi | age_lo < AGE_LO | age_hi > AGE_HI, "invalid age band",
+    is.na(year) | year < CAL_YEAR_START | year > CAL_YEAR_END, "year outside calibration window",
+    !target_type %in% c("prevalence_fraction", "share_of_rhd"), "unknown target_type",
+    !is.finite(target_prevalence) | target_prevalence < 0 | target_prevalence > 1, "target not a fraction in [0,1]",
+    !is.finite(weight) | weight <= 0,                      "non-positive weight",
+    default = "usable")]
+  stage_targets_validated <- stt
+  stage_targets_n_usable  <- stt[reason == "usable", .N]
+  stage_targets_validation_note <- sprintf("%d row(s) detected, %d usable; rejected: %s",
+    stage_targets_n_detected, stage_targets_n_usable,
+    if (stage_targets_n_usable < stage_targets_n_detected)
+      paste(stt[reason != "usable", paste0(reason, " (", .N, ")"), by = reason]$V1, collapse = "; ") else "none")
+  cat("Stage-target file:", stage_target_file, "|", stage_targets_validation_note, "\n")
+}
+
+## 8b. LAYER-2 TARGETS + INPUTS (consumed by 04b; constructed ONCE here).
+##     Targets per (sex, GBD age group, year, measure): published Number, Rate,
+##     the WPP population of the same cell, Rate x WPP pop, and the basis actually
+##     used. The Number / (Rate x pop) ratio isolates POPULATION-SOURCE differences
+##     from model-dynamics residuals (WPP vs GBD population differ by up to ~5x in
+##     the 95+ group for Indonesia). Missing cells are flagged (NA), never zero.
+##     Optional explicit TARGET OVERRIDE table (data/<COUNTRY>/calibration_targets_override.csv:
+##     location, sex, age_group, year, measure, value, source, rationale) — requires
+##     non-empty source + rationale; original and adjusted are saved side by side.
+##     The optimiser never changes its own targets.
+ages_all <- AGE_LO:AGE_HI
+pop_grp <- pop_obs[location == LOCATION & age %in% ages_all & year >= CAL_YEAR_START & year <= CAL_YEAR_END]
+pop_grp[, age_group := age_to_gbd_group(age)]
+pop_grp <- pop_grp[, .(pop_wpp = sum(Nx)), by = .(sex, age_group, year)]
+rate_long <- gbd_raw[location_name == LOCATION & metric_name == "Rate" &
+                       cause_name == RHD_CAUSE & measure_name %in% c("Incidence", "Prevalence", "Deaths") &
+                       year >= CAL_YEAR_START & year <= CAL_YEAR_END & age_name %in% age_groups_keep,
+                     .(sex = sex_name, age_group = age_name, year, measure = measure_name, rate = val / 1e5)]
+num_long <- gbd_raw[location_name == LOCATION & metric_name == "Number" &
+                      cause_name == RHD_CAUSE & measure_name %in% c("Incidence", "Prevalence", "Deaths") &
+                      year >= CAL_YEAR_START & year <= CAL_YEAR_END & age_name %in% age_groups_keep,
+                    .(sex = sex_name, age_group = age_name, year, measure = measure_name, number = val,
+                      logvar = if (has_ui) ((log(pmax(upper, EPS_LOG)) - log(pmax(lower, EPS_LOG))) / (2 * 1.959964))^2 else NA_real_)]
+full_grid <- CJ(sex = sort(unique(pop_grp$sex)), age_group = age_groups_keep,
+                year = CAL_YEAR_START:CAL_YEAR_END, measure = c("Incidence", "Prevalence", "Deaths"))
+layer2_targets <- merge(full_grid, num_long, by = c("sex", "age_group", "year", "measure"), all.x = TRUE)
+layer2_targets <- merge(layer2_targets, rate_long, by = c("sex", "age_group", "year", "measure"), all.x = TRUE)
+layer2_targets <- merge(layer2_targets, pop_grp, by = c("sex", "age_group", "year"), all.x = TRUE)
+if (anyNA(layer2_targets$pop_wpp)) stop("WPP population missing for some target cell (sex x age group x year).", call. = FALSE)
+layer2_targets[, `:=`(missing = is.na(number) & is.na(rate),
+                      rate_x_pop = rate * pop_wpp,
+                      location = LOCATION)]
+layer2_targets[, number_over_rate_x_pop := fifelse(rate_x_pop > 0, number / rate_x_pop, NA_real_)]
+layer2_targets[!is.finite(logvar) | logvar <= 0, logvar := NA_real_]
+layer2_targets[, value_original := if (STRUCT_TARGET_BASIS == "number") number else rate_x_pop]
+layer2_targets[, `:=`(value_used = value_original, overridden = FALSE, override_source = NA_character_,
+                      override_rationale = NA_character_)]
+OVERRIDE_FILE <- paste0(wd_data, "calibration_targets_override.csv")
+if (file.exists(OVERRIDE_FILE)) {
+  ov <- fread(OVERRIDE_FILE)
+  need_ov <- c("location", "sex", "age_group", "year", "measure", "value", "source", "rationale")
+  if (!all(need_ov %in% names(ov)))
+    stop("calibration_targets_override.csv must have columns: ", paste(need_ov, collapse = ", "), call. = FALSE)
+  ov <- ov[location == LOCATION]
+  if (ov[, any(is.na(source) | trimws(source) == "" | is.na(rationale) | trimws(rationale) == "")])
+    stop("Every target override needs a non-empty source AND rationale.", call. = FALSE)
+  ov[, year := as.integer(year)]
+  layer2_targets[ov, on = c("sex", "age_group", "year", "measure"),
+                 `:=`(value_used = i.value, overridden = TRUE, override_source = i.source,
+                      override_rationale = i.rationale)]
+  cat(sprintf("Applied %d documented target override(s) from %s (originals kept side by side).\n",
+              layer2_targets[overridden == TRUE, .N], basename(OVERRIDE_FILE)))
+}
+setorder(layer2_targets, measure, sex, year, age_group)
+fwrite(layer2_targets, paste0(wd_data, "calibration_layer2_targets.csv"))
+# per-sex/measure/year reconciliation summary (population-source effect on the totals)
+target_reconciliation <- layer2_targets[!is.na(number), .(number = sum(number), rate_x_pop = sum(rate_x_pop, na.rm = TRUE)),
+                                        by = .(location, sex, measure, year)]
+target_reconciliation[, ratio_number_over_rate_x_pop := number / rate_x_pop]
+fwrite(target_reconciliation, paste0(wd_data, "calibration_layer2_target_reconciliation.csv"))
+cat(sprintf("Layer-2 targets built on basis '%s' | Number/(Rate x WPP pop) ratio across sex-measure-year: %.3f-%.3f\n",
+            STRUCT_TARGET_BASIS, min(target_reconciliation$ratio_number_over_rate_x_pop),
+            max(target_reconciliation$ratio_number_over_rate_x_pop)))
+
+# Layer-2 ENGINE INPUTS per single age x sex x year (RAW GBD, no multiplier baked in):
+#   ir_gbd_total_pop  GBD incidence rate per TOTAL population (alpha applied in 04b, once)
+#   prev_gbd          GBD prevalence fraction (maps incidence to the susceptible pool)
+#   bg_mx             background (all-cause minus RHD) mortality, pop_wpp
+layer2_inputs <- b_rates[, .(location, sex, age, year,
+                             ir_gbd_total_pop = IR, prev_gbd = PREVt0, bg_mx = BG.mx, pop_wpp = Nx)]
+if (anyDuplicated(layer2_inputs, by = c("location", "sex", "age", "year")))
+  stop("Duplicate Layer-2 input keys.", call. = FALSE)
+exp_rows <- length(unique(layer2_inputs$sex)) * length(ages_all) * (CAL_YEAR_END - CAL_YEAR_START + 1L)
+if (nrow(layer2_inputs) != exp_rows)
+  stop(sprintf("Layer-2 input grid incomplete: %d rows vs %d expected (sex x age x year).", nrow(layer2_inputs), exp_rows), call. = FALSE)
+
 stage_calibration <- list(
   status = stage_status,
   targets_file = if (stage_targets_present) stage_target_file else NA_character_,
   targets_template = calibration_targets_stage_template,
   template_file = STAGE_TMPL,
+  # validated stage targets (NULL if no file): detected / usable counts; 04b records "used"
+  stage_targets = stage_targets_validated,
+  stage_targets_n_detected = stage_targets_n_detected,
+  stage_targets_n_usable   = stage_targets_n_usable,
+  stage_targets_validation = stage_targets_validation_note,
   calibratable_params = c("p_A_to_B","p_B_to_C","p_C_to_D","p_A_to_no_rhd",
-                          "p_B_to_A","p_C_to_B","rhd_d_fraction"),
+                          "p_B_to_A","p_C_to_B","rhd_d_fraction", "incidence_alpha_band_sex"),
   stage_params = stage_params_uncalibrated,
   loss_note = "Weighted squared-log-error on stage prevalence; Stage-2 in 04b."
 )
@@ -674,6 +816,11 @@ stage_calibration <- list(
 # 9. ASSEMBLE + WRITE THE CALIBRATED-PARAMETER BUNDLE  (schema preserved + $layer1)
 #===============================================================================
 layer1 <- list(
+  # ROLE (truthful label): Layer 1 is an AGGREGATE well-sick-dead PROXY without
+  # remission. Its alpha are STARTING VALUES for the Layer-2 joint incidence
+  # estimation (04b); its beta / CF are DIAGNOSTIC + legacy-compatibility fields
+  # ($tp$CF, baseline_state$cf) and do NOT anchor the stage objective.
+  role = "aggregate_proxy_starting_values_and_diagnostics",
   incidence_parameters = factors_out[, .(location, sex, cause, band, band_lo, alpha)],
   mortality_parameters = factors_out[, .(location, sex, cause, band, band_lo, beta)],
   objective_components = diag_out,
@@ -696,11 +843,18 @@ layer1 <- list(
 calibrated_rhd_parameters <- list(
   tp = calibrated, factors = factors_out, diagnostics = diag_out,
   stage_calibration = stage_calibration, layer1 = layer1,
+  # Layer-2 (04b) target + input tables, built once here (additive fields)
+  layer2_targets = layer2_targets,
+  layer2_target_reconciliation = target_reconciliation,
+  layer2_inputs = layer2_inputs,
   meta = list(
     location = locs, calib_year_start = CAL_YEAR_START, calib_year_end = CAL_YEAR_END,
     calib_last_year = max(calibrated$year),
     granularity = "band", bands = band_labels, band_edges = band_edges,
     incidence_mode = INCIDENCE_CALIBRATION_MODE, optimizer = CALIB_OPTIMIZER,
+    age_lo = AGE_LO, age_hi = AGE_HI,
+    layer2_target_basis = STRUCT_TARGET_BASIS,
+    tp_role = "Layer-1 aggregate proxy (IR = IR_GBD x alpha_L1 per TOTAL population; CF = aggregate case-fatality anchor, DIAGNOSTIC/legacy only); 04b persists the FINAL incidence",
     tp_schema = tps_input_cols,
     built_from = c("temp_baseline_rates_gbd.rds", "pop_observed.rds",
                    basename(DISEASE_INPUTS_FILE)))
@@ -763,7 +917,8 @@ cat(sprintf("\nAll-cause deaths (VALIDATION only; NOT in the loss), summed over 
             val_all[source == "model", v], val_all[source == "gbd", v]))
 
 cat("\nWrote:\n")
-cat(sprintf("  %scalibrated_rhd_parameters.rds  ($tp/$factors/$diagnostics/$stage_calibration/$layer1/$meta)\n", wd_data))
+cat(sprintf("  %scalibrated_rhd_parameters.rds  ($tp/$factors/$diagnostics/$stage_calibration/$layer1/$layer2_*/$meta)\n", wd_data))
 cat(sprintf("  %scalibration_layer1_{factors,diagnostics,fit_by_group_year,massbalance}.csv\n", wd_data))
+cat(sprintf("  %scalibration_layer2_{targets,target_reconciliation}.csv\n", wd_data))
 cat(sprintf("\nLayer-2 stage calibration status: %s\n", stage_status))
-cat("Reminder: 05/06 consume the calibrated IR/CF AS-IS; stage params come from 03 until Stage-2 (04b).\n")
+cat("Reminder: Layer-1 alpha are STARTING VALUES only; 04b estimates incidence jointly and 05 consumes 04b's final values.\n")

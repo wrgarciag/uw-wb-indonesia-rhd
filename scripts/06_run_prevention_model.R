@@ -21,9 +21,15 @@
 # THE ENGINE  (matrix form: [age x sex] arrays; Markov cycles as matrix ops)
 #   Four LIVING stocks A, B, C, D advance annually by elementwise matrix
 #   arithmetic (zero_mat/age_shift/melt_year, extended from three to four stocks):
-#     * new incident RHD enters stage A via  new_rhd_A = no_rhd x IR (CALIBRATED IR);
-#     * SAP reduces the RHD-specific DEATH probability of EVERY stage by
-#         (1 - sap_rrr_rhd_death x effective_treatment_coverage);
+#     * new incident RHD enters stage A via  new_rhd_A = no_rhd x IR (CALIBRATED IR,
+#       per susceptible; competing with other-cause death in the No-RHD pool);
+#     * SAP: selectable mechanism (meta$sap_mechanism). "progression" (primary):
+#       pathway-specific HAZARD multipliers 1 - c (1 - HR) on A->B, B->C, C->D with
+#       c = effective treatment x adherence, NO direct mortality effect (eff_cf = 1);
+#       "direct_mortality" (legacy): every stage's RHD-death probability x
+#       (1 - sap_rrr_rhd_death x c);
+#     * RHD mortality structure (meta$mortality_structure): "D_only" => exact zero
+#       RHD deaths in A/B/C (background deaths remain); "all_stage" legacy;
 #     * SURGERY is a clinical SERVICE (not a state): a fraction of the C/D stock
 #       is operated each cycle; its only epidemiological effect is a risk
 #       reduction on C->D progression and D->RHD-death (population-average form).
@@ -109,24 +115,23 @@ run_location <- function(loc, baseline_state) {
   ilab  <- meta$intervention_labels
   CAUSE <- "Rheumatic heart disease"                 # defined inside (worker-safe)
 
-  tr  <- st$transitions; pd <- st$p_rhd_death; eff <- st$effects
+  # engine-side transitions (scalar, or with the explicit regression age modifier
+  # from 05) — the SAME convention the structural calibration used
+  tr  <- if (!is.null(st$transitions_engine)) st$transitions_engine else st$transitions
+  pd <- st$p_rhd_death; eff <- st$effects
   surg <- st$surgery;    oth <- st$oth_mort
+  sap_mech <- if (is.null(eff$sap_mechanism)) "direct_mortality" else eff$sap_mechanism
 
   zero_mat  <- function() matrix(0, n_age, n_sex, dimnames = list(AGES, SEXES))
-  age_shift <- function(M) {                         # advance age a -> a+1; 100 open
-    N <- zero_mat()
-    N[2:n_age, ] <- M[1:(n_age - 1), ]
-    N[n_age,  ]  <- N[n_age, ] + M[n_age, ]          # accumulate terminal 100+ group
-    N
-  }
-  # optional school-age screening mask (OFF by default; sensitivity only)
-  restrict_screen <- isTRUE(st$coverage$screen_age_restrict)
-  screen_mask <- zero_mat() + 1                      # default: whole population screened
-  if (restrict_screen) {
-    screen_mask <- zero_mat()
-    screen_ages <- as.character(st$coverage$screen_age_lo:st$coverage$screen_age_hi)
-    screen_mask[intersect(screen_ages, rownames(screen_mask)), ] <- 1
-  }
+  # annual screening ENCOUNTERS per person by age (03: n_screens / inclusive window
+  # years inside each window, 0 elsewhere; both sexes). No fallback to the retired
+  # whole-population annual screening or school-age mask.
+  enc <- st$coverage$screen_encounters_per_person
+  sched <- st$coverage$screen_schedule
+  if (is.null(enc) || is.null(sched))
+    stop("[", loc, "] baseline_state has no screening schedule (built before the screening-encounter ",
+         "revision). Re-run 03 -> 05.", call. = FALSE)
+  screen_rate <- zero_mat() + as.numeric(enc[as.character(AGES)])   # [age x sex]
 
   # melt a named list of [age x sex] matrices into a tidy DT (adds age/sex/year)
   melt_year <- function(iy, mats) {
@@ -139,25 +144,28 @@ run_location <- function(loc, baseline_state) {
 
   run_one <- function(scenario) {
     covs <- st$coverage[[scenario]]
-    A <- B <- C <- D <- zero_mat()
+    adh  <- if (is.null(covs$adherence)) rep(1, n_years) else covs$adherence
     wsd_l <- vector("list", n_years); stg_l <- vector("list", n_years)
+
+    # --- ALL annual A/B/C/D cycles via the SHARED projection wrapper -----------
+    #  Single source of truth (R/abcd_engine.R: abcd_project -> abcd_one_cycle ->
+    #  abcd_age_shift), the same wrapper and time convention the structural
+    #  calibration (04b) used: start stock -> within-year flows -> end stock ->
+    #  ageing. Competing risks are combined on the HAZARD scale, so each stage
+    #  "stay" is a proper residual, not a floored subtraction.
+    proj <- abcd_project(init = st$seed, pop = st$pop, ir = st$ir, oth = oth, tr = tr, pd = pd,
+                         eff = eff, surg = surg,
+                         cov_year = list(treatment = covs$eff_treatment, surgery = covs$surgery,
+                                         adherence = adh),
+                         years = years, light = FALSE)
 
     for (iy in seq_len(n_years)) {
       popm <- st$pop[, , iy]
-      irm  <- st$ir[, , iy]                          # CALIBRATED incidence, trended
       c_screen <- covs$screen[iy]
       c_dx     <- covs$eff_diagnosis[iy]             # effective diagnosis coverage
-      c_tx     <- covs$eff_treatment[iy]             # effective (optimal) treatment coverage
+      c_tx     <- covs$eff_treatment[iy]             # effective (optimal) treatment coverage = DELIVERED SAP share
       c_surg   <- covs$surgery[iy]
-
-      if (iy == 1L) { A <- st$seed$A; B <- st$seed$B; C <- st$seed$C; D <- st$seed$D }
-
-      # --- ONE annual A/B/C/D cycle via the shared hazard engine ---------------
-      #  Single source of truth (R/abcd_engine.R), also used by the structural
-      #  calibration (04b). Competing risks are combined on the HAZARD scale, so
-      #  each stage "stay" is a proper residual, not a floored subtraction.
-      cyc <- abcd_one_cycle(A, B, C, D, popm, irm, oth, tr, pd, eff, surg,
-                            cov = list(treatment = c_tx, surgery = c_surg))
+      cyc <- proj$cycles[[iy]]
 
       rhd_start <- cyc$rhd_start
       eff_ir <- cyc$eff_ir; new_rhd_A <- cyc$new_rhd_A
@@ -178,9 +186,19 @@ run_location <- function(loc, baseline_state) {
       total_surg <- cyc$total_surgeries
 
       # --- program volumes (counts; costed in 08) ------------------------------
-      n_screened <- popm * screen_mask * c_screen                  # total pop (default)
+      #  n_screened = annual screening ENCOUNTERS = population x per-person annual
+      #  encounter multiplier (2/15 at 5-19, 1/20 at 20-39, 0 elsewhere) x screening
+      #  reach of this arm-year. Expected volumes (may be fractional); not unique
+      #  people screened. 08 multiplies by the unit cost only (no re-scheduling).
+      #  n_on_optimal_treatment keeps its LEGACY meaning (living RHD x effective
+      #  treatment coverage) = DELIVERED SAP person-years at ALL ages, which 08 costs;
+      #  it never depends on the screening schedule.
+      #  n_effectively_protected = living RHD x effective protection (coverage x
+      #  adherence) is the additive diagnostic; at adherence = 1 the two coincide.
+      n_screened <- popm * screen_rate * c_screen                  # scheduled encounters
       n_diagnosed <- rhd_start * c_dx                              # effective diagnosis
-      n_on_optimal_treatment <- rhd_start * c_tx                   # effective treatment
+      n_on_optimal_treatment <- rhd_start * c_tx                   # effective treatment (delivered SAP)
+      n_effectively_protected <- rhd_start * cyc$sap_c_eff        # effective protection (diagnostic)
 
       # --- (1) WSD aggregate row set -------------------------------------------
       wsd_l[[iy]] <- melt_year(iy, list(
@@ -208,7 +226,11 @@ run_location <- function(loc, baseline_state) {
         n_on_optimal_treatment = n_on_optimal_treatment,
         C_requiring_surgery = C_req_surg, D_requiring_surgery = D_req_surg,
         surgeries_C = surgeries_C, surgeries_D = surgeries_D,
-        total_surgeries = total_surg))[
+        total_surgeries = total_surg,
+        # additive diagnostics (all finite, non-negative): D start stock, deaths in
+        # the No-RHD pool (all-cause reconstruction), protected volumes
+        D_start = cyc$D_start, well_deaths = cyc$well_deaths,
+        n_effectively_protected = n_effectively_protected))[
           , `:=`(screen_coverage = c_screen,
                  diagnosis_coverage = covs$diagnosis[iy],
                  effective_diagnosis_coverage = c_dx,
@@ -219,11 +241,15 @@ run_location <- function(loc, baseline_state) {
                  effective_surgery_reach_D = reach_D,
                  eff_cf = sap_mult,
                  eff_C_to_D_surgery = eff_C_to_D_surg,
-                 eff_D_to_rhd_death_surgery = eff_D_death_surg)]
-
-      # --- age the surviving stocks one year for the next cycle -----------------
-      A <- age_shift(A_next); B <- age_shift(B_next)
-      C <- age_shift(C_next); D <- age_shift(D_next)
+                 eff_D_to_rhd_death_surgery = eff_D_death_surg,
+                 # SAP mechanism trace (additive): effective protection and the
+                 # pathway-specific HAZARD multipliers (1 in direct_mortality mode)
+                 sap_adherence = adh[iy],
+                 sap_effective_protection = cyc$sap_c_eff,
+                 sap_prog_mult_A_to_B = cyc$sap_prog_mult_A_to_B,
+                 sap_prog_mult_B_to_C = cyc$sap_prog_mult_B_to_C,
+                 sap_prog_mult_C_to_D = cyc$sap_prog_mult_C_to_D,
+                 d_start_zero_flag = as.numeric(cyc$D_start <= 0))]
     }
 
     wsd <- rbindlist(wsd_l); stg <- rbindlist(stg_l)
@@ -231,12 +257,13 @@ run_location <- function(loc, baseline_state) {
                intervention = unname(ilab[[scenario]]))]
     stg[, `:=`(scenario = scenario, location = loc, cause = CAUSE,
                intervention = unname(ilab[[scenario]]))]
-    list(wsd = wsd, stages = stg)
+    list(wsd = wsd, stages = stg, pop_deficit = proj$pop_deficit_total)
   }
 
   runs <- lapply(SCEN, run_one)
   wsd_all <- rbindlist(lapply(runs, `[[`, "wsd"))
   stg_all <- rbindlist(lapply(runs, `[[`, "stages"))
+  pop_deficit_total <- sum(vapply(runs, `[[`, numeric(1), "pop_deficit"))
 
   # -------------------- per-location SANITY CHECKS --------------------------
   fail <- function(cond, msg) if (isTRUE(cond)) stop("[", loc, "] ", msg, call. = FALSE)
@@ -267,6 +294,34 @@ run_location <- function(loc, baseline_state) {
   fail(wsd_all[, any(all.mx + 1e-6 < dead)],     "all-cause deaths < RHD deaths somewhere.")
   fail(wsd_all[, any(eff_ir < 0 | eff_ir > 1 | eff_cf < 0 | eff_cf > 1)],
        "eff_ir / eff_cf outside [0,1].")
+  # RHD stock never exceeds the population (surfaced, not clipped)
+  fail(pop_deficit_total > 1e-6, sprintf("living RHD stock exceeded population (total deficit %.3g).", pop_deficit_total))
+  fail(stg_all[, any(living_rhd_start > pop + 1e-3)], "living_rhd_start exceeds pop somewhere.")
+  # all-cause deaths RECONSTRUCTED from competing-risk flows (incl. the No-RHD pool)
+  chk_mx <- merge(stg_all[, .(scenario, sex, age, year, recon = rhd_deaths + other_deaths + well_deaths)],
+                  wsd_all[, .(scenario, sex, age, year, all.mx)], by = c("scenario", "sex", "age", "year"))
+  fail(chk_mx[, max(abs(recon - all.mx))] > 1e-6, "all.mx != rhd_deaths + other_deaths(RHD) + well_deaths.")
+  # RHD stock-flow identity before ageing: S_end = S_start + incident - remission - RHD deaths - other deaths
+  fail(stg_all[, max(abs((A + B + C + D) - (living_rhd_start + new_rhd_A - A_to_no_rhd - rhd_deaths - other_deaths)))] > 1e-6,
+       "RHD stock-flow identity violated.")
+  # mortality structure / SAP mechanism checks
+  if (identical(meta$mortality_structure, "D_only")) {
+    fail(stg_all[, any(rhd_deaths_A != 0 | rhd_deaths_B != 0 | rhd_deaths_C != 0)],
+         "D_only: non-zero RHD deaths in A/B/C.")
+    fail(stg_all[, max(abs(rhd_deaths - rhd_deaths_D))] > 1e-9, "D_only: total RHD deaths != D deaths.")
+    fail(stg_all[, sum(other_deaths_A + other_deaths_B + other_deaths_C)] <= 0,
+         "D_only: background deaths absent from A/B/C.")
+  }
+  if (sap_mech == "progression") {
+    fail(stg_all[, any(abs(eff_cf - 1) > 1e-12)], "progression mode: direct SAP mortality multiplier must be 1.")
+    fail(stg_all[, any(sap_prog_mult_A_to_B > 1 + 1e-12 | sap_prog_mult_B_to_C > 1 + 1e-12 | sap_prog_mult_C_to_D > 1 + 1e-12)],
+         "progression multipliers exceed 1.")
+  } else {
+    fail(stg_all[, any(abs(sap_prog_mult_A_to_B - 1) > 1e-12 | abs(sap_prog_mult_B_to_C - 1) > 1e-12 | abs(sap_prog_mult_C_to_D - 1) > 1e-12)],
+         "direct_mortality mode: progression multipliers must be 1.")
+  }
+  # zero D start stock => zero D deaths (undefined realised risk is kept out of $stages)
+  fail(stg_all[d_start_zero_flag == 1 & rhd_deaths_D > 0, .N] > 0, "RHD deaths from D with zero D start stock.")
 
   # stages must reconstruct WSD sick exactly (A+B+C+D == sick)
   chk <- merge(
@@ -283,6 +338,24 @@ run_location <- function(loc, baseline_state) {
        "surgeries_D exceeds D_requiring_surgery.")
   fail(stg_all[, any(total_surgeries > C_requiring_surgery + D_requiring_surgery + 1e-6)],
        "total_surgeries exceeds total requiring surgery.")
+
+  # programme volumes. Screening encounters must equal reach x sum_g (n_g / W_g) x
+  # P_g recomputed from the schedule TABLE (so the frequencies are applied exactly
+  # once) and be zero outside the windows; SAP volume = start-of-cycle prevalent
+  # RHD x realised SAP coverage at every age (independent of the schedule).
+  win <- rbindlist(lapply(seq_len(nrow(sched)), function(i)
+    data.table(age = sched$age_lo[i]:sched$age_hi[i], group = sched$group[i],
+               annual_multiplier = sched$n_screens[i] / (sched$age_hi[i] - sched$age_lo[i] + 1L))))
+  scr <- merge(stg_all[, .(scenario, year, age, pop, n_screened, screen_coverage)], win, by = "age", all.x = TRUE)
+  fail(scr[is.na(group), any(n_screened != 0)], "screening encounters outside the screening age windows.")
+  screening_by_year <- scr[!is.na(group), .(screen_coverage = screen_coverage[1], annual_multiplier = annual_multiplier[1],
+                                            pop_in_window = sum(pop), encounters = sum(n_screened)),
+                           by = .(scenario, year, group)]
+  fail(screening_by_year[, max(abs(encounters - screen_coverage * annual_multiplier * pop_in_window) /
+                                 pmax(encounters, 1))] > 1e-9,
+       "screening encounters do not reconcile with reach x sum_g (n_g / W_g) x P_g.")
+  fail(stg_all[, max(abs(n_on_optimal_treatment - living_rhd_start * effective_treatment_coverage))] > 1e-6,
+       "SAP volume != start-of-cycle prevalent RHD x realised SAP coverage.")
 
   # intervention effect direction: SAP averts RHD deaths vs reference (cumulative)
   d_ref <- wsd_all[scenario == "ref", sum(dead)]
@@ -303,9 +376,32 @@ run_location <- function(loc, baseline_state) {
   fail(allc_d < allc_lo || allc_d > allc_hi, sprintf("base-year all-cause deaths %.0f outside band %g-%g.", allc_d, allc_lo, allc_hi))
 
   attr(wsd_all, "deaths_averted_cum") <- d_ref - d_sap
+
+  # --- additive diagnostics ($diag; may hold NA where a quantity is undefined) --
+  # realised stage-D fatality on START-of-cycle D stock: NA + flag when D_start = 0
+  d_fat <- stg_all[, .(D_start = sum(D_start), rhd_deaths_D = sum(rhd_deaths_D)), by = .(scenario, year)]
+  d_fat[, `:=`(realized_D_death_risk = fifelse(D_start > 0, rhd_deaths_D / D_start, NA_real_),
+               D_start_zero = D_start <= 0)]
+  sap_tr <- stg_all[, .(effective_treatment = mean(effective_treatment_coverage),
+                        adherence = mean(sap_adherence), effective_protection = mean(sap_effective_protection),
+                        delivered_sap_person_years = sum(n_on_optimal_treatment),
+                        effectively_protected_person_years = sum(n_effectively_protected),
+                        mult_A_to_B = mean(sap_prog_mult_A_to_B), mult_B_to_C = mean(sap_prog_mult_B_to_C),
+                        mult_C_to_D = mean(sap_prog_mult_C_to_D), eff_cf = mean(eff_cf)), by = .(scenario, year)]
+  mx_recon <- chk_mx[, .(all_mx = sum(all.mx), reconstructed = sum(recon)), by = .(scenario, year)]
+
   list(wsd = wsd_all, stages = stg_all,
        diag = list(deaths_averted_cum = d_ref - d_sap,
-                   rhd_deaths_base = rhd_d, allcause_deaths_base = allc_d))
+                   rhd_deaths_base = rhd_d, allcause_deaths_base = allc_d,
+                   mortality_structure = meta$mortality_structure, sap_mechanism = sap_mech,
+                   d_fatality_by_year = d_fat,
+                   d_fatality_convention = "deaths_D / D_start (start-of-cycle stock); NA with D_start_zero = TRUE when D_start = 0 (zero deaths enforced)",
+                   sap_trace_by_year = sap_tr,
+                   all_cause_reconstruction_by_year = mx_recon,
+                   pop_deficit_total = pop_deficit_total,
+                   # additive: annual screening encounters by schedule group (both sexes)
+                   screen_schedule = sched,
+                   screening_by_year = screening_by_year))
 }
 
 # ==============================================================================
@@ -320,7 +416,8 @@ if (use_par) {
   on.exit(stopCluster(cl), add = TRUE)
   results <- foreach(loc = LOCATIONS, .packages = "data.table",
                      .export = c("run_location", "baseline_state",
-                                 "abcd_one_cycle", "abcd_compete")) %dopar% {
+                                 "abcd_one_cycle", "abcd_compete", "abcd_project", "abcd_age_shift",
+                                 "abcd_sap_effects", "abcd_hazard_scale")) %dopar% {
     run_location(loc, baseline_state)
   }
 } else {

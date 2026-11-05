@@ -1,0 +1,144 @@
+% ============================================================
+%  beamer_preamble.tex
+%  Executive deck — Indonesia CVD / FAIR Choices analysis
+%  World Bank  ·  University of Washington collaboration
+%  (Adapted in-repo from the prior project preamble: default Beamer
+%   look, Calibri fonts, colored blocks + scenario palette, then
+%   rebranded for the World Bank – UW Indonesia CVD work.)
+% ============================================================
+
+% ── Beamer theme (clean default look, lightly branded) ───────────────────────
+\usetheme{default}
+\usecolortheme{default}
+\usefonttheme{professionalfonts}
+
+% ── XeLaTeX fonts (requires xelatex engine) ─────────────────────────────────
+\usepackage{fontspec}
+\setmainfont{Calibri}[
+  BoldFont       = Calibri Bold,
+  ItalicFont     = Calibri Italic,
+  BoldItalicFont = Calibri Bold Italic
+]
+\setsansfont{Calibri}
+\setmonofont{Consolas}
+
+% ── Packages ────────────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{ragged2e}
+\usepackage{microtype}
+\usepackage{tabularx}
+\usepackage{makecell}
+\usepackage{multirow}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc, backgrounds, fit}
+\usepackage{hyperref}
+
+% ── Project colour palette (World Bank – UW; colour-blind aware) ─────────────
+\definecolor{wbnavy}{HTML}{0F2A56}        % primary dark navy (World Bank)
+\definecolor{wbblue}{HTML}{2166AC}        % accent blue
+\definecolor{uwpurple}{HTML}{4B2E83}      % UW brand purple (secondary accent)
+\definecolor{uwgold}{HTML}{B7A57A}        % UW gold (rare accent)
+
+% Scenario-family colours (must match ggplot palette in the .Rmd)
+\definecolor{clinicalcol}{HTML}{3B6FB6}   % clinical scenarios (blue)
+\definecolor{phcol}{HTML}{1B9E77}         % public-health scenarios (teal-green)
+\definecolor{combinedcol}{HTML}{08306B}   % combined package (dark navy)
+\definecolor{comparatorgrey}{HTML}{9E9E9E}% comparators / baseline context
+\definecolor{incidencecol}{HTML}{2166AC}  % incidence (Well->Sick) effects
+\definecolor{casefatalcol}{HTML}{B2182B}  % case-fatality (Sick->Death) effects
+\definecolor{bgmortcol}{HTML}{7F7F7F}     % background mortality
+\definecolor{highlightblue}{HTML}{DBEAFE} % table row highlight
+\definecolor{highlightgold}{HTML}{FCEFCB} % combined-package row highlight
+
+% ── Light branding: navy frame titles, blue structure accents ───────────────
+\setbeamercolor{structure}{fg=wbblue}
+\setbeamercolor{title}{fg=wbnavy}
+\setbeamercolor{subtitle}{fg=wbblue}
+\setbeamercolor{author}{fg=black}
+\setbeamercolor{date}{fg=black}
+\setbeamercolor{institute}{fg=black}
+\setbeamercolor{frametitle}{fg=wbnavy}
+\setbeamercolor{normal text}{fg=black}
+\setbeamerfont{frametitle}{series=\bfseries}
+\setbeamerfont{title}{series=\bfseries}
+
+% Keep default background/frametitle templates (clean, no heavy canvas).
+
+% ── Colored blocks (boxes) ──────────────────────────────────────────────────
+\setbeamercolor{block title}{bg=wbnavy!12, fg=wbnavy}
+\setbeamercolor{block body}{bg=wbnavy!5}
+
+\setbeamercolor{block title alerted}{bg=casefatalcol!15, fg=casefatalcol!80!black}
+\setbeamercolor{block body alerted}{bg=casefatalcol!6}
+
+\setbeamercolor{block title example}{bg=phcol!15, fg=phcol!75!black}
+\setbeamercolor{block body example}{bg=phcol!6}
+
+% Custom family-coloured blocks
+\newenvironment{clinicalblock}[1]{%
+  \setbeamercolor{block title}{bg=clinicalcol!16, fg=clinicalcol!80!black}%
+  \setbeamercolor{block body}{bg=clinicalcol!6}%
+  \begin{block}{#1}%
+}{\end{block}}
+
+\newenvironment{phblock}[1]{%
+  \setbeamercolor{block title}{bg=phcol!16, fg=phcol!75!black}%
+  \setbeamercolor{block body}{bg=phcol!6}%
+  \begin{block}{#1}%
+}{\end{block}}
+
+\newenvironment{combinedblock}[1]{%
+  \setbeamercolor{block title}{bg=combinedcol!18, fg=combinedcol}%
+  \setbeamercolor{block body}{bg=combinedcol!7}%
+  \begin{block}{#1}%
+}{\end{block}}
+
+% ── Bullet style (blue accent) ──────────────────────────────────────────────
+\setbeamertemplate{itemize item}{\textcolor{wbblue}{\textbullet}}
+\setbeamertemplate{itemize subitem}{\textcolor{wbblue}{--}}
+\setbeamertemplate{itemize subsubitem}{\textcolor{wbblue}{\textperiodcentered}}
+\setbeamertemplate{enumerate item}{\textcolor{wbblue}{\insertenumlabel.}}
+
+% ── Headline highlight command ──────────────────────────────────────────────
+\newcommand{\hlkey}[1]{%
+  \colorbox{highlightblue}{\textcolor{wbnavy}{\textbf{#1}}}%
+}
+
+% ── Clean footer (World Bank – UW) ──────────────────────────────────────────
+\setbeamertemplate{footline}{%
+  \leavevmode
+  \hbox{%
+    \begin{beamercolorbox}[wd=0.34\paperwidth, ht=2.25ex, dp=1ex, left]{author in head/foot}%
+      \hspace{1em}\usebeamerfont{author in head/foot}%
+      %\textcolor{black!60}{\footnotesize World Bank \textperiodcentered\ University of Washington}%
+       \textcolor{black!60}{\footnotesize Disease Control Priorities}%
+	\end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=0.56\paperwidth, ht=2.25ex, dp=1ex, center]{title in head/foot}%
+      \usebeamerfont{title in head/foot}%
+      \textcolor{black!60}{\footnotesize Indonesia CVD --- Health Impact, Costs \& Economic Returns}%
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=0.10\paperwidth, ht=2.25ex, dp=1ex, right]{date in head/foot}%
+      \usebeamerfont{date in head/foot}%
+      \textcolor{black!60}{\footnotesize \insertframenumber{}/\inserttotalframenumber}%
+      \hspace{0.5em}%
+    \end{beamercolorbox}%
+  }%
+  \vskip0pt%
+}
+\setbeamertemplate{navigation symbols}{}
+
+% ── Section divider slides (auto from # headers) ────────────────────────────
+\AtBeginSection[]{%
+  \begin{frame}
+    \vfill
+    \centering
+    \begin{beamercolorbox}[sep=10pt, center, shadow=false, rounded=true]{block title}
+      \usebeamerfont{title}\insertsectionhead\par
+    \end{beamercolorbox}
+    \vfill
+  \end{frame}
+}

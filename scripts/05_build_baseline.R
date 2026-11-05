@@ -31,7 +31,8 @@
 #       oth_mort   [age x sex]        background (non-RHD) competing mortality (03)
 #       seed       list(A,B,C,D) [age x sex] prevalent pool at year 1 (prev x split)
 #       transitions / p_rhd_death / effects / surgery   A/B/C/D params (03)
-#       coverage   REALISED cascade + surgery trajectories per scenario (ref, sap)
+#       coverage   REALISED cascade + surgery trajectories per scenario (ref, sap),
+#                  plus the screening schedule / per-age encounter multipliers (03)
 #     plus a `meta` block (AGES, SEXES, years, base_year, scenarios, ramp window).
 #
 # NOTE on the calibrated inputs (documented modelling decision):
@@ -110,16 +111,32 @@ message(sprintf("  Loaded: pop(%d rows) | disease inputs(horizon %d-%d) | calibr
 #     scalars are gone). If absent, fall back to 03's clinical priors.
 # ------------------------------------------------------------------------------
 sc <- calib$stage_calibration
+if (isTRUE(grepl("^FAILED", as.character(sc$status))))
+  stop("04b structural calibration FAILED validation (status '", sc$status, "'): ",
+       paste(sc$failure_reason, collapse = "; "),
+       "\n  A failed candidate is never consumed. Fix the calibration or re-run 04b.", call. = FALSE)
 use_calibrated_stages <- !is.null(sc$best_parameters) &&
   isTRUE(grepl("^calibrated", as.character(sc$status)))
 if (use_calibrated_stages) {
   bp <- sc$best_parameters
+  # MECHANISM COMPATIBILITY: a calibration fitted under one mortality structure /
+  # SAP mechanism is never consumed under another (05 would otherwise mix specs).
+  if (!is.null(bp$mortality_structure) && !identical(bp$mortality_structure, dmi$meta$mortality_structure))
+    stop("Calibrated bundle was fitted under mortality_structure '", bp$mortality_structure,
+         "' but disease inputs use '", dmi$meta$mortality_structure, "'. Re-run 03 -> 04 -> 04b under ONE spec.", call. = FALSE)
+  if (!is.null(bp$sap_mechanism) && !identical(bp$sap_mechanism, dmi$effects$sap_mechanism))
+    stop("Calibrated bundle was fitted under sap_mechanism '", bp$sap_mechanism,
+         "' but disease inputs use '", dmi$effects$sap_mechanism, "'. Recalibrate under the selected mechanism.", call. = FALSE)
+  if (identical(dmi$meta$mortality_structure, "D_only") && any(bp$p_rhd_death[c("A", "B", "C")] != 0))
+    stop("D_only spec but calibrated p_rhd_death A/B/C are not exactly zero.", call. = FALSE)
   stage_transitions <- bp$transitions
   stage_p_rhd_death <- bp$p_rhd_death
   stage_split_use   <- bp$stage_split
   rhd_d_fraction_use <- bp$rhd_d_fraction
-  message(sprintf("  Stage params: CALIBRATED by 04b (status %s) | p_rhd_death A/B/C/D = %s",
-                  sc$status, paste(sprintf("%.4f", stage_p_rhd_death[c("A","B","C","D")]), collapse="/")))
+  message(sprintf("  Stage params: CALIBRATED by 04b (status %s; %s mortality; SAP %s) | p_rhd_death A/B/C/D = %s",
+                  sc$status, if (is.null(bp$mortality_structure)) "legacy" else bp$mortality_structure,
+                  if (is.null(bp$sap_mechanism)) "legacy" else bp$sap_mechanism,
+                  paste(sprintf("%.4f", stage_p_rhd_death[c("A","B","C","D")]), collapse="/")))
 } else {
   stage_transitions <- dmi$transitions
   stage_p_rhd_death <- dmi$p_rhd_death
@@ -166,6 +183,15 @@ ramp_traj <- function(baseline, target, start, end) {
 # ------------------------------------------------------------------------------
 cov  <- dmi$coverage
 surg <- dmi$surgery
+# the screening schedule must come from 03 (no silent fallback to the retired
+# whole-population annual screening or the retired school-age mask)
+if (is.null(cov$screen_encounters_per_person) || is.null(cov$screen_schedule))
+  stop("disease_model_inputs.rds has no screening schedule (built before the screening-encounter ",
+       "revision). Re-run 03_build_disease_model.R, then 05 -> 08.", call. = FALSE)
+if (length(cov$screen_encounters_per_person) != n_age ||
+    !identical(as.integer(names(cov$screen_encounters_per_person)), as.integer(AGES)) ||
+    any(!is.finite(cov$screen_encounters_per_person)) || any(cov$screen_encounters_per_person < 0))
+  stop("Screening encounter multipliers from 03 are not a finite non-negative vector over AGES.", call. = FALSE)
 
 build_location_state <- function(loc) {
 
@@ -189,27 +215,58 @@ build_location_state <- function(loc) {
   if (!nrow(cb))
     stop("No calibrated IR/CF rows for location '", loc, "' at year ",
          calib_last_year, ".", call. = FALSE)
-  ir_base <- mat_from_long(cb, "IR")   # incidence probability, calibrated
-  cf_base <- mat_from_long(cb, "CF")   # total-RHD case-fatality, calibrated (anchor)
+  cf_base <- mat_from_long(cb, "CF")   # Layer-1 aggregate case-fatality: LEGACY/DIAGNOSTIC anchor only
+  # FINAL incidence: prefer 04b's jointly estimated per-SUSCEPTIBLE probability
+  # (alpha applied ONCE in 04b); fall back to the Layer-1 tp IR (per total pop).
+  use_l2_ir <- use_calibrated_stages && !is.null(sc$best_parameters$ir_calibrated)
+  if (use_l2_ir) {
+    ir_base <- sc$best_parameters$ir_calibrated
+    if (!identical(dim(ir_base), c(n_age, n_sex)))
+      stop("04b ir_calibrated has wrong dimensions for the production grid.", call. = FALSE)
+    ir_base <- ir_base[as.character(AGES), SEXES]
+    ir_anchor_year <- as.integer(sc$best_parameters$ir_anchor_year)
+    incidence_source <- "layer2_joint (04b; per susceptible; alpha applied once)"
+  } else {
+    ir_base <- mat_from_long(cb, "IR")   # Layer-1 incidence probability (legacy path)
+    ir_anchor_year <- as.integer(calib_last_year)
+    incidence_source <- "layer1_tp (legacy; per total population)"
+  }
 
-  ## 3c. incidence array over horizon: calibrated base pattern x secular trend
+  ## 3c. incidence array over horizon: calibrated base pattern x secular trend,
+  ##     ANCHORED at an explicit calendar year (ir_anchor_year = CAL_YEAR_END), so
+  ##     changing the analysis start never redefines the incidence trajectory.
   trend <- dmi$meta$incidence_trend
   ir_arr <- array(0, dim = c(n_age, n_sex, n_years),
                   dimnames = list(AGES, SEXES, years))
   for (iy in seq_len(n_years))
-    ir_arr[, , iy] <- ir_base * trend^(years[iy] - calib_last_year)
+    ir_arr[, , iy] <- ir_base * trend^(years[iy] - ir_anchor_year)
 
   ## 3d. background (non-RHD) mortality + prevalence seed from 03 -------------
   oth_mort  <- dmi$rates_by_year$oth_mort[, , 1]   # base-year pattern (held)
   prev_seed <- dmi$rates_by_year$prev_seed         # [age x sex] prevalence fraction
 
-  ## 3e. seed the prevalent pool at year 1, split across A/B/C/D --------------
-  ##     Prefer 04b's CALIBRATED, dynamically self-consistent PER-AGE stage
-  ##     fractions (so base-year deaths reflect the calibrated distribution, not
-  ##     the Cannon clinical-cohort split); fall back to the uniform split.
+  ## 3e. seed the prevalent pool at year 1 ------------------------------------
+  ##     PRIMARY: 04b's analysis-start INITIAL STATE (calibrated end-of-window
+  ##     state forward-projected through the bridge years with reference care) —
+  ##     a dynamically consistent seed; no 2019-shares x 2023-prevalence x 2026-
+  ##     population mixing. LEGACY fallback: GBD prevalence x population split by
+  ##     04b's per-age stage shares (or 03's uniform split).
   prev_pool <- prev_seed * pop_arr[, , 1]
+  ist <- if (use_calibrated_stages) sc$best_parameters$initial_state else NULL
   ssa <- if (use_calibrated_stages) sc$best_parameters$stage_shares_by_age else NULL
-  if (!is.null(ssa)) {
+  if (!is.null(ist)) {
+    if (!identical(as.integer(ist$year), as.integer(base_year)))
+      stop("04b initial_state is for year ", ist$year, " but the analysis starts in ", base_year,
+           ". Re-run 04b under the current ANALYSIS_YEAR_START.", call. = FALSE)
+    seed <- lapply(ist[c("A", "B", "C", "D")], function(m) {
+      if (!identical(dim(m), c(n_age, n_sex))) stop("04b initial_state has wrong dimensions.", call. = FALSE)
+      m <- m[as.character(AGES), SEXES]; dimnames(m) <- list(AGES, SEXES); m })
+    seed_source <- "layer2_initial_state (04b bridge)"
+    message(sprintf("  Seed: 04b analysis-start state (%s) | total %.0f vs legacy GBD-prev x pop seed %.0f (ratio %.2f)",
+                    ist$method, sum(seed$A + seed$B + seed$C + seed$D), sum(prev_pool),
+                    sum(seed$A + seed$B + seed$C + seed$D) / sum(prev_pool)))
+  } else if (!is.null(ssa)) {
+    seed_source <- "legacy: GBD prevalence x pop x 04b per-age stage shares"
     ssa <- as.data.table(ssa)
     cal_age <- pmin(AGES, max(ssa$age))                 # ages beyond 95 inherit the 95+ fractions
     fmat <- function(col) {
@@ -220,9 +277,32 @@ build_location_state <- function(loc) {
     seed <- list(A = prev_pool * fmat("fracA"), B = prev_pool * fmat("fracB"),
                  C = prev_pool * fmat("fracC"), D = prev_pool * fmat("fracD"))
   } else {
+    seed_source <- "legacy: GBD prevalence x pop x 03 uniform stage split"
     ss <- stage_split_use
     seed <- list(A = prev_pool * ss[["A"]], B = prev_pool * ss[["B"]],
                  C = prev_pool * ss[["C"]], D = prev_pool * ss[["D"]])
+  }
+
+  ## 3e'. engine-side transitions: scalar list (contract) + optional explicit age
+  ##      modifier on A -> No-RHD regression (remission_adult_mult at ages >= cutoff),
+  ##      identical to the 04b calibration convention.
+  rem_mult <- if (is.null(dmi$meta$remission_adult_mult)) 1 else dmi$meta$remission_adult_mult
+  rem_cut  <- if (is.null(dmi$meta$remission_age_cutoff)) 20L else dmi$meta$remission_age_cutoff
+  if (use_calibrated_stages && !is.null(bp$remission_adult_mult) &&
+      (bp$remission_adult_mult != rem_mult || bp$remission_age_cutoff != rem_cut))
+    stop("remission_adult_mult / cutoff differ between 04b calibration and 03 inputs; re-run 03 -> 04b.", call. = FALSE)
+  # age structure: 04b's calibrated adult multipliers (progression + remission,
+  # hazard scale) when present; else the fixed remission hook from 03
+  ag <- if (use_calibrated_stages) bp$age_structure else NULL
+  age_mults <- if (!is.null(ag)) c(prog = ag$adult_prog_mult, rem = ag$adult_remission_mult) else c(prog = 1, rem = rem_mult)
+  age_cut   <- if (!is.null(ag)) ag$adult_age_cutoff else rem_cut
+  transitions_engine <- stage_transitions
+  mk_age <- function(p, m) { M <- empty_mat() + p; M[AGES >= age_cut, ] <- 1 - (1 - p)^m; M }
+  if (age_mults[["rem"]] != 1) transitions_engine$p_A_to_no_rhd <- mk_age(stage_transitions$p_A_to_no_rhd, age_mults[["rem"]])
+  if (age_mults[["prog"]] != 1) {
+    transitions_engine$p_A_to_B <- mk_age(stage_transitions$p_A_to_B, age_mults[["prog"]])
+    transitions_engine$p_B_to_C <- mk_age(stage_transitions$p_B_to_C, age_mults[["prog"]])
+    transitions_engine$p_C_to_D <- mk_age(stage_transitions$p_C_to_D, age_mults[["prog"]])
   }
 
   ## 3f. realised cascade + surgery coverage trajectories per scenario --------
@@ -238,25 +318,50 @@ build_location_state <- function(loc) {
                            cov[[paste0("treatment_", arm, "_target")]],   cov$ramp_start, cov$ramp_end)
     surgery   <- ramp_traj(surg[[paste0("coverage_", arm, "_baseline")]],
                            surg[[paste0("coverage_", arm, "_target")]],   cov$ramp_start, cov$ramp_end)
-    # cumulative-coverage logic: effective downstream <= upstream cascade stages
+    # annual population-average SAP adherence modifier (default 1; 00 block H)
+    adh_b <- cov[[paste0("adherence_", arm, "_baseline")]]; adh_t <- cov[[paste0("adherence_", arm, "_target")]]
+    adherence <- ramp_traj(if (is.null(adh_b)) 1 else adh_b, if (is.null(adh_t)) 1 else adh_t,
+                           cov$ramp_start, cov$ramp_end)
+    # PROGRAMME-REACH CEILING (documented simplification): effective diagnosis and
+    # treatment are capped by screening REACH (pmin), treating the three metrics as
+    # cumulative programme coverages; they are NOT multiplied as conditional
+    # proportions. This ceiling is kept because it reproduces the reference care
+    # embedded in the 04b calibration; it is NOT a mechanistic screening-only route
+    # to diagnosis or treatment and NOT a measured care cascade. Screening REACH
+    # (share of scheduled encounters delivered) and the annual encounter multipliers
+    # (2/15, 1/20; applied to population in 06) have different denominators and
+    # never multiply each other here.
+    # eff_treatment = c_SAP = share of ALL living prevalent RHD (any age) on SAP =
+    # DELIVERED SAP. SAP continues between screenings and after people age out of
+    # the screening windows; clinical diagnosis outside screening is subsumed in this
+    # provisional coverage. Effective PROTECTION = eff_treatment x adherence
+    # (adherence attenuates protection once; it does not reduce delivered volume).
     eff_diag <- pmin(screen, diagnosis)
     eff_trt  <- pmin(screen, diagnosis, treatment)
     list(screen = screen, diagnosis = diagnosis, treatment = treatment,
-         eff_diagnosis = eff_diag, eff_treatment = eff_trt, surgery = surgery)
+         eff_diagnosis = eff_diag, eff_treatment = eff_trt, surgery = surgery,
+         adherence = adherence, eff_protection = eff_trt * adherence)
   }
   coverage <- list(
     ref = cascade_for("ref"),
     sap = cascade_for("up"),
-    screen_age_restrict = isTRUE(cov$screen_age_restrict),
-    screen_age_lo = cov$screen_age_lo,
-    screen_age_hi = cov$screen_age_hi
+    # screening schedule from 03 (same in both arms; each arm has its own reach)
+    screen_schedule = cov$screen_schedule,
+    screen_encounters_per_person = cov$screen_encounters_per_person
   )
 
   list(pop = pop_arr, ir = ir_arr, cf = cf_base, oth_mort = oth_mort,
        seed = seed,
        transitions = stage_transitions, p_rhd_death = stage_p_rhd_death,
        effects = dmi$effects, surgery = surg,
-       coverage = coverage)
+       coverage = coverage,
+       # additive fields (06 consumes; legacy fields above unchanged in meaning)
+       transitions_engine = transitions_engine,       # scalar or [age x sex] (adult age multipliers)
+       age_structure = list(adult_prog_mult = unname(age_mults[["prog"]]), adult_remission_mult = unname(age_mults[["rem"]]),
+                            adult_age_cutoff = age_cut, source = if (!is.null(ag)) "04b calibrated" else "03 fixed hook"),
+       seed_source = seed_source,
+       incidence_source = incidence_source, ir_anchor_year = ir_anchor_year,
+       cf_role = "Layer-1 aggregate case-fatality anchor: LEGACY/DIAGNOSTIC only; A/B/C/D deaths come from p_rhd_death")
 }
 
 states <- setNames(lapply(LOCATIONS, build_location_state), LOCATIONS)
@@ -306,7 +411,8 @@ for (loc in LOCATIONS) {
   # coverage trajectories in [0,1]; effective <= stated for both arms
   for (sc in SCENARIOS) {
     cc <- st$coverage[[sc]]
-    for (k in c("screen", "diagnosis", "treatment", "eff_diagnosis", "eff_treatment", "surgery")) {
+    for (k in c("screen", "diagnosis", "treatment", "eff_diagnosis", "eff_treatment", "surgery",
+                "adherence", "eff_protection")) {
       v <- cc[[k]]
       if (length(v) != n_years) stop(loc, ": coverage ", sc, "/", k, " wrong length.", call. = FALSE)
       chk_prob(v, paste0(loc, " coverage ", sc, "/", k))
@@ -321,6 +427,19 @@ for (loc in LOCATIONS) {
     v <- st$coverage$ref[[k]]
     if (diff(range(v)) > 1e-12)
       stop(loc, ": reference cascade '", k, "' is not constant over the horizon.", call. = FALSE)
+  }
+
+  # mortality structure of the values 06 will run
+  if (identical(dmi$meta$mortality_structure, "D_only") && any(st$p_rhd_death[c("A", "B", "C")] != 0))
+    stop(loc, ": D_only spec but p_rhd_death A/B/C not exactly zero.", call. = FALSE)
+  # reference care used in 04b must equal the reference arm run by 06 (applied once)
+  if (use_calibrated_stages && !is.null(bp$reference_care_in_calibration)) {
+    rc <- bp$reference_care_in_calibration
+    if (abs(rc$treatment_effective - st$coverage$ref$eff_treatment[1]) > 1e-9 ||
+        abs(rc$adherence - st$coverage$ref$adherence[1]) > 1e-9 ||
+        abs(rc$surgery - st$coverage$ref$surgery[1]) > 1e-9)
+      stop(loc, ": reference care in 04b (treatment ", rc$treatment_effective, ", adherence ", rc$adherence,
+           ", surgery ", rc$surgery, ") differs from the 06 reference arm; recalibrate.", call. = FALSE)
   }
 
   # order-of-magnitude anchor: seeded RHD prevalence vs a sane band
@@ -353,6 +472,39 @@ baseline_state <- list(
     calib_last_year = calib_last_year,
     stage_calibration_status = calib$stage_calibration$status,
     RATE_BASE_YEAR  = dmi$meta$RATE_BASE_YEAR,
+    # spec carried to 06 and its outputs (additive)
+    mortality_structure = dmi$meta$mortality_structure,
+    sap_mechanism = dmi$effects$sap_mechanism,
+    sap_hr = unlist(dmi$effects[c("sap_hr_A_to_B", "sap_hr_B_to_C", "sap_hr_C_to_D")]),
+    sap_effect_scale = dmi$effects$sap_effect_scale,
+    sap_effect_sources = dmi$effects$sap_effect_sources,
+    baseline_care_interpretation = dmi$meta$baseline_care_interpretation,
+    adherence_convention = "annual population-average relative attenuation (default 1 = unattenuated effect; optimal-treatment coverage already denotes effective, adherent treatment)",
+    # programme-volume definitions carried to 06/07/08 and the reports (additive)
+    screen_schedule = cov$screen_schedule,
+    screening_volume_definition = paste(
+      "n_screened = annual screening ENCOUNTERS = screening reach (coverage$<arm>$screen) x population x",
+      "screen_encounters_per_person (n_screens / inclusive window years inside each window, 0 elsewhere);",
+      "expected volumes of a programme spread across each window, not unique people or individual histories"),
+    sap_volume_definition = paste(
+      "n_on_optimal_treatment = SAP person-years = living_rhd_start (all ages) x eff_treatment (c_SAP, share of",
+      "ALL prevalent RHD on SAP); continues between screenings and outside the screening ages"),
+    reach_ceiling_note = paste(
+      "eff_treatment = min(screen, diagnosis, treatment) is a simplifying programme-reach / cumulative-coverage",
+      "ceiling kept for calibration compatibility; not a mechanistic screening-only route or a measured cascade"),
+    incidence_trend_anchor_year = states[[1]]$ir_anchor_year,
+    incidence_source = states[[1]]$incidence_source,
+    seed_source = states[[1]]$seed_source,
+    remission_adult_mult = dmi$meta$remission_adult_mult, remission_age_cutoff = dmi$meta$remission_age_cutoff,
+    age_structure = states[[1]]$age_structure,
+    transitions_note = "$states[[loc]]$transitions are the child/reference-age scalar probabilities; 06 runs $transitions_engine (adult hazard multipliers at ages >= adult_age_cutoff)",
+    population_backbone_approximation = paste(
+      "Population is EXOGENOUS (WPP2024 by age x sex x year); RHD stocks age by cohort; the No-RHD pool is",
+      "population minus RHD stock each year (it absorbs migration and population-source differences);",
+      "births enter age 0 with zero RHD; stock > population is surfaced as a violation, never clipped silently."),
+    eff_cf_role = if (identical(dmi$effects$sap_mechanism, "progression"))
+      "progression mode: no direct SAP mortality effect, eff_cf == 1 by construction (legacy column kept)" else
+      "direct_mortality mode: eff_cf = 1 - sap_rrr_rhd_death x effective protection",
     # base-year death sanity bands consumed by 06 (COUNTRY-specific; 00 via getp)
     rhd_death_lo  = getp("RHD_DEATH_LO",  1e3), rhd_death_hi  = getp("RHD_DEATH_HI",  1e5),
     allc_death_lo = getp("ALLC_DEATH_LO", 5e5), allc_death_hi = getp("ALLC_DEATH_HI", 4e6),
