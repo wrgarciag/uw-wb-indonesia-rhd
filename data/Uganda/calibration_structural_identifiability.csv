@@ -1,16 +1,16 @@
 parameter,flatness,status,note
-p_A_to_no_rhd,0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
+p_A_to_no_rhd,0.181818181818182,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
 p_A_to_B,0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
-p_B_to_A,0.363636363636364,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
-p_B_to_C,0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
-p_C_to_B,0.636363636363636,prior-dominated,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
-p_C_to_D,0.181818181818182,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
+p_B_to_A,0.636363636363636,prior-dominated,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
+p_B_to_C,0.181818181818182,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
+p_C_to_B,1,prior-dominated,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
+p_C_to_D,0.363636363636364,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
 alpha[0-14|Female],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
 alpha[15-24|Female],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
 alpha[25-44|Female],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
 alpha[45-64|Female],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
 alpha[65-79|Female],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
-alpha[80+|Female],0.181818181818182,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
+alpha[80+|Female],0.272727272727273,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
 alpha[0-14|Male],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
 alpha[15-24|Male],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
 alpha[25-44|Male],0.0909090909090909,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification

@@ -267,6 +267,23 @@ budget    <- as.data.table(er$budget_impact)
 incr      <- as.data.table(er$incremental)
 eparams   <- er$params
 disc_base <- er$discount_base_year
+elab      <- er$report_labels                       # unit / method labels written by 08
+vder      <- er$vsl_derivation                      # VSL anchor constants + annual path
+padj      <- as.data.table(er$price_adjustment)     # unit-cost price-year audit
+CUR_TXT   <- if (is.null(elab)) "US dollars" else no_dollar(elab$currency_label)   # "constant 2025 US dollars"
+# VSL path as saved by 08 (reference-case default): the annual derivation reproduces the
+# incremental table's VSL, the unfloored anchor grows at the time elasticity, the floor
+# applies every year, and int$ of the anchor year convert to constant 2025 US$.
+vsl_ok <- function(econ, inc) {
+  vd <- econ$vsl_derivation; lb <- econ$report_labels
+  if (is.null(vd) || is.null(lb)) return(FALSE)
+  va <- as.data.table(vd$annual); a <- vd$anchor; m <- match(inc$year, va$year)
+  !anyNA(m) && identical(lb$currency, "USD") && identical(as.integer(lb$price_year), 2025L) &&
+    max(abs(inc$vsl / va$vsl_usd2025[m] - 1)) < 1e-12 &&
+    max(abs(va$raw_vsl_intY / (a$raw_vsl_anchor_intY * va$income_growth_index^a$time_elasticity) - 1)) < 1e-10 &&
+    max(abs(va$vsl_intY / pmax(va$raw_vsl_intY, va$floor_vsl_intY, na.rm = TRUE) - 1)) < 1e-12 &&
+    max(abs(va$vsl_usd2025 / (va$vsl_intY * a$intY_to_usd2025) - 1)) < 1e-10
+}
 ```
 
 ```{r integrity, message=FALSE, warning=FALSE, echo=FALSE}
@@ -386,12 +403,12 @@ cf_by <- dcast(stg[, .(c = sum(n_confirm_completed)), by = .(scenario, year)], y
 check(!is.null(eparams$uncosted_items) && "confirmations_incremental_uncosted" %in% names(budget) &&
         merge(cf_by, budget[, .(year, confirmations_incremental_uncosted)], by = "year")[, max(abs((sap - ref) - confirmations_incremental_uncosted))] < 1e-6,
       "the uncosted confirmation volume in the economics differs from the model run", c(f_out, f_er), "re-run 08")
-# economics use the GNI-anchored, VSL-only valuation (no additive GDP benefit)
-check(!is.null(eparams$gni_pc_base) && all(incr$benefit_gdp == 0) &&
-        isTRUE(all.equal(incr$benefit_total, incr$benefit_vsl)) &&
-        max(abs(incr$vsl / (eparams$vsl_mult * eparams$gni_pc_base *
-                            (1 + eparams$gdp_growth)^(incr$year - eparams$gni_pc_base_year)) - 1)) < 1e-10,
-      "the saved economics predate the GNI-anchored, VSL-only valuation", f_er, "re-run 08_economic_evaluation.R")
+# economics use the 2025-US$ reference-case VSL, VSL-only valuation (no additive GDP benefit)
+check(all(incr$benefit_gdp == 0) && isTRUE(all.equal(incr$benefit_total, incr$benefit_vsl)) &&
+        max(abs(incr$benefit_total - incr$deaths_avert * incr$vsl)) < 1e-6 * max(1, abs(incr$benefit_total)) &&
+        vsl_ok(er, incr) && nrow(padj) > 0 &&
+        max(abs(padj$adjusted_value_usd2025 - unlist(eparams[padj$param]))) < 1e-9,
+      "the saved economics predate the 2025-US$ reference-case VSL valuation", f_er, "re-run 08_economic_evaluation.R")
 # compiled 07 tables come from the same run
 s7 <- stage_long[, .(n = sum(cases)), by = .(scenario, year, stage)]
 s6 <- melt(stg[, lapply(.SD, sum), by = .(scenario, year), .SDcols = STAGES], id.vars = c("scenario", "year"),
@@ -530,16 +547,18 @@ hl <- data.table(
                sprintf("RHD deaths averted %d–%d", year_min, y50),
                sprintf("RHD deaths averted %s (%s of reference deaths)", proj_years, fmt_pct(rel_deaths_cum, 2)),
                "Incremental cost (discounted)", "Monetised benefit (discounted, VSL)", "Benefit-cost ratio",
+               "Benefit-cost ratio, undiscounted", sprintf("Net benefit per resident in %d (discounted)", tot$N0_year),
                "Cost per death averted / per DALY averted",
                sprintf("Scale-up SAP person-years in %d that are stage B at age ≥ %d (costed, no modelled benefit)", y50, SAP_AMAX + 1L),
                "Incremental confirmatory echoes (UNCOSTED)"),
   Value = c(fmt_n(seed_tot), fmt_pct(d_share0, 1), fmt_n(mod_d_first), fmt_n(da50), fmt_n(deaths_averted_cum),
             usd_m(tot$total_cost), usd_m(tot$total_benefit), bcr_txt,
+            if (is.finite(tot$bcr_undisc)) fmt_f(tot$bcr_undisc) else "not defined", fmt_usd(tot$net_benefit_pc_disc, 2),
             paste0(if (is.finite(tot$cost_per_death)) fmt_usd(tot$cost_per_death) else "not defined", " / ",
                    if (is.finite(tot$cost_per_daly)) fmt_usd(tot$cost_per_daly) else "not defined"),
             fmt_pct(noben_share50, 0), fmt_n(conf_unc)))
 kbl_std(hl, caption = paste0("Table 2. Preliminary headline results (", CTRY, "; discounted to ", disc_base,
-                             " at ", fmt_pct(eparams$disc_rate, 1), "; US$). Not a credible calibrated baseline — see the checkpoint."),
+                             " at ", fmt_pct(eparams$disc_rate, 1), "; ", CUR_TXT, "). Not a credible calibrated baseline — see the checkpoint."),
         align = c("l", "r"))
 ```
 
@@ -611,12 +630,19 @@ inp <- rbindlist(list(
                        paste0(fmt_pct(eff$eff_surgery_C_to_D, 0), " / ", fmt_pct(eff$eff_surgery_D_to_rhd_death, 0))),
              Source = "LIT / CALIBRATE (00 block H/I)"),
   data.table(Group = "Economics (08 only)",
-             Parameter = c("Discount rate", "VSL", "Screening cost per encounter", "SAP cost per on-BPG person-year",
+             Parameter = c("Discount rate", "VSL method", sprintf("VSL in %d / %d (%s)", year_min, year_max, CUR_TXT),
+                           "Real income growth (GDP per capita proxy)",
+                           "Screening cost per encounter", "SAP cost per on-BPG person-year",
                            "Surgery cost", "Confirmatory echo cost", "DALYs per RHD death"),
-             Value = c(fmt_pct(eparams$disc_rate, 1), paste0(eparams$vsl_mult, " × GNI per capita (", eparams$gni_pc_base_year, ")"),
+             Value = c(fmt_pct(eparams$disc_rate, 1), elab$vsl_method_label,
+                       paste0(fmt_usd(incr[year == year_min, vsl]), " / ", fmt_usd(incr[year == year_max, vsl])),
+                       fmt_pct(eparams$gdp_growth, 1),
                        fmt_usd(eparams$cost_screen_per_person, 2), fmt_usd(eparams$cost_sap_per_year), fmt_usd(eparams$cost_surgery),
                        "not costed", as.character(eparams$dalys_per_death)),
-             Source = c("PAPER", "PROVISIONAL multiple", "PAPER/LIT", "PAPER/LIT", "LIT", "no unit cost available", "CALIBRATE"))))
+             Source = c("PAPER", "LIT (reference case, Robinson et al. 2019)", "derived (08)", "ASSUMPTION",
+                        rep(paste0("PAPER/LIT; price year assumed ", padj$original_price_year[1], ", local CPI/XR to ", elab$price_year), 2),
+                        paste0("LIT; price year assumed ", padj$original_price_year[1], ", local CPI/XR to ", elab$price_year),
+                        "no unit cost available", "CALIBRATE"))))
 kbl_std(inp[, .(Parameter, Value, Source)],
         caption = paste0("Table 3. Model inputs (", CTRY, "). PROVISIONAL inputs are reference modelling values, not validated estimates."),
         align = c("l", "r", "l")) |>
@@ -1220,6 +1246,124 @@ cat(sprintf(paste0("By %d the scale-up raises the diagnosed share of classifiabl
             fmt_pct(noben_share50, 0), y50, SAP_AMAX + 1L, fmt_pct(noben_prot_share50, 0), y50))
 ```
 
+## Stage distributions at selected years
+
+The following plots compare **2026, 2040, 2050 and 2070** in the **reference
+scenario**, combining both sexes within each attained-age group. Each panel sums
+to 100% across stages A-D. The first plot describes **new first confirmed
+diagnoses during the year**; the second describes **all prevalent cases at year
+end, before ageing**, including diagnosed and undiagnosed disease. Adult prior-A
+and normalised history are excluded from classifiable prevalence.
+
+The gray bars retain the saved **provisional first-diagnosis composition
+benchmarks**. They are diagnostic comparisons only, and **are not prevalence
+targets**. No benchmark is imposed on the projected stage distributions.
+
+```{r stage-snapshot-prep, include=FALSE}
+# Read only the stage/flow tables already loaded above; never run the pipeline.
+stage_snapshot_years <- c(2026L, 2040L, 2050L, 2070L)
+stage_snapshot_ages <- c(paste0("Age <= ", CHILD_MAX), paste0("Age > ", CHILD_MAX))
+stage_snapshot_benchmark <- bstate$meta$model_assumptions$dx_mix_benchmark
+check(all(stage_snapshot_years %in% analysis_years),
+      "selected-year stage plots require saved outputs for 2026, 2040, 2050 and 2070",
+      f_out, "provide a saved projection covering every requested year")
+check(all(vapply(stage_snapshot_benchmark[c("child", "adult")], function(x)
+        is.numeric(x) && identical(names(x), STAGES) &&
+          all(is.finite(x) & x >= 0 & x <= 1) && abs(sum(x) - 1) < 1e-9, logical(1))) &&
+        all(c("child", "adult") %in% names(stage_snapshot_benchmark)),
+      "missing or invalid saved first-diagnosis composition benchmarks",
+      bs_path, "rebuild 05 with the declared child/adult benchmarks")
+
+snapshot_bench <- rbindlist(list(
+  data.table(age_band = stage_snapshot_ages[1], stage = STAGES,
+             share = as.numeric(stage_snapshot_benchmark$child[STAGES])),
+  data.table(age_band = stage_snapshot_ages[2], stage = STAGES,
+             share = as.numeric(stage_snapshot_benchmark$adult[STAGES]))))
+
+snapshot_make_shares <- function(x, value_col, artifact) {
+  x <- copy(x)
+  check(nrow(x) > 0L && all(is.finite(x[[value_col]]) & x[[value_col]] >= 0),
+        "selected-year stage counts are missing, negative or non-finite",
+        artifact, "check saved outputs from 06 -> 07")
+  x[, age_band := fifelse(age <= CHILD_MAX, stage_snapshot_ages[1], stage_snapshot_ages[2])]
+  counts <- x[, .(n = sum(get(value_col))), by = .(year, age_band, stage)]
+  counts[, stage := as.character(stage)]
+  grid <- CJ(year = stage_snapshot_years, age_band = stage_snapshot_ages, stage = STAGES)
+  counts <- merge(grid, counts, by = c("year", "age_band", "stage"), all.x = TRUE)
+  check(all(is.finite(counts$n)),
+        "selected-year stage plots have missing year/age/stage combinations",
+        artifact, "check saved outputs from 06 -> 07; missing cells are not replaced by zeros")
+  counts[, total := sum(n), by = .(year, age_band)]
+  check(all(counts$total > 0), "stage shares are undefined for a zero-total panel",
+        artifact, "inspect the selected-year counts")
+  counts[, share := n / total]
+  check(all(abs(counts[, .(s = sum(share)), by = .(year, age_band)]$s - 1) < 1e-9),
+        "selected-year stage shares do not sum to one", artifact, "check stage aggregation")
+  counts[, .(year, age_band, stage, share)]
+}
+
+# First diagnosis is an annual flow, summed across sexes before dividing.
+snapshot_dx_wide <- flows[scenario == "ref" & year %in% stage_snapshot_years &
+                            location %in% LOCS,
+                          .(year, age, sex, location, n_dx_A, n_dx_B, n_dx_C, n_dx_D)]
+snapshot_dx_long <- melt(snapshot_dx_wide, id.vars = c("year", "age", "sex", "location"),
+                         measure.vars = paste0("n_dx_", STAGES),
+                         variable.name = "stage", value.name = "first_dx")
+snapshot_dx_long[, stage := sub("n_dx_", "", as.character(stage))]
+snapshot_dx_shares <- snapshot_make_shares(snapshot_dx_long, "first_dx", flow_path)
+
+# Prevalence is the saved year-end stock: all diagnosed + undiagnosed A-D cases.
+# Sum case counts (not age-specific prevalence rates or percentages).
+snapshot_prev_long <- stage_long[scenario == "ref" & year %in% stage_snapshot_years &
+                                  location %in% LOCS,
+                                .(year, age, stage, cases)]
+snapshot_prev_shares <- snapshot_make_shares(snapshot_prev_long, "cases", stage_path)
+
+snapshot_stage_plot <- function(model_shares, title, caption) {
+  model <- copy(model_shares)
+  model[, series := "Model"]
+  benchmark <- rbindlist(lapply(stage_snapshot_years, function(y)
+    copy(snapshot_bench)[, year := y]))
+  benchmark[, series := "Provisional diagnosis benchmark"]
+  plot_data <- rbindlist(list(model, benchmark), use.names = TRUE)
+  plot_data[, `:=`(stage = factor(stage, levels = STAGES),
+                  age_band = factor(age_band, levels = stage_snapshot_ages),
+                  year = factor(year, levels = stage_snapshot_years),
+                  series = factor(series, levels = c("Model", "Provisional diagnosis benchmark")))]
+  ggplot(plot_data, aes(stage, share, fill = series)) +
+    geom_col(position = position_dodge(width = 0.8), width = 0.72) +
+    geom_text(aes(label = ifelse(series == "Model", sprintf("%.1f%%", 100 * share), "")),
+              position = position_dodge(width = 0.8), vjust = -0.45, size = 3,
+              colour = "#2166ac", show.legend = FALSE) +
+    facet_grid(year ~ age_band, drop = FALSE) +
+    scale_fill_manual(values = c(Model = "#2166ac", "Provisional diagnosis benchmark" = "#bfbfbf"),
+                      name = NULL, drop = FALSE) +
+    scale_y_continuous(labels = label_percent(accuracy = 1), breaks = c(0, 0.5, 1),
+                       limits = c(0, 1.10), expand = expansion(mult = c(0, 0))) +
+    labs(title = title, subtitle = paste0(CTRY, "; reference scenario; both sexes combined"),
+         x = "WHF stage", y = "Share of cases", caption = caption) +
+    base_theme(11) +
+    theme(legend.position = "top", panel.grid.major.x = element_blank(),
+          strip.text = element_text(face = "bold"),
+          plot.title = element_text(colour = "#10315c"),
+          plot.caption = element_text(hjust = 0, size = 9))
+}
+```
+
+```{r fig-first-diagnosis-stage-snapshots, echo=FALSE, fig.width=11, fig.height=10}
+snapshot_stage_plot(
+  snapshot_dx_shares,
+  "Stage at first confirmed diagnosis: selected years",
+  "Annual first confirmed diagnoses by stage and attained age at diagnosis.\nGray bars: saved provisional first-diagnosis benchmarks; diagnostic comparison only.")
+```
+
+```{r fig-prevalent-stage-snapshots, echo=FALSE, fig.width=11, fig.height=10}
+snapshot_stage_plot(
+  snapshot_prev_shares,
+  "Stage distribution of all prevalent RHD: selected years",
+  "Year-end classifiable A-D cases, diagnosed and undiagnosed, before ageing.\nGray bars retain first-diagnosis benchmarks for comparison; they are not prevalence targets.")
+```
+
 ## First diagnoses, screening and confirmation
 
 ```{r fig-diagnoses, echo=FALSE, fig.width=11, fig.height=4.2}
@@ -1314,22 +1458,62 @@ carries no benefit; SAP has no direct mortality effect.
 ## Method and discounting
 
 ```{r econ-method, echo=FALSE, results='asis'}
-b_yr <- eparams$gni_pc_base_year
-vsl_b <- eparams$vsl_mult * eparams$gni_pc_base
+va <- vder$anchor; Y <- va$income_anchor_year
+tex_n <- function(x, d = 0) gsub(",", "{,}", fmt_n(x, d))
+vsl_growth <- (1 + va$income_growth)^va$time_elasticity - 1
+late_share <- incr[, sum((benefit_total * df)[year > y50]) / sum(benefit_total * df)]
 cat(sprintf(
-"Costs and benefits are **discounted at %s per year** to %d. Annual RHD **deaths averted**
-(reference minus scale-up, kept signed) are monetised with the **value of a statistical life (VSL)
-alone**, anchored on **GNI per capita** in %d and grown with real GDP per capita:
+"All monetary results are in **%s** (2025 market exchange rate). Costs and benefits are
+**discounted at %s per year** to %d; undiscounted totals are reported alongside.
+
+**Value of a statistical life (VSL).** Annual RHD **deaths averted** (reference minus scale-up, kept
+signed) are monetised with the VSL alone, using the reference-case preferred default (Robinson et al.
+2019): the U.S. reference VSL of %s US dollars and income of %s international dollars (both %d) are put on
+%d prices with the U.S. CPI-U (factor %s), transferred by **PPP GNI per capita** with income elasticity
+$\\varepsilon = %s$, grown with real income at the same elasticity, and floored at %g times GNI per capita in every year:
 $$
-\\text{VSL}_t = m \\times \\text{GNIpc}_{b}\\,(1+g)^{\\,t-b} ,\\qquad m = %g,\\ \\text{GNIpc}_b = %s,\\ g = %s,\\qquad
-\\text{benefit}_t = \\text{deaths averted}_t \\times \\text{VSL}_t .
+\\text{VSL}^{\\text{raw}}_t = \\text{VSL}_{US,%d}\\left(\\frac{\\text{GNIpc}^{PPP}_{%d}}{\\text{Inc}_{US,%d}}\\right)^{\\varepsilon}(1+g)^{\\varepsilon (t-%d)},\\qquad
+\\text{VSL}_t = \\max\\!\\left(\\text{VSL}^{\\text{raw}}_t,\\ %g\\,\\text{GNIpc}^{PPP}_{%d}(1+g)^{t-%d}\\right),
 $$
-GNI per capita: %s. Because $g$ equals or approaches the discount rate, benefits that accrue late in the
-horizon are discounted little; the multiple $m$ is provisional. **Cost per DALY averted** uses a fixed %g
-DALYs per death (deaths only); **cost per death averted** divides discounted cost by undiscounted deaths averted.
-The BCR is undefined when discounted incremental cost is not positive.",
-  fmt_pct(eparams$disc_rate, 1), disc_base, b_yr, eparams$vsl_mult, gsub(",", "{,}", fmt_n(eparams$gni_pc_base)),
-  fmt_f(eparams$gdp_growth, 3), no_dollar(eparams$gni_pc_source), eparams$dalys_per_death))
+with $\\text{GNIpc}^{PPP}_{%d} = %s$ international dollars and $g = %s$ (real GDP-per-capita growth, used as a proxy for real
+GNI-per-capita growth). The unfloored VSL is %s times GNI per capita at the anchor, so the floor does not bind.
+International dollars of %d are converted to %s as $\\times\\,\\text{PPP}_{%d}\\times \\text{CPI}_{2025}/\\text{CPI}_{%d} \\div \\text{XR}_{2025}$
+(factor %s), giving a VSL of %s US dollars in %d and %s in %d; $\\text{benefit}_t = \\text{deaths averted}_t \\times \\text{VSL}_t$.
+The unfloored VSL grows at %s per year against a %s discount rate, so late benefits carry most weight: %s of the
+discounted benefit accrues after %d.
+
+**Unit costs** are local service bundles whose price year was never recorded; they are assumed to be %d US dollars
+and converted with %s's own CPI and exchange rates (Table 18a). **Cost per DALY averted** uses a fixed %g DALYs per
+death (deaths only); **cost per death averted** divides discounted cost by undiscounted deaths averted. The BCR is
+undefined when its incremental cost is not positive. **Sensitivity analysis: %s.**",
+  CUR_TXT, fmt_pct(eparams$disc_rate, 1), disc_base,
+  fmt_n(va$us_ref_vsl), fmt_n(va$us_ref_income), va$us_ref_year, Y, fmt_f(va$reference_price_factor, 4),
+  fmt_f(va$income_elasticity, 1), va$floor_mult,
+  Y, Y, Y, Y, va$floor_mult, Y, Y,
+  Y, tex_n(va$income_target_Y), fmt_f(va$income_growth, 3), fmt_f(va$raw_vsl_anchor_intY / va$income_target_Y, 1),
+  Y, CUR_TXT, Y, Y, fmt_f(va$intY_to_usd2025, 4),
+  fmt_n(incr[year == year_min, vsl]), year_min, fmt_n(incr[year == year_max, vsl]), year_max,
+  fmt_pct(vsl_growth, 2), fmt_pct(eparams$disc_rate, 1), fmt_pct(late_share, 1), y50,
+  padj$original_price_year[1], CTRY, eparams$dalys_per_death, elab$sensitivity_status))
+```
+
+```{r tbl-price-vsl, echo=FALSE}
+pa_disp <- padj[, .(Bundle = c(screen = "Screening encounter", sap = "On-BPG person-year", surgery = "Valve surgery")[bundle],
+                    `Original (US dollars)` = fmt_f(original_value, 2), `Assumed price year` = original_price_year,
+                    `XR (LCU/US$), y0 → 2025` = paste0(fmt_n(xr_y0_lcu_per_usd, 1), " → ", fmt_n(xr_2025_lcu_per_usd, 1)),
+                    `CPI y0 → 2025` = paste0(fmt_f(cpi_y0, 1), " → ", fmt_f(cpi_2025, 1)),
+                    Factor = fmt_f(adjustment_factor, 4), `2025 US dollars` = fmt_f(adjusted_value_usd2025, 2))]
+setnames(pa_disp, "XR (LCU/US$), y0 → 2025", "XR (LCU per US dollar), y0 → 2025")
+kbl_std(pa_disp, caption = paste0("Table 18a. Unit-cost price adjustment (", CTRY, "): local CPI and official exchange rates ",
+                                  "(World Bank WDI); the y0 exchange rate is a proxy for the source study's unrecorded rate."),
+        align = c("l", rep("r", 6)))
+vy <- as.data.table(vder$annual)[year %in% show_years,
+        .(Year = year, `GNI pc, PPP (int$ of anchor)` = fmt_n(income_target_intY), `Raw VSL (int$)` = fmt_n(raw_vsl_intY),
+          `Floor (int$)` = fmt_n(floor_vsl_intY), `Floor binds` = ifelse(vsl_floor_binding, "yes", "no"),
+          `VSL (2025 US dollars)` = fmt_n(vsl_usd2025), `VSL (2025 int$)` = fmt_n(vsl_int2025))]
+setnames(vy, names(vy), gsub("$", " dollars", names(vy), fixed = TRUE))
+kbl_std(vy, caption = paste0("Table 18b. VSL path at selected years (", CTRY, "); int dollars are international dollars."),
+        align = c("l", rep("r", 6)))
 ```
 
 ## Economic summary
@@ -1343,10 +1527,12 @@ es_disp <- data.table(
   `Monetised benefit` = vapply(es$total_benefit, usd_m, character(1)),
   `Net benefit` = vapply(es$net_benefit, usd_m, character(1)),
   BCR = ratio_or_na(es$bcr, es$total_cost > 0, function(x) formatC(x, format = "f", digits = 2)),
+  `BCR, undiscounted` = ratio_or_na(es$bcr_undisc, es$total_cost_undisc > 0, function(x) formatC(x, format = "f", digits = 2)),
+  `Net benefit per resident` = vapply(es$net_benefit_pc_disc, fmt_usd, "", d = 2),
   `Deaths averted (undiscounted)` = fmt_n(es$deaths_averted, 0),
   `Cost / death averted` = ratio_or_na(es$cost_per_death, es$deaths_averted > 0, function(x) vapply(x, fmt_usd, "")),
   `Cost / DALY averted` = ratio_or_na(es$cost_per_daly, es$deaths_averted > 0, function(x) vapply(x, fmt_usd, "")))
-kbl_std(es_disp, caption = paste0("Table 19. Economic summary (discounted to ", disc_base, " unless stated; US$). PRELIMINARY; ",
+kbl_std(es_disp, caption = paste0("Table 19. Economic summary (discounted to ", disc_base, " unless stated; ", CUR_TXT, "; net benefit per resident = discounted net benefit / population in ", econ_sum$N0_year[1], "). PRELIMINARY; ",
                                   "confirmatory echoes uncosted (", fmt_n(conf_unc), " incremental)."),
         align = c("l", rep("r", 7))) |>
   footnote(general = no_dollar(eparams$uncosted_items))
@@ -1365,7 +1551,7 @@ bdt <- budget[, .(Year = year, `Cost ref` = round(cost_ref), `Cost scale-up` = r
                   `Deaths averted` = round(deaths_avert, 1), `Screen` = round(c_screen), `SAP` = round(c_sap), `Surgery` = round(c_surgery),
                   `Confirmations (uncosted)` = round(confirmations_incremental_uncosted))]
 datatable(bdt, rownames = FALSE,
-          caption = paste0("Full annual budget-impact table (", proj_years, "). Cost columns in US dollars (undiscounted); ",
+          caption = paste0("Full annual budget-impact table (", proj_years, "). Cost columns in ", CUR_TXT, " (undiscounted); ",
                            "Screen/SAP/Surgery are the scale-up-arm component costs."),
           options = list(pageLength = 12, scrollX = TRUE, order = list(list(0, "asc")))) |>
   formatCurrency(c("Cost ref", "Cost scale-up", "Incremental", "Screen", "SAP", "Surgery"), currency = "$", digits = 0) |>
@@ -1381,8 +1567,8 @@ ggplot(cost_src, aes(year, cost / 1e6, fill = component)) +
   geom_area(alpha = 0.9, colour = "white", linewidth = 0.1) +
   scale_fill_manual(values = comp_col, labels = comp_lab, name = NULL) +
   scale_y_continuous(labels = comma) +
-  labs(title = "Scale-up arm annual programme cost, by source (US$ millions, undiscounted)",
-       subtitle = "Confirmatory echoes are not costed", x = NULL, y = "US$ millions") +
+  labs(title = "Scale-up arm annual programme cost, by source (2025 US$ millions, undiscounted)",
+       subtitle = "Confirmatory echoes are not costed", x = NULL, y = "2025 US$ millions") +
   base_theme(11) + theme(legend.position = "bottom")
 ```
 
@@ -1397,10 +1583,10 @@ ggplot(bc_long, aes(year, value / 1e6, colour = stream)) +
   geom_line(linewidth = 1.1) +
   scale_colour_manual(values = c("Discounted incremental cost" = "#E15759", "Discounted monetised benefit" = "#59A14F"), name = NULL) +
   scale_y_continuous(labels = comma) +
-  labs(title = "Annual discounted benefit vs incremental cost (US$ millions)",
+  labs(title = "Annual discounted benefit vs incremental cost (2025 US$ millions)",
        subtitle = if (is.finite(be_year)) paste0("Cumulative discounted net benefit first becomes non-negative in ", be_year) else
          "Cumulative discounted net benefit stays negative within the horizon",
-       x = NULL, y = "US$ millions (discounted)") +
+       x = NULL, y = "2025 US$ millions (discounted)") +
   base_theme(11) + theme(legend.position = "bottom")
 ```
 
@@ -1446,11 +1632,16 @@ ggplot(bc_long, aes(year, value / 1e6, colour = stream)) +
 - **Partial identification.** GBD provides only total prevalence and deaths, so
   the stage split is partially identified; the flatness sweep is not a posterior.
 - **Deterministic point estimates.** No probabilistic or one-way sensitivity
-  analysis is reported.
-- **Valuation and horizon.** VSL alone, `r eparams$vsl_mult` × GNI per capita
-  grown at `r fmt_pct(eparams$gdp_growth, 1)` with discounting at
-  `r fmt_pct(eparams$disc_rate, 1)`; deaths averted are counted within
-  `r proj_years`, and most accrue late in the horizon.
+  analysis is reported (sensitivity analysis: `r elab$sensitivity_status`); VSL
+  reference values, elasticity, floor, income growth, discounting and unit-cost
+  price years are flagged for later variation.
+- **Valuation and horizon.** VSL alone (`r elab$vsl_method_label`), growing at
+  `r fmt_pct(vsl_growth, 2)` a year with income growth of `r fmt_pct(eparams$gdp_growth, 1)`
+  against discounting at `r fmt_pct(eparams$disc_rate, 1)`; deaths averted are counted within
+  `r proj_years`, and `r fmt_pct(late_share, 0)` of the discounted benefit accrues after `r y50`.
+- **Prices.** Unit costs have no recorded price year; they are assumed to be
+  `r padj$original_price_year[1]` US dollars and converted to `r CUR_TXT` with local CPI and
+  exchange rates (factor `r fmt_f(padj$adjustment_factor[1], 3)`).
 - **Population and background mortality.** Background mortality is held at its GBD
   `r bstate$meta$RATE_BASE_YEAR` pattern; the WPP population is exogenous and the
   never-onset and normalised pools absorb backbone differences.
@@ -1473,7 +1664,7 @@ cat("Adequacy label:    ", substr(adequacy, 1, 60), "...\n")
 cat("Consistency checks: passed (location, scenarios, years, engine/specification, calibrated parameters and fixed inputs,",
     "adult progression multiplier and effective adult transitions,",
     "analysis-start state, reference care, care trajectories, stock identities, D-only, SAP multipliers,",
-    "care volumes and eligibility, screening definition, economics, uncosted confirmations, VSL-only valuation, 07 tables)\n")
+    "care volumes and eligibility, screening definition, economics, uncosted confirmations, reference-case VSL in constant 2025 US dollars, 07 tables)\n")
 cat("Artifact modification times (", if (mtime_ordered) "in pipeline order" else "NOT in pipeline order -- content checks above are authoritative", "):\n", sep = "")
 for (i in seq_along(prov_mtime)) cat(sprintf("   %-40s %s\n", names(prov_mtime)[i], prov_mtime[i]))
 sessionInfo()

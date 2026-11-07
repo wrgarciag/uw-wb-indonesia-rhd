@@ -142,6 +142,22 @@ fmt_mn  <- function(x, d = 1) paste0(formatC(x / 1e6, format = "f", digits = d, 
 fmt_x   <- function(x, d = 1) paste0(formatC(x, format = "f", digits = d), "$\\times$")
 fmt_f   <- function(x, d = 2) formatC(x, format = "f", digits = d)
 fmt_e   <- function(x) formatC(x, format = "e", digits = 1)
+fmt_int <- function(x, d = 0) paste0("int\\$", fmt_n(x, d))                     # international dollars
+tex_lab <- function(x) gsub("$", "\\$", x, fixed = TRUE)                         # 08 labels -> LaTeX text
+# VSL path as saved by 08 (reference-case default): the annual derivation reproduces the
+# incremental table's VSL, the unfloored anchor grows at the time elasticity, the floor
+# applies every year, and int$ of the anchor year convert to constant 2025 US$ with the
+# saved PPP, CPI and exchange-rate factors. Labels must say constant 2025 US$.
+vsl_ok <- function(econ, inc) {
+  vd <- econ$vsl_derivation; lb <- econ$report_labels
+  if (is.null(vd) || is.null(lb)) return(FALSE)
+  va <- as.data.table(vd$annual); a <- vd$anchor; m <- match(inc$year, va$year)
+  !anyNA(m) && identical(lb$currency, "USD") && identical(as.integer(lb$price_year), 2025L) &&
+    max(abs(inc$vsl / va$vsl_usd2025[m] - 1)) < 1e-12 &&
+    max(abs(va$raw_vsl_intY / (a$raw_vsl_anchor_intY * va$income_growth_index^a$time_elasticity) - 1)) < 1e-10 &&
+    max(abs(va$vsl_intY / pmax(va$raw_vsl_intY, va$floor_vsl_intY, na.rm = TRUE) - 1)) < 1e-12 &&
+    max(abs(va$vsl_usd2025 / (va$vsl_intY * a$intY_to_usd2025) - 1)) < 1e-10
+}
 # A ratio to one in words ("15\% below", "8\% above", "within 1\% of").
 rel_phrase <- function(r, tol = 0.01) {
   if (length(r) != 1 || !is.finite(r)) return("not comparable with")
@@ -272,8 +288,10 @@ for (ct in COUNTRIES) {
   check(nrow(ee) == length(yy) && max(abs(ee$ref - ee$sap - ee$deaths_avert)) < 1e-6 &&
           ee[, max(abs(ref_recalc - cost_ref) / pmax(cost_ref, 1), abs(sap_recalc - cost_sap) / pmax(cost_sap, 1))] < 1e-9,
         paste(ct, "saved economics were not computed from this model run"), paste("re-run 08 for", ct))
-  check(!is.null(ep_ct$gni_pc_base) && all(inc_ct$benefit_gdp == 0) && isTRUE(all.equal(inc_ct$benefit_total, inc_ct$benefit_vsl)),
-        paste(ct, "economics predate the GNI-anchored, VSL-only valuation"), paste("re-run 08 for", ct))
+  check(all(inc_ct$benefit_gdp == 0) && isTRUE(all.equal(inc_ct$benefit_total, inc_ct$benefit_vsl)) &&
+          max(abs(inc_ct$benefit_total - inc_ct$deaths_avert * inc_ct$vsl)) < 1e-6 * max(1, abs(inc_ct$benefit_total)) &&
+          vsl_ok(d$econ, inc_ct),
+        paste(ct, "economics predate the 2025-US$ reference-case VSL valuation"), paste("re-run 08 for", ct))
   conf <- dcast(s[, .(n = sum(n_confirm_completed)), by = .(scenario, year)], year ~ scenario, value.var = "n")
   bi <- merge(as.data.table(d$econ$budget_impact)[, .(year, confirmations_incremental_uncosted)], conf, by = "year")
   check(!is.null(ep_ct$uncosted_items) && nrow(bi) == length(yy) &&
@@ -285,6 +303,15 @@ for (ct in COUNTRIES) {
 }
 check(identical(D$Indonesia$out$meta$years, D$Uganda$out$meta$years), "Indonesia and Uganda runs cover different analysis years")
 check(D$Indonesia$econ$discount_base_year == D$Uganda$econ$discount_base_year, "countries use different discount base years")
+LB_KEYS <- c("currency_label", "discounting_label", "vsl_method_label", "analysis_period_label", "sensitivity_status")
+check(identical(D$Indonesia$econ$report_labels[LB_KEYS], D$Uganda$econ$report_labels[LB_KEYS]) &&
+        identical(D$Indonesia$econ$vsl_derivation$anchor[c("income_elasticity", "time_elasticity", "floor_mult")],
+                  D$Uganda$econ$vsl_derivation$anchor[c("income_elasticity", "time_elasticity", "floor_mult")]),
+      "countries' economics use different units, discounting or VSL methods", "re-run 08 for both countries")
+LB  <- D$Indonesia$econ$report_labels
+CUR <- tex_lab(LB$currency_label)                                 # constant 2025 US\$
+VA  <- D$Indonesia$econ$vsl_derivation$anchor
+EL  <- VA$income_elasticity; FL <- VA$floor_mult
 SPEC <- D$Indonesia$cal$stage_calibration$spec
 check(identical(SPEC[c("engine_spec", "mortality_structure", "sap_mechanism", "child_last_age", "entry_mix_child",
                        "entry_mix_adult", "adult_prog_hazard_mult", "sap_eligibility", "sap_hr")],
@@ -359,7 +386,10 @@ summarise_country <- function(ct) {
   ycut <- function(arm, y) agg[scenario == arm & year == y]
   list(
     ct = ct, y0 = y0, y1 = y1, ye = ye, yy = yy, wide = wide, agg = agg, g = g, g_last = g_last,
-    comp = comp, es = es, inc = inc, t50 = t50, ep = ep, dby = dby, vsl_b = ep$vsl_mult * ep$gni_pc_base,
+    comp = comp, es = es, inc = inc, t50 = t50, ep = ep, dby = dby,
+    va = d$econ$vsl_derivation$anchor, vsl0 = inc[year == y0, vsl], vsl1 = inc[year == y1, vsl],
+    pfac = d$econ$price_adjustment$adjustment_factor[1], xr_int = d$econ$int_conversion$usd_to_int_2025,
+    ben_late = inc[, sum((benefit_total * df)[year > ye]) / sum(benefit_total * df)],
     cv = cv, tr = tr, nh = nh, ef = ef, sg = sg, hr = hr, adh = adh, b = b, trend = meta$incidence_trend,
     m_ad = nh$adult_prog_hazard_mult, bc_ad = nh$derived$p_B_to_C_adult, cd_ad = nh$derived$p_C_to_D_adult,
     cal = cal, sc = sc, oc = oc, eda = eda, bp = bp, fy = fy, fl = fl, tol = tol, cy = cy, mf = mf, mech = mech, dfa = dfa,
@@ -801,22 +831,22 @@ Time: 0.75 min (cumulative 14.75). Incidence is estimated but not fitted directl
 
 ```{r tab-inputs-2}
 in2 <- data.frame(
-  Input = c("Screening encounter", "Confirmatory echo", "BPG (SAP) person-year", "Valve surgery", "GNI per capita (VSL anchor)",
-            "VSL, discounting"),
+  Input = c("Screening encounter", "Confirmatory echo", "BPG (SAP) person-year", "Valve surgery",
+            paste0("GNI per capita, PPP, ", VA$income_anchor_year), paste0("VSL in ", Y0, "; discount rate")),
   i = c(fmt_usd(I$ep$cost_screen_per_person, 2), "\\prov{not costed}", fmt_usd(I$ep$cost_sap_per_year), fmt_usd(I$ep$cost_surgery),
-        fmt_usd(I$ep$gni_pc_base), paste0(I$ep$vsl_mult, "$\\times$ GNI; ", fmt_pct(I$ep$disc_rate))),
+        fmt_int(I$va$income_target_Y), paste0(fmt_usd(round(I$vsl0, -3)), "; ", fmt_pct(I$ep$disc_rate))),
   u = c(fmt_usd(U$ep$cost_screen_per_person, 2), "\\prov{not costed}", fmt_usd(U$ep$cost_sap_per_year), fmt_usd(U$ep$cost_surgery),
-        fmt_usd(U$ep$gni_pc_base), paste0(U$ep$vsl_mult, "$\\times$ GNI; ", fmt_pct(U$ep$disc_rate))),
-  Status = c("\\prov{Undocumented}", "\\prov{Omitted}", "\\prov{Undocumented}", "\\prov{Undocumented}", paste0("World Bank, ", I$ep$gni_pc_base_year),
-             "\\prov{Provisional}"))
-names(in2) <- c("Input", "Indonesia", "Uganda", "Status")
+        fmt_int(U$va$income_target_Y), paste0(fmt_usd(round(U$vsl0, -3)), "; ", fmt_pct(U$ep$disc_rate))),
+  Status = c("\\prov{Undocumented}", "\\prov{Omitted}", "\\prov{Undocumented}", "\\prov{Undocumented}",
+             paste0("World Bank WDI, ", VA$income_anchor_year), "Reference case"))
+names(in2) <- c(paste0("Input (", LB$price_year, " US\\$)"), "Indonesia", "Uganda", "Status")
 kb(in2, "lrrl", widths = c("4.0cm", "2.3cm", "2.3cm", "2.8cm"), font = 9)
 ```
 
-\srcline Volumes come from the engine: encounters, on-BPG person-years (A $\leq `r BAGE`$ and B), surgeries. Unit-cost sources and price year are not recorded in the pipeline. Total cost is understated by the confirmation cost.
+\srcline Volumes come from the engine: encounters, on-BPG person-years (A $\leq `r BAGE`$ and B), surgeries. Unit-cost sources are not recorded; price year assumed 2019, converted to `r CUR` with each country's CPI and exchange rates (factor `r fmt_f(I$pfac, 3)` Indonesia, `r fmt_f(U$pfac, 3)` Uganda). Total cost is understated by the confirmation cost.
 
 ::: notes
-Time: 0.75 min (cumulative 15.5). Surgery is held equal in both arms, so it shapes levels but contributes little to the incremental cost. VSL is anchored on GNI per capita and grown with GDP per capita; no separate GDP benefit. Transition: the calibration.
+Time: 0.75 min (cumulative 15.5). Surgery is held equal in both arms, so it shapes levels but contributes little to the incremental cost. VSL follows the reference-case default: the U.S. value is transferred by PPP GNI per capita with an income elasticity of `r fmt_f(EL, 1)`, floored at `r FL` times GNI per capita, and grows with real income at the same elasticity; no separate GDP benefit. Transition: the calibration.
 :::
 
 # How the model was calibrated
@@ -1186,7 +1216,7 @@ ggplot(cdt, aes(share, country, fill = comp)) +
   theme_deck + theme(panel.grid.major.y = element_blank())
 ```
 
-\srcline Discounted (`r fmt_pct(I$ep$disc_rate)`, base `r I$dby`) incremental cost, `r Y0`--`r Y1`, by component; screening `r fmt_pct(SH[1])` (Indonesia) and `r fmt_pct(SH[2])` (Uganda). Confirmatory echoes (`r fmt_n(I$conf_unc)` Indonesia, `r fmt_n(U$conf_unc)` Uganda) are not priced.
+\srcline Discounted (`r fmt_pct(I$ep$disc_rate)`, base `r I$dby`) incremental cost, `r CUR`, `r Y0`--`r Y1`, by component; screening `r fmt_pct(SH[1])` (Indonesia) and `r fmt_pct(SH[2])` (Uganda). Confirmatory echoes (`r fmt_n(I$conf_unc)` Indonesia, `r fmt_n(U$conf_unc)` Uganda) are not priced.
 
 ::: notes
 Time: 0.75 min (cumulative 30.0). Screening is `r fmt_pct(SH[1])` and `r fmt_pct(SH[2])` of the incremental cost. Surgery differs between arms only because the C and D stocks differ. Transition: the economic result.
@@ -1196,22 +1226,25 @@ Time: 0.75 min (cumulative 30.0). Screening is `r fmt_pct(SH[1])` and `r fmt_pct
 
 ```{r tab-econ}
 ec_tab <- data.frame(
-  q = c("Incremental cost", "Monetised benefit", "Net benefit", "Benefit–cost ratio", "RHD deaths averted (undiscounted)",
+  q = c("Incremental cost", "Monetised benefit", "Net benefit", "Benefit–cost ratio", "Benefit–cost ratio, undiscounted",
+        paste0("Net benefit per resident in ", Y0), "RHD deaths averted (undiscounted)",
         "Cost per death / per DALY averted", "Confirmatory echoes not costed (incremental)"),
   i = c(fmt_mn(I$es$total_cost), fmt_mn(I$es$total_benefit), fmt_mn(I$es$net_benefit),
-        if (bcr_ok[1]) fmt_f(I$es$bcr) else "undefined", fmt_n(I$es$deaths_averted),
+        if (bcr_ok[1]) fmt_f(I$es$bcr) else "undefined", if (is.finite(I$es$bcr_undisc)) fmt_f(I$es$bcr_undisc) else "undefined",
+        fmt_usd(I$es$net_benefit_pc_disc, 2), fmt_n(I$es$deaths_averted),
         paste0(fmt_usd(I$es$cost_per_death), " / ", fmt_usd(I$es$cost_per_daly)), fmt_n(I$conf_unc)),
   u = c(fmt_mn(U$es$total_cost), fmt_mn(U$es$total_benefit), fmt_mn(U$es$net_benefit),
-        if (bcr_ok[2]) fmt_f(U$es$bcr) else "undefined", fmt_n(U$es$deaths_averted),
+        if (bcr_ok[2]) fmt_f(U$es$bcr) else "undefined", if (is.finite(U$es$bcr_undisc)) fmt_f(U$es$bcr_undisc) else "undefined",
+        fmt_usd(U$es$net_benefit_pc_disc, 2), fmt_n(U$es$deaths_averted),
         paste0(fmt_usd(U$es$cost_per_death), " / ", fmt_usd(U$es$cost_per_daly)), fmt_n(U$conf_unc)))
-names(ec_tab) <- c(paste0("Discounted to ", I$dby, " at ", fmt_pct(I$ep$disc_rate), ", US\\$"), "Indonesia", "Uganda")
+names(ec_tab) <- c(paste0("Discounted to ", I$dby, " at ", fmt_pct(I$ep$disc_rate), ", ", CUR), "Indonesia", "Uganda")
 kb(ec_tab, "lrr", widths = c("6.6cm", "3.0cm", "3.0cm"), font = 9) |> row_spec(4, bold = TRUE)
 ```
 
-\srcline Benefit = deaths averted $\times$ VSL only (`r I$ep$vsl_mult`$\times$ GNI per capita, `r I$ep$gni_pc_base_year`, grown with GDP per capita). m = million. Deterministic point estimates; costs understated by the confirmation cost.
+\srcline Benefit = deaths averted $\times$ VSL only (reference case: PPP income elasticity `r fmt_f(EL, 1)`, floor `r FL`$\times$ GNI per capita; `r Y0` VSL `r fmt_usd(round(I$vsl0, -3))` and `r fmt_usd(round(U$vsl0, -3))`). Per resident: discounted net benefit / `r Y0` population. m = million. Deterministic; sensitivity analysis pending; costs understated by the confirmation cost.
 
 ::: notes
-Time: 1.0 min (cumulative 31.0). Indonesia's ratio rests on benefits accruing late in the horizon, because VSL grows at `r fmt_pct(I$ep$gdp_growth, 1)` against a `r fmt_pct(I$ep$disc_rate)` discount rate. `r if (bcr_ok[2] && U$es$bcr < 1) "Uganda's falls below one." else ""` Neither should be quoted: the baseline overstates deaths and the SAP effect is an assumed scenario, absent from age `r AMAX + 1L`. Transition: the horizon.
+Time: 1.0 min (cumulative 31.0). Indonesia's ratio rests on benefits accruing late in the horizon: the unfloored VSL grows at `r fmt_pct((1 + I$ep$gdp_growth)^I$va$time_elasticity - 1, 1)` a year (income growth `r fmt_pct(I$ep$gdp_growth, 1)` at elasticity `r fmt_f(I$va$time_elasticity, 1)`) against a `r fmt_pct(I$ep$disc_rate)` discount rate, so `r fmt_pct(I$ben_late)` of Indonesia's discounted benefit (`r fmt_pct(U$ben_late)` of Uganda's) accrues after `r YE`. In international dollars (purchasing power), the totals are `r fmt_f(I$xr_int, 2)` and `r fmt_f(U$xr_int, 2)` times larger; the ratios are unchanged. `r if (bcr_ok[2] && U$es$bcr < 1) "Uganda's falls below one." else ""` Neither should be quoted: the baseline overstates deaths and the SAP effect is an assumed scenario, absent from age `r AMAX + 1L`. Transition: the horizon.
 :::
 
 ## Ending the horizon in `r YE` `r hz_word` the ratios to `r fmt_f(B50[1])` and `r fmt_f(B50[2])`
@@ -1219,7 +1252,7 @@ Time: 1.0 min (cumulative 31.0). Indonesia's ratio rests on benefits accruing la
 ```{r tab-horizon}
 hz <- function(r, full) if (full) c(fmt_h(r$averted), fmt_f(r$es$bcr), fmt_mn(r$es$net_benefit)) else
   c(fmt_n(r$t50$da), fmt_f(r$t50$ben / r$t50$cost), fmt_mn(r$t50$ben - r$t50$cost))
-hz_tab <- data.frame(q = c("RHD deaths averted", "Benefit–cost ratio", "Net benefit (discounted, US\\$)"),
+hz_tab <- data.frame(q = c("RHD deaths averted", "Benefit–cost ratio", paste0("Net benefit (discounted, ", LB$price_year, " US\\$)")),
                      a = hz(I, FALSE), b = hz(I, TRUE), c = hz(U, FALSE), d = hz(U, TRUE))
 names(hz_tab) <- c("", paste0(Y0, "–", YE), paste0(Y0, "–", Y1), paste0(Y0, "–", YE), paste0(Y0, "–", Y1))
 kb(hz_tab, "lrrrr", widths = c("3.8cm", "1.85cm", "1.85cm", "1.85cm", "1.85cm")) |>
@@ -1592,22 +1625,25 @@ kb(dp_tab, "lrrr", widths = c("2.2cm", "3cm", "3cm", "3.4cm")) |>
 
 \srcline Worksheet rates divide GBD 2023 RHD deaths by an estimated stage-D count; collaborator worksheet, October 2026. All ages, both sexes.
 
-## Economic parameters differ by country in GNI, growth and unit costs
+## Economic parameters differ by country in income, growth and unit costs
 
 ```{r tab-econ-params}
-ep_row <- function(r) c(fmt_pct(r$ep$disc_rate), r$dby, fmt_usd(r$ep$gni_pc_base), r$ep$gni_pc_base_year,
-                        r$ep$vsl_mult, fmt_usd(r$vsl_b), fmt_pct(r$ep$gdp_growth, 1), r$ep$dalys_per_death,
-                        fmt_usd(r$ep$cost_screen_per_person, 2), fmt_usd(r$ep$cost_sap_per_year), fmt_usd(r$ep$cost_surgery), "not costed")
+ep_row <- function(r) c(fmt_pct(r$ep$disc_rate), r$dby, fmt_int(r$va$income_target_Y), r$va$income_anchor_year,
+                        paste0(fmt_f(r$va$raw_vsl_anchor_intY / r$va$income_target_Y, 1), "$\\times$"),
+                        fmt_usd(round(r$vsl0, -3)), fmt_usd(round(r$vsl1, -3)), fmt_pct(r$ep$gdp_growth, 1), r$ep$dalys_per_death,
+                        fmt_f(r$pfac, 3), fmt_usd(r$ep$cost_screen_per_person, 2), fmt_usd(r$ep$cost_sap_per_year),
+                        fmt_usd(r$ep$cost_surgery), "not costed", fmt_f(r$xr_int, 3))
 ep_tab <- data.frame(
-  Parameter = c("Discount rate", "Discount base year", "GNI per capita, Atlas method (VSL anchor)", "GNI / VSL anchor year",
-                "VSL multiple of GNI per capita", "VSL in the anchor year", "Real GDP per capita growth (carries VSL)",
-                "DALYs per RHD death", "Cost per screening encounter", "Cost per person-year on BPG", "Cost per surgery",
-                "Cost per confirmatory echo"),
+  Parameter = c("Discount rate", "Discount base year", "GNI per capita, PPP (VSL income anchor)", "Income anchor year",
+                "Unfloored VSL / GNI per capita at the anchor", paste0("VSL in ", Y0, ", ", CUR), paste0("VSL in ", Y1, ", ", CUR),
+                "Real income growth (GDP per capita proxy)", "DALYs per RHD death", "Price factor, assumed 2019 to 2025",
+                "Cost per screening encounter", "Cost per person-year on BPG", "Cost per surgery",
+                "Cost per confirmatory echo", "International \\$ per US\\$, 2025"),
   Indonesia = ep_row(I), Uganda = ep_row(U))
 kb(ep_tab, "lrr", widths = c("6cm", "2.8cm", "2.8cm"), font = 8)
 ```
 
-\srcline As saved with the economic results. GNI: World Bank WDI NY.GNP.PCAP.CD. DALY: deaths only, no years lived with disability.
+\srcline VSL: U.S. US\$`r fmt_f(VA$us_ref_vsl / 1e6, 1)` m and int\$`r fmt_n(VA$us_ref_income)` (`r VA$us_ref_year`); elasticity `r fmt_f(EL, 1)`, floor `r FL`$\times$ GNI per capita. Macro data: World Bank WDI, U.S. CPI-U. DALY: deaths only. Sensitivity analysis pending.
 
 ```{r budget-prep, include=FALSE}
 bdg <- lapply(COUNTRIES, function(ct) as.data.table(D[[ct]]$econ$budget_impact)); names(bdg) <- COUNTRIES
@@ -1623,7 +1659,7 @@ bt <- function(ct) { b <- bdg[[ct]][year %in% yrs_b]
 bi <- bt("Indonesia"); bu <- bt("Uganda")
 bud <- data.frame(Year = yrs_b, a = bi$ref, b = bi$sap, c = bi$inc, cf = bi$cf, d = bu$ref, e = bu$sap, f = bu$inc, g = bu$cf)
 names(bud) <- c("Year", "Ref.", "Scale-up", "Incr.", "Confirm.", "Ref.", "Scale-up", "Incr.", "Confirm.")
-kb(bud, "lrrrrrrrr", font = 8) |> add_header_above(c(" " = 1, "Indonesia, US$ m" = 4, "Uganda, US$ m" = 4))
+kb(bud, "lrrrrrrrr", font = 8) |> add_header_above(setNames(c(1, 4, 4), c(" ", paste0("Indonesia, ", LB$price_year, " US$ m"), paste0("Uganda, ", LB$price_year, " US$ m"))))
 ```
 
 \srcline Undiscounted annual programme cost by arm (screening + BPG + surgery), selected years; Confirm. = incremental confirmatory echoes, a volume, not priced.
@@ -1665,7 +1701,7 @@ kb(abs_tab, "lrrrr", widths = c("3.9cm", "1.95cm", "1.95cm", "1.95cm", "1.95cm")
 - **Structural:** adult progression multiplier (now fixed at `r fmt_f(M_AD)`) and adult normalisation; prior-A in prevalence; direct advanced entry in children
 - **Calibration:** prevalence : death weights; death-trend handling; target basis
 - **One-way:** assumed SAP progression multiplier $M$ and protection age (GOAL-trial child hazard ratios as the documented alternative); BPG initiation, retention, adherence; confirmation completion; screening window target
-- **Economic:** confirmation unit cost; VSL multiple; discount rate; unit costs
+- **Economic:** confirmation unit cost; VSL reference value, income elasticity and floor; income growth; discount rate; unit costs and their price years
 - **Probabilistic:** transitions and incidence multipliers within bounds
 
 \srcline The pipeline is deterministic; none of the results in this deck carry uncertainty intervals.
@@ -1733,7 +1769,7 @@ pv2 <- data.frame(
   Object = c("\\$states[[1]]\\$coverage, \\$seed\\_state", "\\$stages n\\_screened, n\\_confirm\\_completed, n\\_on\\_optimal\\_treatment",
              "\\$stages volumes $\\times$ \\$params unit costs", "\\$summary, \\$incremental", "\\$budget\\_impact, \\$params",
              "Table 2; All-ages rows", "Section 10 table"),
-  Shape = c(paste("vectors of", length(I$yy), "years"), "persons per year", "US\\$", "1 row per location", "per year",
+  Shape = c(paste("vectors of", length(I$yy), "years"), "persons per year", "2025 US\\$", "1 row per location", "per year",
             "probabilities", "text"),
   Transform = c("none", "sum by arm and year", "$\\times$ discount factor; sap $-$ ref", "none", "sums", "min, max", "parsed"))
 pv2$Artifact <- brk(pv2$Artifact); pv2$Object <- brk(pv2$Object)

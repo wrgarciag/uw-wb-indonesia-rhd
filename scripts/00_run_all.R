@@ -260,9 +260,18 @@ nh_child_last_age <- 20L          # [MODELLING CONVENTION] child rules at attain
 
 # Annual transition PROBABILITIES = 04b STARTING VALUES and PRIOR CENTRES. The six
 # non-zero ones are calibrated (shared across sexes) within TRANS_BOUNDS (block G2).
-p_A_to_no_rhd <- 0.311   # [PROVISIONAL] A -> normalised history, age <= 20 (adult: 0)             [calibrated]
+# p_A_to_no_rhd <- 0.311   # [PROVISIONAL] A -> normalised history, age <= 20 (adult: 0)             [calibrated]
+# p_A_to_B      <- 0.054   # [PROVISIONAL] A -> B, age <= 20; the SAME fitted value drives adult
+#                          #   prior-A -> B (provisional extrapolation)                                [calibrated]
+# p_B_to_A      <- 0.177   # [PROVISIONAL] B -> A, age <= 20 (adult: structural zero)                [calibrated]
+# p_B_to_C      <- 0.074   # [PROVISIONAL] B -> C, age <= 20; adult (> 20) = hazard x adult_prog_hazard_mult [calibrated]
+# p_C_to_B      <- 0.050   # [PROVISIONAL] C -> B, age <= 20 (adult: structural zero)                [calibrated]
+# p_C_to_D      <- 0.112   # [PROVISIONAL] C -> D, age <= 20; adult (> 20) = hazard x adult_prog_hazard_mult [calibrated]
+# p_D_to_C      <- 0       # EXACT structural zero (D = clinical complications; no valve-regression rate)
+
+p_A_to_no_rhd <- 0.125   # [PROVISIONAL] A -> normalised history, age <= 20 (adult: 0)             [calibrated]
 p_A_to_B      <- 0.054   # [PROVISIONAL] A -> B, age <= 20; the SAME fitted value drives adult
-                         #   prior-A -> B (provisional extrapolation)                                [calibrated]
+#   prior-A -> B (provisional extrapolation)                                [calibrated]
 p_B_to_A      <- 0.177   # [PROVISIONAL] B -> A, age <= 20 (adult: structural zero)                [calibrated]
 p_B_to_C      <- 0.074   # [PROVISIONAL] B -> C, age <= 20; adult (> 20) = hazard x adult_prog_hazard_mult [calibrated]
 p_C_to_B      <- 0.050   # [PROVISIONAL] C -> B, age <= 20 (adult: structural zero)                [calibrated]
@@ -286,7 +295,7 @@ dx_mix_benchmark_adult <- c(A = 0,    B = 0.60, C = 0.30, D = 0.10)   # age  > 2
 # history — the former late-entry D-death hazard multiplier of 2 is removed, i.e.
 # effective value 1; not fitted and never lowered to manufacture fit).
 p_rhd_death_D <- switch(COUNTRY,
-                        Indonesia = 0.119,   # [PROVISIONAL reference input; dev/TP Stage D to death_RHDparameters.xlsx col K]
+                        Indonesia = 0.06,   # 0.119 [PROVISIONAL reference input; dev/TP Stage D to death_RHDparameters.xlsx col K]
                         Uganda    = 0.0597)  # [PROVISIONAL] Uganda-specific input (not replaced by Indonesia's value)
 residual_rhd_mortality_mult <- 1     # fixed; no second mortality scale
 # COMMON ADULT PROGRESSION HAZARD MULTIPLIER (fixed; not fitted). At attained age > 20
@@ -300,7 +309,7 @@ residual_rhd_mortality_mult <- 1     # fixed; no second mortality scale
 # scratch test dev/experiments/2026-11_adult_prog_mult_048_pipeline (REPORT.md): total
 # loss -15% vs m = 1, but adult RHD deaths remain ~3-4x GBD (a partial improvement).
 adult_prog_hazard_mult <- switch(COUNTRY,
-                                 Indonesia = 0.48,   # [PROVISIONAL] reference value (formerly the late-onset 0.48 progression multiplier)
+                                 Indonesia = 0.48,   # 0.4 [PROVISIONAL] reference value (formerly the late-onset 0.48 progression multiplier)
                                  Uganda    = 0.48)   # [PROVISIONAL] same reference value; [TODO: confirm for Uganda]
 stopifnot("adult_prog_hazard_mult must be one value > 0" =
             is.numeric(adult_prog_hazard_mult) && length(adult_prog_hazard_mult) == 1L && adult_prog_hazard_mult > 0)
@@ -401,14 +410,26 @@ STRUCT_DEATH_TARGET_AGE_MIN <- 0L
 
 # Annual-probability bounds of the calibrated transitions (literature ranges, widened
 # modestly). D->C is a fixed structural zero and never enters a transform or the optimiser.
+# TRANS_BOUNDS <- list(
+#   p_A_to_no_rhd = c(0.005, 0.60),
+#   p_A_to_B      = c(0.001, 0.25),
+#   p_B_to_A      = c(0.002, 0.40),
+#   p_B_to_C      = c(0.001, 0.20),
+#   p_C_to_B      = c(0.001, 0.15),
+#   p_C_to_D      = c(0.001, 0.30),
+#   p_D_to_C      = c(0, 0))
+
+# Published annual transition probabilities vary 7‐ to 108‐fold across studies
+# Table 2 of the collaborators’ September 2026 worksheet, annualised
 TRANS_BOUNDS <- list(
-  p_A_to_no_rhd = c(0.005, 0.60),
-  p_A_to_B      = c(0.001, 0.25),
-  p_B_to_A      = c(0.002, 0.40),
-  p_B_to_C      = c(0.001, 0.20),
-  p_C_to_B      = c(0.001, 0.15),
-  p_C_to_D      = c(0.001, 0.30),
-  p_D_to_C      = c(0, 0))
+  p_A_to_no_rhd = c(0.0074, 0.2490),
+  p_A_to_B      = c(0.0015, 0.0723),
+  p_B_to_A      = c(0.0042, 0.2025),
+  p_B_to_C      = c(0.0012, 0.1253),
+  p_C_to_B      = c(0.0119, 0.0810),
+  p_C_to_D      = c(0.0057, 0.2497),
+  p_D_to_C      = c(0, 0)
+)
 
 STRUCT_N_STARTS      <- 2L           # reproducible random starts (+ prior-centre, Layer-1 and prevalence-first starts)
 STRUCT_PARALLEL_STARTS <- TRUE       # compute only: run the independent starts on parallel workers (<= MAX_CORES; identical results)
@@ -548,71 +569,201 @@ cov_surgery_scale_up <- switch(COUNTRY,
 # cost_sap_per_year      <- 110    # [PAPER] annual optimal secondary-prevention cost per person
 # cost_surgery           <- 9000   # [LIT] valve surgery + first-year post-op cost per surgery
 
+# ------------------------------------------------------------------------------
+# J1. REPORTING UNIT, DISCOUNTING, HEALTH-LOSS CONVENTION  (updated 7 Nov 2026)
+#     Every monetary result is in CONSTANT 2025 US DOLLARS at the 2025 market
+#     exchange rate, discounted to discount_base_year. 08 never falls back to
+#     another price year: a missing 2025 observation stops the run.
+# ------------------------------------------------------------------------------
+ECON_CURRENCY <- "USD"
+PRICE_YEAR    <- 2025L
+# Secondary comparison unit: FINAL results only (no calculation runs in INT$).
+# INT$_2025 = USD_2025 x XR_2025 / PPP_2025 (one fixed factor per country).
+ECON_COMPARISON_CURRENCY       <- "INT$"
+ECON_COMPARISON_PRICE_YEAR     <- 2025L
+ECON_COMPARISON_PPP_SERIES     <- "PA.NUS.PPP"   # WDI GDP PPP conversion factor, LCU per international $
+ECON_COMPARISON_PPP_ALT_SOURCE <- NULL           # none: if the 2025 PPP factor is missing, INT$ columns are NA
+ECON_COMPARISON_COUNTRIES      <- c("Indonesia", "Uganda")  # 08 writes output/rhd_country_comparison_2025.csv once all exist
+
 disc_rate <- switch(COUNTRY,
-                    Indonesia = 0.03,
+                    Indonesia = 0.03,          # [PAPER] annual discount rate (costs & benefits)
                     Uganda    = 0.03)
-
-# BENEFIT VALUATION (08): VSL ALONE monetises RHD deaths averted (the former additive
-# one-year GDP-per-capita "productivity" benefit is RETIRED). VSL is anchored on GNI
-# PER CAPITA and projected with the GDP-per-capita growth path (unit income elasticity
-# over time):
-#     VSL_b = vsl_mult x gni_pc_base ;  VSL_t = VSL_b x GDPpc_t / GDPpc_b = VSL_b x (1 + gdp_growth)^(t - b)
-# with b = gni_pc_base_year (the GNI/VSL income anchor; distinct from the analysis,
-# calibration, GBD-rate and discount reference years).
-# GNI per capita: World Bank WDI indicator NY.GNP.PCAP.CD, "GNI per capita, Atlas
-# method (current US$)"; values for 2019 (WDI last updated 2026-10-08; retrieved
-# 2026-10-22 from api.worldbank.org). Current US$ of 2019 = the same 2019-US$ basis the
-# economic block already used (gdp_pc_base_year), so VSL is in constant 2019 US$ and is
-# grown with REAL per-capita growth (no nominal compounding). [TODO: confirm] unit
-# costs below carry no recorded price year; they are assumed to be on this basis.
-# (For reference, WDI 2024 values are 4,920 Indonesia / 1,010 Uganda; moving the anchor
-# to 2024 would require re-pricing the unit costs to 2024 US$ as well.)
-gni_pc_base <- switch(COUNTRY,
-                      Indonesia = 4020,     # [WDI NY.GNP.PCAP.CD 2019] US$, Atlas method
-                      Uganda    = 810)      # [WDI NY.GNP.PCAP.CD 2019] US$, Atlas method
-gni_pc_base_year <- switch(COUNTRY,
-                           Indonesia = 2019L,
-                           Uganda    = 2019L)
-gni_pc_source <- "World Bank WDI NY.GNP.PCAP.CD (GNI per capita, Atlas method, current US$), 2019; WDI updated 2026-10-08"
-
-# GDP-per-capita PATH: used ONLY as the growth index that carries VSL forward from the
-# GNI anchor year (08 aligns it to gni_pc_base_year before taking the ratio, so its
-# LEVEL cancels). gdp_growth is a constant REAL per-capita growth SCENARIO ASSUMPTION,
-# not an externally sourced forecast. [TODO: confirm] Uganda's 1340 does not match WDI
-# 2019 GDP per capita (822 current US$); harmless for valuation because the level cancels.
-gdp_pc_base <- switch(COUNTRY,
-                      Indonesia = 4150,
-                      Uganda    = 1340)
-gdp_pc_base_year <- switch(COUNTRY,
-                           Indonesia = 2019L,
-                           Uganda    = 2019L)
-gdp_growth <- switch(COUNTRY,
-                     Indonesia = 0.03,      # [ASSUMPTION] constant real GDP-per-capita growth
-                     Uganda    = 0.032)     # [ASSUMPTION] constant real GDP-per-capita growth
-# VSL multiple of GNI per capita. [PROVISIONAL] the 30x multiple is RETAINED from the
-# previous 30 x GDP-per-capita specification (Coates 2021 used VSL ~30x income) and is
-# now applied to GNI per capita; it is not a newly estimated income-elasticity transfer.
-vsl_mult <- switch(COUNTRY,
-                   Indonesia = 30,
-                   Uganda    = 30)
-dalys_per_death <- switch(COUNTRY,
-                          Indonesia = 30,
-                          Uganda    = 30)
 # (7) Economic discount reference year — costs & benefits are discounted TO this
 #     year. Default = the first analysis year (kept separate from (5) the GBD rate
-#     reference year, (6) gdp_pc_base_year and the GNI/VSL anchor gni_pc_base_year,
-#     which are their own anchors).
+#     reference year and the VSL income anchor year vsl_income_anchor_year).
 discount_base_year <- ANALYSIS_YEAR_START
+dalys_per_death <- switch(COUNTRY,             # [CALIBRATE] undiscounted DALYs per RHD death (unchanged)
+                          Indonesia = 30,
+                          Uganda    = 30)
+# Cumulative per-capita results = cumulative total / N0, N0 = WPP population (all
+# ages, both sexes; one arm, the arms share one population) in the first analysis
+# year. The same undiscounted N0 divides discounted and undiscounted totals.
+PER_CAPITA_DENOMINATOR      <- "N0 = WPP population, all ages, both sexes, first analysis year (residents at programme start)"
+PER_CAPITA_DENOMINATOR_YEAR <- ANALYSIS_YEAR_START
 
-cost_screen_per_person <- switch(COUNTRY,
+# ------------------------------------------------------------------------------
+# J2. MACRO OBSERVATIONS — the ONLY macro data 08 uses (08 makes no network calls)
+#     One entry per series x country x year. Retrieved 2026-11-07 from the World
+#     Bank WDI API (api.worldbank.org/v2, source = 2 "World Development
+#     Indicators", lastupdated 2026-10-08 for every WDI series below) and the BLS
+#     Public API (series CUUR0000SA0). A value that cannot be retrieved is NA with
+#     "# TODO: supply"; 08 then stops and names the observation.
+#     Series:
+#       NY.GNP.PCAP.PP.CD  GNI per capita, PPP (current international $)
+#       PA.NUS.PPP         PPP conversion factor, GDP (LCU per international $); ICP
+#                          2021 benchmark round (ICP results published 2024-05-30);
+#                          2019 = "ICP time series PPP estimate", 2025 = non-benchmark
+#                          year with no ICP footnote in the API (WB extrapolation from
+#                          the ICP 2021 benchmark). Same WDI vintage as the PPP GNI;
+#                          check 2019: GNI pc LCU (NY.GNP.PCAP.CN) / PA.NUS.PPP =
+#                          11,622 IDN / 2,377 UGA vs 11,620 / 2,380 published (rounded).
+#       FP.CPI.TOTL        Consumer price index (2010 = 100), annual (IMF IFS via WDI)
+#       PA.NUS.FCRF        Official exchange rate (LCU per US$, period average) (IMF IFS)
+#       CUUR0000SA0        BLS CPI-U, US city average, all items, NSA, 1982-84 = 100,
+#                          annual average (= mean of the 12 monthly values, verified)
+# ------------------------------------------------------------------------------
+macro_obs <- function(series, iso3, year, value, unit, source, last_updated,
+                      retrieved = "2026-11-07", note = "")
+  list(series = series, iso3 = iso3, year = as.integer(year), value = value, unit = unit,
+       source = source, last_updated = last_updated, retrieved = retrieved, note = note)
+WDI_SRC <- "World Bank WDI (api.worldbank.org/v2, source=2)"
+WDI_UPD <- "2026-10-08"
+ECON_MACRO_RETRIEVED <- "2026-11-07"
+ECON_MACRO_OBS <- list(
+  # --- target-country income anchor (VSL), 2019 -------------------------------
+  "NY.GNP.PCAP.PP.CD|IDN|2019" = macro_obs("NY.GNP.PCAP.PP.CD", "IDN", 2019, 11620,
+                                           "2019 international $ per person", WDI_SRC, WDI_UPD),
+  "NY.GNP.PCAP.PP.CD|UGA|2019" = macro_obs("NY.GNP.PCAP.PP.CD", "UGA", 2019, 2380,
+                                           "2019 international $ per person", WDI_SRC, WDI_UPD),
+  # --- GDP PPP conversion factor: 2019 (VSL PPP -> LCU) and 2025 (INT$ add-on) -
+  "PA.NUS.PPP|IDN|2019" = macro_obs("PA.NUS.PPP", "IDN", 2019, 4847.4453125,
+                                    "2019 IDR per international $", WDI_SRC, WDI_UPD,
+                                    note = "ICP time series PPP estimate (ICP 2021 round)"),
+  "PA.NUS.PPP|UGA|2019" = macro_obs("PA.NUS.PPP", "UGA", 2019, 1258.25891113281,
+                                    "2019 UGX per international $", WDI_SRC, WDI_UPD,
+                                    note = "ICP time series PPP estimate (ICP 2021 round)"),
+  "PA.NUS.PPP|IDN|2025" = macro_obs("PA.NUS.PPP", "IDN", 2025, 4720.99750025346,
+                                    "2025 IDR per international $", WDI_SRC, WDI_UPD,
+                                    note = "non-benchmark year (no ICP footnote); extrapolated from the ICP 2021 benchmark"),
+  "PA.NUS.PPP|UGA|2025" = macro_obs("PA.NUS.PPP", "UGA", 2025, 1271.51526728309,
+                                    "2025 UGX per international $", WDI_SRC, WDI_UPD,
+                                    note = "non-benchmark year (no ICP footnote); extrapolated from the ICP 2021 benchmark"),
+  # --- country CPI (2010 = 100), y0 = 2019 and 2025 ---------------------------
+  "FP.CPI.TOTL|IDN|2019" = macro_obs("FP.CPI.TOTL", "IDN", 2019, 151.176672788694, "index, 2010 = 100", WDI_SRC, WDI_UPD),
+  "FP.CPI.TOTL|IDN|2025" = macro_obs("FP.CPI.TOTL", "IDN", 2025, 176.046565851866, "index, 2010 = 100", WDI_SRC, WDI_UPD),
+  "FP.CPI.TOTL|UGA|2019" = macro_obs("FP.CPI.TOTL", "UGA", 2019, 176.049367040562, "index, 2010 = 100", WDI_SRC, WDI_UPD),
+  "FP.CPI.TOTL|UGA|2025" = macro_obs("FP.CPI.TOTL", "UGA", 2025, 224.675273352364, "index, 2010 = 100", WDI_SRC, WDI_UPD),
+  # --- official exchange rate, annual average, LCU per US$ --------------------
+  "PA.NUS.FCRF|IDN|2019" = macro_obs("PA.NUS.FCRF", "IDN", 2019, 14147.6713605454, "IDR per US$, 2019 average", WDI_SRC, WDI_UPD),
+  "PA.NUS.FCRF|IDN|2025" = macro_obs("PA.NUS.FCRF", "IDN", 2025, 16477.8651797835, "IDR per US$, 2025 average", WDI_SRC, WDI_UPD),
+  "PA.NUS.FCRF|UGA|2019" = macro_obs("PA.NUS.FCRF", "UGA", 2019, 3704.04907169681, "UGX per US$, 2019 average", WDI_SRC, WDI_UPD),
+  "PA.NUS.FCRF|UGA|2025" = macro_obs("PA.NUS.FCRF", "UGA", 2025, 3602.98994206813, "UGX per US$, 2025 average", WDI_SRC, WDI_UPD),
+  # --- US CPI-U: ONLY to put the U.S. VSL reference values on the anchor-year basis
+  "CUUR0000SA0|USA|2015" = macro_obs("CUUR0000SA0", "USA", 2015, 237.017, "index, 1982-84 = 100, annual average",
+                                     "BLS CPI-U US city average, all items, NSA (api.bls.gov v1)",
+                                     "BLS annual average (published)"),
+  "CUUR0000SA0|USA|2019" = macro_obs("CUUR0000SA0", "USA", 2019, 255.657, "index, 1982-84 = 100, annual average",
+                                     "BLS CPI-U US city average, all items, NSA (api.bls.gov v1)",
+                                     "BLS annual average (published)")
+)
+ECON_LOCAL_CPI_SERIES <- "FP.CPI.TOTL"   # country CPI used for LOCAL price changes (never US CPI for a local bundle)
+ECON_XR_SERIES        <- "PA.NUS.FCRF"   # market exchange rate, LCU per US$, annual average
+ECON_PPP_SERIES       <- "PA.NUS.PPP"    # GDP PPP conversion factor, LCU per international $
+
+# ------------------------------------------------------------------------------
+# J3. UNIT-COST SERVICE BUNDLES (original values) + 2025 PRICE ADJUSTMENT
+#     The original amounts are kept under their historical names (08 does not
+#     cost with them directly). They are LOCAL HEALTHCARE SERVICE BUNDLES reported
+#     in US$, NOT U.S. resource costs; their price year was never recorded and is
+#     ASSUMED to be 2019 (the model's previous monetary basis). 08 converts each
+#     bundle with the local-CPI / exchange-rate method (Turner et al. 2019):
+#       cost_USD_2025 = cost_USD_y0 x XR_y0 x (CPI_2025 / CPI_y0) / XR_2025
+#     using the SOURCE country's own CPI and LCU/US$ rates. The source study's own
+#     conversion rate is unavailable (orig_xr = NA), so the y0 annual-average
+#     official rate is used as a FLAGGED proxy. A USD display currency never
+#     selects the US CPI. Bundled costing only: no microcosting, no component split.
+# ------------------------------------------------------------------------------
+COST_PRICE_ADJUSTMENT_METHOD <- "local_cpi_xr"
+cost_screen_per_person <- switch(COUNTRY,      # [PAPER] echo screening, per encounter (original US$, assumed 2019)
                                  Indonesia = 1.10,
                                  Uganda    = 0.40)
-cost_sap_per_year <- switch(COUNTRY,
+cost_sap_per_year <- switch(COUNTRY,           # [PAPER] BPG secondary prophylaxis, per on-BPG person-year (original US$, assumed 2019)
                             Indonesia = 110,
                             Uganda    = 40)
-cost_surgery <- switch(COUNTRY,
+cost_surgery <- switch(COUNTRY,                # [LIT] valve surgery + first-year post-op, per surgery (original US$, assumed 2019)
                        Indonesia = 9000,
                        Uganda    = 5000)
+cost_bundle <- function(param, value, unit)
+  list(param = param, original_value = value, original_currency = "USD",  # "USD" or "LCU"
+       original_price_year = 2019L, price_year_status = "assumed (no price year recorded for the original value)",
+       source_setting = COUNTRY, source_iso3 = ISO3,
+       source_setting_status = "assumed: bundle priced for the analysis country; originating study not recorded in the repository",
+       orig_xr = NA_real_,      # LCU per US$ used by the source study; NA -> y0 official annual-average rate (flagged proxy)
+       unit = unit,
+       source = "00_run_all.R block J value carried from earlier model versions ([PAPER]/[LIT] tags); study and price year not recorded")
+cost_bundles <- list(
+  screen  = cost_bundle("cost_screen_per_person", cost_screen_per_person, "per screening encounter"),
+  sap     = cost_bundle("cost_sap_per_year",      cost_sap_per_year,      "per on-BPG person-year"),
+  surgery = cost_bundle("cost_surgery",           cost_surgery,           "per valve surgery (incl. first post-op year)"))
+
+# ------------------------------------------------------------------------------
+# J4. VALUE OF A STATISTICAL LIFE — reference-case PREFERRED DEFAULT
+#     (Robinson et al. 2019, Reference Case Guidelines for BCA in Global Health
+#     and Development, Ch. 3-4): PPP GNI per capita, income elasticity 1.5, floor
+#     20 x real GNI per capita applied in EVERY year. The other valuation
+#     scenarios are NOT implemented. 08 computes, with Y = vsl_income_anchor_year:
+#       pf            = CPI_US[Y] / CPI_US[2015]         (US CPI-U, US reference values only)
+#       raw_anchor    = (9.4e6 pf) x (GNIpc_PPP_Y / (57,900 pf))^1.5   [Y int$]
+#       raw_t         = raw_anchor x ((1 + g)^(t - Y))^1.5               [unfloored anchor grown]
+#       floor_t       = 20 x GNIpc_PPP_Y x (1 + g)^(t - Y)
+#       VSL_t (int$Y) = max(raw_t, floor_t)
+#       VSL_t (US$ 2025) = VSL_t x PPP_Y x (CPI_c[2025] / CPI_c[Y]) / XR_c[2025]
+#     benefit_t = (RHD deaths ref - RHD deaths scale-up)_t x VSL_t ; no GDP add-on.
+# ------------------------------------------------------------------------------
+VSL_METHOD                <- "Reference-case preferred default (Robinson et al. 2019): PPP GNI per capita, income elasticity 1.5, floor 20 x GNI per capita"
+vsl_us_ref_value          <- 9.4e6     # [LIT] U.S. reference VSL, US$
+vsl_us_ref_price_year     <- 2015L     #       ... in 2015 US$
+vsl_us_ref_income         <- 57900     # [LIT] U.S. reference income, 2015 international $ (GNI per capita, PPP)
+vsl_us_ref_income_year    <- 2015L
+vsl_us_ref_source         <- "Robinson LA, Hammitt JK, O'Keeffe L (2019) Reference Case Guidelines for Benefit-Cost Analysis in Global Health and Development, Ch. 3 (US VSL $9.4m and income $57,900, 2015); ratio ~160 is rounded and not imposed"
+vsl_us_cpi_series         <- "CUUR0000SA0"   # US CPI-U, annual average: aligns the U.S. reference values to year Y ONLY
+vsl_income_anchor_year    <- 2019L     # Y: target-country income anchor (retained)
+vsl_income_series         <- "NY.GNP.PCAP.PP.CD"
+vsl_income_elasticity     <- 1.5       # [LIT] cross-country income elasticity (reference-case default)
+vsl_time_elasticity       <- 1.5       # [LIT] elasticity applied to real income growth over time (default implementation)
+vsl_floor_mult            <- 20        # [LIT] VSL floor = 20 x real GNI per capita, every year
+vsl_floor_enabled         <- TRUE
+# Real income growth used to project GNI per capita: the existing country GDP-per-
+# capita growth ASSUMPTIONS, used as a PROXY for real GNI-per-capita growth (not an
+# official GNI forecast). Name retained for report compatibility.
+gdp_growth <- switch(COUNTRY,
+                     Indonesia = 0.03,      # [ASSUMPTION] constant real per-capita growth (proxy for real GNI pc growth)
+                     Uganda    = 0.032)     # [ASSUMPTION] constant real per-capita growth (proxy for real GNI pc growth)
+income_growth_interpretation <- "Constant real GDP-per-capita growth assumption used as a proxy for real GNI-per-capita growth; not an official GNI forecast"
+
+# --- DEPRECATED: retained for report compatibility; not used by 08 -------------
+# (Former rule VSL = 30 x GNI per capita, Atlas method, 2019 US$, grown with GDP pc.
+#  Atlas GNI is not a PPP-to-market-US$ conversion; replaced by J4 above.)
+gni_pc_base <- switch(COUNTRY,                 # DEPRECATED: retained for report compatibility; not used by 08
+                      Indonesia = 4020,     # [WDI NY.GNP.PCAP.CD 2019] US$, Atlas method
+                      Uganda    = 810)      # [WDI NY.GNP.PCAP.CD 2019] US$, Atlas method
+gni_pc_base_year <- switch(COUNTRY,            # DEPRECATED: retained for report compatibility; not used by 08
+                           Indonesia = 2019L,
+                           Uganda    = 2019L)
+gni_pc_source <- "DEPRECATED (not used by 08): World Bank WDI NY.GNP.PCAP.CD (GNI per capita, Atlas method, current US$), 2019; WDI updated 2026-10-08"
+gdp_pc_base <- switch(COUNTRY,                 # DEPRECATED: retained for report compatibility; not used by 08
+                      Indonesia = 4150,
+                      Uganda    = 1340)
+gdp_pc_base_year <- switch(COUNTRY,            # DEPRECATED: retained for report compatibility; not used by 08
+                           Indonesia = 2019L,
+                           Uganda    = 2019L)
+vsl_mult <- switch(COUNTRY,                    # DEPRECATED: retained for report compatibility; not used by 08
+                   Indonesia = 30,
+                   Uganda    = 30)
+
+# SENSITIVITY ANALYSIS: PENDING; not run. Parameters flagged for later variation in
+# 08's parameter register: VSL reference value/income/price year, elasticities,
+# floor, income growth, discount rate, bundle prices and their price years.
 
 #===============================================================================
 # K. PARALLEL / CORE SETTINGS

@@ -1,22 +1,22 @@
 parameter,role,value
-p_A_to_no_rhd,calibrated,0.318384123745917
-p_A_to_B,calibrated,0.25
-p_B_to_A,calibrated,0.231710169750453
-p_B_to_C,calibrated,0.00879076284513118
-p_C_to_B,calibrated,0.0954822389478873
-p_C_to_D,calibrated,0.124983843389975
-alpha[0-14|Female],calibrated,0.761427624864618
-alpha[15-24|Female],calibrated,0.597251360739336
-alpha[25-44|Female],calibrated,0.519410924129817
-alpha[45-64|Female],calibrated,0.552238831368231
-alpha[65-79|Female],calibrated,0.645712022106463
-alpha[80+|Female],calibrated,0.774560775243304
-alpha[0-14|Male],calibrated,0.717344962249025
-alpha[15-24|Male],calibrated,0.544576791334386
-alpha[25-44|Male],calibrated,0.467438016752356
-alpha[45-64|Male],calibrated,0.504803265363593
-alpha[65-79|Male],calibrated,0.606975359091965
-alpha[80+|Male],calibrated,0.750858271657199
+p_A_to_no_rhd,calibrated,0.217001437742866
+p_A_to_B,calibrated,0.0723
+p_B_to_A,calibrated,0.107519988368111
+p_B_to_C,calibrated,0.00985591407817772
+p_C_to_B,calibrated,0.0530076858369579
+p_C_to_D,calibrated,0.171393003536166
+alpha[0-14|Female],calibrated,0.756614921866488
+alpha[15-24|Female],calibrated,0.591043203745103
+alpha[25-44|Female],calibrated,0.514017195769024
+alpha[45-64|Female],calibrated,0.54766598834022
+alpha[65-79|Female],calibrated,0.642107732018154
+alpha[80+|Female],calibrated,0.772424415440422
+alpha[0-14|Male],calibrated,0.715569884298787
+alpha[15-24|Male],calibrated,0.539455046703497
+alpha[25-44|Male],calibrated,0.462012674002816
+alpha[45-64|Male],calibrated,0.499588491610088
+alpha[65-79|Male],calibrated,0.602297849416055
+alpha[80+|Male],calibrated,0.747671649902858
 child_last_age (modelling convention),fixed,20
 p_D_to_C,fixed (structural zero),0
 p_rhd_death_A/B/C,fixed (structural zeros),0
@@ -39,6 +39,6 @@ sap_protection_age_max (attained age),fixed (applied in reference care),39
 sap_hr_prior_A_to_B_adult,fixed (applied in reference care),1
 sap_hr_C_to_D,fixed (applied in reference care),1
 sap_hr_D_to_rhd_death,fixed (applied in reference care),1
-"p_B_to_C_adult (effective, age > 20)",derived,0.00422925359374737
-"p_C_to_D_adult (effective, age > 20)",derived,0.0620758581617822
-"p_prior_A_to_B_adult (effective, age > 20)",derived,0.25
+"p_B_to_C_adult (effective, age > 20)",derived,0.00474302262646875
+"p_C_to_D_adult (effective, age > 20)",derived,0.0862922131760954
+"p_prior_A_to_B_adult (effective, age > 20)",derived,0.0723

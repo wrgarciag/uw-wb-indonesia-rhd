@@ -1,0 +1,848 @@
+---
+title: "RHD investment-case poster content"
+subtitle: "World Congress on Rheumatic Heart Disease 2026 · Indonesia and Uganda, 2026–2050"
+output:
+  html_document:
+    self_contained: true
+    theme: null
+    highlight: null
+    mathjax: null
+    toc: true
+    toc_depth: 2
+    section_divs: true
+# The bibliography is library/references.bib. At render time a sanitised copy is written to a
+# temporary folder (never into the repository): only reference-manager export artefacts are
+# removed (suffixes after ';' or '/ASSET/' in DOIs, relative URLs, note/keywords/pmid/issn
+# fields, volume:issue tails in journal names), proper nouns in titles are brace-protected from
+# APA sentence-casing, and 'issue' is read as the BibTeX 'number' field. Keys and bibliographic
+# content are unchanged.
+bibliography: '`r local({ root <- Sys.getenv("RHD_REPO_ROOT"); if (!nzchar(root)) root <- file.path(dirname(knitr::current_input(dir = TRUE)), ".."); root <- normalizePath(root, winslash = "/", mustWork = FALSE); src <- file.path(root, "library", "references.bib"); csl <- file.path(root, "reports", "apa.csl"); if (!file.exists(src) || !file.exists(csl)) stop("poster.Rmd: library/references.bib or reports/apa.csl not found under ", root, ". Set RHD_REPO_ROOT to the repository root.", call. = FALSE); b <- readLines(src, encoding = "UTF-8", warn = FALSE); fld <- function(f) grepl(paste0("^[[:space:]]*", f, "[[:space:]]*="), b, ignore.case = TRUE); b <- b[!(fld("url") & grepl("[{]/", b)) & !fld("note") & !fld("keywords") & !fld("pmid") & !fld("issn")]; d <- fld("doi"); b[d] <- sub("(/ASSET/[^}]*|;[^}]*)[}]", "}", b[d]); j <- fld("journal"); b[j] <- sub("[[:space:]]+[0-9]{4}[[:space:]]+[0-9]+:[0-9]+[}]", "}", b[j]); t <- fld("title"); b[t] <- gsub("(African Union|World Heart Federation|Uganda|Indigenous Australian|Brazilian)", "{\\1}", b[t]); s <- fld("issue"); b[s] <- sub("issue", "number", b[s], fixed = TRUE); out <- file.path(normalizePath(tempdir(), winslash = "/"), "rhd_poster_refs"); dir.create(out, showWarnings = FALSE); writeLines(enc2utf8(b), file.path(out, "references.bib"), useBytes = TRUE); file.copy(csl, file.path(out, "apa.csl"), overwrite = TRUE); file.path(out, "references.bib") })`'
+csl: '`r file.path(normalizePath(tempdir(), winslash = "/"), "rhd_poster_refs", "apa.csl")`'
+link-citations: true
+---
+
+```{r internal-notes, include=FALSE}
+# ==============================================================================
+# INTERNAL NOTES (R comments in an include = FALSE chunk: never rendered)
+# ------------------------------------------------------------------------------
+# Purpose: reusable poster content for reports/WCRHD2026_POSTER.pptx, read from the
+# saved Indonesia and Uganda runs only (01 -> 08 outputs). Nothing here runs or
+# modifies the pipeline; generated figures go to tempdir().
+#
+# Template items deliberately not rendered, with reasons:
+#  - Author superscripts 1-3: the template numbers the three authors but gives a
+#    single affiliation line ("Department of Global Health, University of
+#    Washington, Seattle, USA"). Names and that line are rendered as given, without
+#    superscripts. Confirm each author's affiliation before printing.
+#  - Logo, QR code and acknowledgements/funders boxes are empty placeholders in the
+#    template; nothing is rendered for them.
+#  - Background bullet "2024 WHO guidelines ... endorse echocardiography-based
+#    screening": omitted because library/references.bib has no WHO 2024 guideline
+#    entry. Replaced by the WHF 2023 two-step screening statement (Rwebembera2023).
+#  - "Fig. 1 ... (Number 3 pathway)": no pathway with that number is defined in the
+#    repository; Figure 1 is drawn from the implemented engine (R/abcd_engine.R) and
+#    the saved run metadata, not from an earlier conceptual pathway.
+#  - Draft scale-up targets in the template ("80% screening coverage and 65% optimal
+#    adherence") and the hypothetical country descriptions ("2% prevalence, 50 million"
+#    / "0.5% prevalence, 300 million") are replaced by the saved run values for
+#    Indonesia and Uganda.
+#  - Horizon: the template offered "2026-2050 OR 2026-2100"; this document uses
+#    2026-2050 inclusive throughout (economic totals recomputed from annual series).
+#  - GDP-per-capita comparison ("additional -% of current GDP per capita"): omitted.
+#    The saved outputs hold no current GDP per capita in 2025 US$. params$gdp_pc_base
+#    is a 2019 value flagged DEPRECATED (not used by 08), and incremental$gdp_pc is
+#    projected PPP GNI per capita in international $ of 2019 (a VSL input), so there
+#    is no clear denominator in the units of the per-capita cost.
+#
+# References missing from library/references.bib (sources are named in the text but
+# not cited): GBD 2023 (IHME); UN World Population Prospects 2024; Robinson, Hammitt &
+# O'Keeffe (2019) reference-case guidelines for benefit-cost analysis (VSL method used
+# by 08); World Bank WDI (PPP, CPI, exchange rates); WHO 2024 RHD guideline.
+# Bib entries Grobler2026 and Rwebembera2026 have no author field and are not cited.
+# Unit-cost bundles (screening, BPG person-year, surgery) have no recorded source study
+# or price year in the repository; 08 assumes 2019 US$ and converts to 2025 US$.
+#
+# Calibration diagnostics: read from data/<COUNTRY>/calibrated_rhd_parameters.rds when
+# its Layer-2 (04b) result is the one the saved baseline was built from. If that bundle
+# has been partially rewritten (for example an interrupted 01 -> 04b re-run leaves Layer 1
+# only), the document uses calibrated_rhd_parameters_last_valid.rds instead, but only if it
+# matches baseline_state.rds on engine, calibrated transitions, stage-D mortality, fixed
+# natural-history inputs, SAP specification, calibration status and analysis-start state.
+# Otherwise the render stops. The file used is listed in the appendix.
+#
+# Sensitivity analysis: not run (08 sensitivity_status). No uncertainty intervals exist;
+# none are shown.
+# ==============================================================================
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, error = FALSE, cache = FALSE)
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ggplot2)
+  library(patchwork)
+  library(knitr)
+})
+for (p in c("ragg", "svglite", "base64enc", "scales"))
+  if (!requireNamespace(p, quietly = TRUE))
+    stop("poster.Rmd needs the R package '", p, "': install.packages(\"", p, "\")", call. = FALSE)
+
+# ---- Repository root (portable; same rule as the report and decks) -------------
+find_repo_root <- function() {
+  env <- Sys.getenv("RHD_REPO_ROOT")
+  if (nzchar(env)) return(normalizePath(env, winslash = "/", mustWork = TRUE))
+  d <- tryCatch(dirname(knitr::current_input(dir = TRUE)), error = function(e) getwd())
+  d <- normalizePath(d, winslash = "/", mustWork = FALSE)
+  repeat {
+    if (file.exists(file.path(d, "scripts", "00_run_all.R")) && file.exists(file.path(d, "R", "abcd_engine.R"))) return(d)
+    up <- dirname(d)
+    if (identical(up, d))
+      stop("Cannot find the repository root (folder holding scripts/00_run_all.R). Set RHD_REPO_ROOT.", call. = FALSE)
+    d <- up
+  }
+}
+ROOT      <- find_repo_root()
+COUNTRIES <- c("Indonesia", "Uganda")
+Y_START   <- 2026L   # poster window, inclusive: every figure, total and statement stays in Y_START..Y_END
+Y_END     <- 2050L
+FIG_DIR   <- file.path(tempdir(), "rhd_poster_figures")   # figure files live outside the repository
+dir.create(FIG_DIR, showWarnings = FALSE, recursive = TRUE)
+
+# ---- Poster palette (WCRHD2026_POSTER.pptx) ------------------------------------
+COL <- c(navy = "#0C2A55", dblue = "#002664", red = "#D61C26", orange = "#F3631B",
+         pale = "#F4F7FA", white = "#FFFFFF", muted = "#687787", line = "#D8E0E8")
+COL_CT <- c(Indonesia = "#002664", Uganda = "#F3631B")        # one colour per country, every figure and table
+LT_CT  <- c(Indonesia = "solid",   Uganda = "22")              # plus a line type, so colour is never the only cue
+FONT   <- "Arial"
+
+# ---- Checks: a failed check stops the render with the files and the fix ---------
+N_CHECKS <- 0L
+check <- function(ok, msg, fix) {
+  if (!isTRUE(ok)) stop("Poster input check failed: ", msg, "\n  Fix: ", fix, call. = FALSE)
+  N_CHECKS <<- N_CHECKS + 1L
+  invisible(TRUE)
+}
+artifact <- function(script, ...) {
+  p <- file.path(ROOT, ...)
+  if (!file.exists(p))
+    stop("Missing required artifact: ", p, "\n  Produced by scripts/", script,
+         " (run scripts/00_run_all.R with the matching COUNTRY through 08).",
+         "\n  This document reads saved outputs only and never re-runs the pipeline.", call. = FALSE)
+  p
+}
+
+# ---- Formatting (markdown-safe: dollar signs escaped; HTML variants for raw tables) ----
+MINUS   <- "−"
+sgn     <- function(x) if (x < 0) MINUS else ""
+fmt_n   <- function(x, d = 0) formatC(round(x, d), format = "f", digits = d, big.mark = ",")
+fmt_f   <- function(x, d = 2) formatC(x, format = "f", digits = d)
+fmt_pct <- function(x, d = 1) paste0(sgn(x), formatC(abs(100 * x), format = "f", digits = d), "%")
+fmt_cov <- function(x) paste0(formatC(100 * x, format = "f", digits = 1, drop0trailing = TRUE), "%")
+USD     <- function(html = FALSE) if (html) "US&#36;" else "US\\$"
+usd_m   <- function(x, d = 1, html = FALSE)
+  paste0(sgn(x), USD(html), formatC(abs(x) / 1e6, format = "f", digits = d, big.mark = ","), " million")
+usd_u   <- function(x, d = 2, html = FALSE)
+  paste0(sgn(x), USD(html), formatC(abs(x), format = "f", digits = d, big.mark = ","))
+fmt_ratio <- function(x) if (length(x) != 1L || !is.finite(x)) "not defined" else
+  formatC(x, format = "f", digits = if (abs(x) >= 10) 1 else 2)
+fmt_people <- function(x) if (x >= 1e6) paste0(formatC(signif(x, 2) / 1e6, format = "f", digits = 1), " million") else
+  fmt_n(signif(x, 2))
+raw_html <- function(...) cat("\n```{=html}\n", ..., "\n```\n\n", sep = "")
+```
+
+```{r load, include=FALSE}
+# ---- Calibration bundle matching the saved baseline (see internal notes) --------
+SAP_F <- c("sap_progression_rrr", "sap_progression_hazard_mult", "sap_protection_age_max", "sap_effect_transitions",
+           "sap_hr_prior_A_to_B_adult", "sap_hr_C_to_D", "sap_hr_D_to_rhd_death")
+cal_mismatch <- function(cal, bs, ct) {
+  sc <- cal$stage_calibration; bp <- sc$best_parameters; st <- bs$states[[1]]
+  if (is.null(sc) || is.null(bp)) return("no Layer-2 (04b) result in the bundle")
+  r <- character(0)
+  if (grepl("^FAILED", as.character(sc$status))) r <- c(r, "status FAILED")
+  if (!identical(as.character(cal$meta$location), ct)) r <- c(r, "location")
+  if (!identical(sc$status, bs$meta$stage_calibration_status)) r <- c(r, "calibration status")
+  if (!identical(bp$engine_spec, bs$meta$engine_spec)) r <- c(r, "engine specification")
+  if (!isTRUE(all.equal(unlist(st$transitions), unlist(bp$transitions)))) r <- c(r, "calibrated transitions")
+  if (!isTRUE(all.equal(st$p_rhd_death, bp$p_rhd_death))) r <- c(r, "stage-D mortality")
+  if (!identical(bs$meta$natural_history_fixed, bp$natural_history_fixed)) r <- c(r, "fixed natural-history inputs")
+  if (is.null(sc$spec$sap_hr) || !identical(sc$spec$sap_hr[names(bs$meta$sap_hr)], bs$meta$sap_hr)) r <- c(r, "SAP specification")
+  if (is.null(bp$initial_state) ||
+      !all(vapply(c("A", "B", "C", "D"), function(s) isTRUE(all.equal(st$seed[[s]], bp$initial_state[[s]])), NA)))
+    r <- c(r, "analysis-start state")
+  if (is.null(sc$statuses) || is.null(sc$fit_tolerance_summary) || is.null(sc$fit_by_year)) r <- c(r, "fit diagnostics")
+  r
+}
+
+load_country <- function(ct) {
+  p <- list(
+    out  = artifact("06_run_prevention_model.R", "output", ct, "out_model", paste0(ct, ".rds")),
+    econ = artifact("08_economic_evaluation.R", "output", ct, "tables", "rhd_economic_results.rds"),
+    bs   = artifact("05_build_baseline.R", "data", ct, "baseline_state.rds"),
+    gbd  = artifact("01_prepare_inputs.R", "data", ct, "temp_baseline_rates_gbd.rds"),
+    cal  = artifact("04_calibration_random_tp.R and 04b_calibrate_structural.R", "data", ct, "calibrated_rhd_parameters.rds"))
+  bs  <- readRDS(p$bs)
+  cal <- readRDS(p$cal); why <- cal_mismatch(cal, bs, ct)
+  cal_file <- p$cal
+  if (length(why)) {
+    lv <- file.path(ROOT, "data", ct, "calibrated_rhd_parameters_last_valid.rds")
+    lv_cal <- if (file.exists(lv)) readRDS(lv) else NULL
+    why_lv <- if (is.null(lv_cal)) "file not found" else cal_mismatch(lv_cal, bs, ct)
+    if (length(why_lv))
+      stop("No saved calibration bundle for ", ct, " matches data/", ct, "/baseline_state.rds.",
+           "\n  calibrated_rhd_parameters.rds: ", paste(why, collapse = "; "),
+           "\n  calibrated_rhd_parameters_last_valid.rds: ", paste(why_lv, collapse = "; "),
+           "\n  Re-run scripts/00_run_all.R with COUNTRY = \"", ct, "\" through 08 (03 -> 08).", call. = FALSE)
+    cal <- lv_cal; cal_file <- lv
+  }
+  list(out = readRDS(p$out), econ = readRDS(p$econ), bs = bs, cal = cal,
+       gbd = as.data.table(readRDS(p$gbd)),
+       files = c(p[c("out", "econ", "bs", "gbd")], cal = cal_file),
+       cal_fallback = !identical(cal_file, p$cal))
+}
+D <- setNames(lapply(COUNTRIES, load_country), COUNTRIES)
+```
+
+```{r integrity, include=FALSE}
+# ---- Saved-output consistency checks (input integrity, never expected results) ----
+CARE_VEC <- c("screen_window_prob", "clinical_detection", "bpg_initiation", "bpg_retention",
+              "adherence_good", "adherence_partial", "surgery")
+STG_COV  <- c(screen_window_prob = "screen_window_prob", clinical_detection = "clinical_detection",
+              bpg_initiation = "bpg_initiation", bpg_retention = "bpg_retention", adherence_good = "adherence_good",
+              adherence_partial = "adherence_partial", surgery = "surgery_coverage")
+vsl_ok <- function(econ, inc) {
+  vd <- econ$vsl_derivation; lb <- econ$report_labels
+  if (is.null(vd) || is.null(lb)) return(FALSE)
+  va <- as.data.table(vd$annual); a <- vd$anchor; m <- match(inc$year, va$year)
+  !anyNA(m) && identical(lb$currency, "USD") && is.numeric(lb$price_year) &&
+    max(abs(inc$vsl / va$vsl_usd2025[m] - 1)) < 1e-12 &&
+    max(abs(va$raw_vsl_intY / (a$raw_vsl_anchor_intY * va$income_growth_index^a$time_elasticity) - 1)) < 1e-10 &&
+    max(abs(va$vsl_intY / pmax(va$raw_vsl_intY, va$floor_vsl_intY, na.rm = TRUE) - 1)) < 1e-12 &&
+    max(abs(va$vsl_usd2025 / (va$vsl_intY * a$intY_to_usd2025) - 1)) < 1e-10
+}
+for (ct in COUNTRIES) {
+  d  <- D[[ct]]
+  w  <- as.data.table(d$out$wsd); s <- as.data.table(d$out$stages); inc <- as.data.table(d$econ$incremental)
+  yy <- as.integer(d$out$meta$years); sc <- d$cal$stage_calibration; bp <- sc$best_parameters
+  st <- d$bs$states[[1]]; cv <- st$coverage; ef <- st$effects; ep <- d$econ$params; lb <- d$econ$report_labels
+  fx <- paste0("re-run scripts/00_run_all.R with COUNTRY = \"", ct, "\" (03 -> 08)")
+  f8 <- paste0("re-run scripts/08_economic_evaluation.R for ", ct)
+  # location, scenarios, years
+  check(identical(unique(as.character(w$location)), ct) && identical(unique(as.character(s$location)), ct) &&
+          identical(as.character(d$bs$locations), ct) && identical(unique(as.character(inc$location)), ct) &&
+          identical(unique(d$gbd$location_name), ct),
+        paste(ct, "artifacts hold another location"), fx)
+  check(setequal(unique(as.character(w$scenario)), c("ref", "sap")) && setequal(unique(as.character(s$scenario)), c("ref", "sap")),
+        paste(ct, "scenarios are not exactly reference + scale-up"), fx)
+  check(identical(sort(unique(as.integer(w$year))), yy) && identical(as.integer(d$bs$meta$years), yy) &&
+          identical(sort(as.integer(inc$year)), yy) && all(diff(yy) == 1L),
+        paste(ct, "analysis years differ across model, baseline and economics"), fx)
+  check(all(c(Y_START, Y_END) %in% yy) && min(yy) <= Y_START,
+        paste0(ct, ": the saved run does not cover ", Y_START, "-", Y_END), fx)
+  # one engine and specification across 04b, 05 and 06
+  eng <- d$out$meta$engine_spec
+  check(is.character(eng) && length(eng) == 1L && nzchar(eng) && identical(sc$spec$engine_spec, eng) &&
+          identical(bp$engine_spec, eng) && identical(d$bs$meta$engine_spec, eng) && identical(d$out$diag$engine_spec, eng),
+        paste(ct, "artifacts were not all produced by one engine"), fx)
+  check(identical(sc$statuses$structural, "ok"), paste(ct, "calibration did not pass structural validation"), fx)
+  spec <- c(sc$spec$mortality_structure, sc$spec$sap_mechanism)
+  check(identical(spec, c(d$bs$meta$mortality_structure, d$bs$meta$sap_mechanism)) &&
+          identical(spec, c(d$out$meta$mortality_structure, d$out$meta$sap_mechanism)) && identical(spec[1], "D_only"),
+        paste(ct, "mortality structure / SAP mechanism differ between calibration, baseline and model"), fx)
+  check(all(SAP_F %in% names(sc$spec$sap_hr)) && identical(sc$spec$sap_hr[SAP_F], ef[SAP_F]) &&
+          identical(d$bs$meta$sap_hr[SAP_F], ef[SAP_F]) && identical(sc$spec$sap_eligibility, ef$sap_eligibility),
+        paste(ct, "SAP specification differs between calibration and baseline"), fx)
+  # the model ran the calibrated parameters and the baseline care paths
+  rc <- bp$reference_care_in_calibration
+  check(all(vapply(CARE_VEC, function(k) abs(rc[[k]] - cv$ref[[k]][1]) < 1e-12 && diff(range(cv$ref[[k]])) < 1e-12, NA)),
+        paste(ct, "reference care in the calibration differs from the reference arm"), fx)
+  cv_out <- s[, lapply(.SD, `[`, 1), by = .(scenario, year), .SDcols = unname(STG_COV)]
+  check(all(vapply(c("ref", "sap"), function(a) { o <- cv_out[scenario == a][order(year)]
+          all(vapply(names(STG_COV), function(k) max(abs(o[[STG_COV[[k]]]] - cv[[a]][[k]])) < 1e-12, NA)) }, NA)),
+        paste(ct, "care trajectories in the model output differ from the baseline"), fx)
+  check(identical(cv$ref$clinical_detection, cv$sap$clinical_detection) && identical(cv$ref$surgery, cv$sap$surgery),
+        paste(ct, "clinical detection or surgery differ between arms"), fx)
+  # structural identities of the run
+  pp <- dcast(w[, .(pop = sum(pop)), by = .(scenario, year)], year ~ scenario, value.var = "pop")
+  check(max(abs(pp$ref - pp$sap)) < 1e-6, paste(ct, "arms do not share one population"), fx)
+  check(s[, all(rhd_deaths_A == 0 & rhd_deaths_B == 0 & rhd_deaths_C == 0)] && s[, max(abs(rhd_deaths - rhd_deaths_D))] < 1e-9,
+        paste(ct, "RHD deaths occur outside stage D"), fx)
+  dw <- w[, .(d = sum(dead)), keyby = .(scenario, year)]; ds <- s[, .(d = sum(rhd_deaths)), keyby = .(scenario, year)]
+  check(max(abs(dw$d - ds$d)) < 1e-6, paste(ct, "RHD deaths differ between the aggregate and stage tables"), fx)
+  # the saved economics were computed from this run, under the documented conventions
+  dd <- dcast(dw, year ~ scenario, value.var = "d")
+  cc <- dcast(s[, .(c = sum(n_screened) * ep$cost_screen_per_person + sum(n_on_optimal_treatment) * ep$cost_sap_per_year +
+                      sum(total_surgeries) * ep$cost_surgery), by = .(scenario, year)], year ~ scenario, value.var = "c")
+  ee <- merge(merge(dd, cc, by = "year", suffixes = c("", "_c")), inc, by = "year")
+  dby <- d$econ$discount_base_year
+  check(nrow(ee) == length(yy) && max(abs(ee$ref - ee$sap - ee$deaths_avert)) < 1e-6 &&
+          max(abs(ee$death_ref - ee$ref), abs(ee$death_sap - ee$sap)) < 1e-6 &&
+          ee[, max(abs(ref_c - cost_ref) / pmax(cost_ref, 1), abs(sap_c - cost_sap) / pmax(cost_sap, 1))] < 1e-9 &&
+          max(abs(inc$inc_cost - (inc$cost_sap - inc$cost_ref))) < 1e-6,
+        paste(ct, "saved economics were not computed from this model run"), f8)
+  check(identical(as.numeric(ep$disc_rate), as.numeric(d$econ$parameters$disc_rate)) &&
+          max(abs(inc$df - 1 / (1 + ep$disc_rate)^(inc$year - dby))) < 1e-12,
+        paste(ct, "saved discount factors do not follow the saved rate and base year"), f8)
+  check(all(inc$benefit_gdp == 0) && max(abs(inc$benefit_total - inc$benefit_vsl)) < 1e-9 &&
+          max(abs(inc$benefit_total - inc$deaths_avert * inc$vsl)) < 1e-6 * max(1, abs(inc$benefit_total)) && vsl_ok(d$econ, inc),
+        paste(ct, "monetised benefits are not deaths averted x the saved VSL path"), f8)
+  check(identical(unique(as.character(inc$currency)), lb$currency) && identical(unique(as.integer(inc$price_year)), as.integer(lb$price_year)) &&
+          identical(as.integer(ep$price_year), as.integer(lb$price_year)),
+        paste(ct, "currency / price year labels disagree across the economic tables"), f8)
+  es <- as.data.table(d$econ$summary)[location == ct]
+  check(nrow(es) == 1L && abs(sum(inc$inc_cost * inc$df) - es$total_cost) <= 1e-8 * max(1, abs(es$total_cost)) &&
+          abs(sum(inc$benefit_total * inc$df) - es$total_benefit) <= 1e-8 * max(1, abs(es$total_benefit)) &&
+          abs(inc[year == min(yy), pop] - es$N0) < 1e-6,
+        paste(ct, "the discounting used here does not reproduce the saved full-horizon summary"), f8)
+  apc <- as.data.table(d$econ$annual_per_capita)[location == ct][order(year)]
+  check(nrow(apc) == length(yy) && max(abs(apc$cost_pc_t - inc$inc_cost / inc$pop)) < 1e-12 && max(abs(apc$df_t - inc$df)) < 1e-12,
+        paste(ct, "annual per-capita economics differ from the incremental table"), f8)
+  cf <- dcast(s[, .(c = sum(n_confirm_completed)), by = .(scenario, year)], year ~ scenario, value.var = "c")
+  bi <- as.data.table(d$econ$budget_impact)
+  check(merge(cf, bi[, .(year, u = confirmations_incremental_uncosted)], by = "year")[, max(abs((sap - ref) - u))] < 1e-6,
+        paste(ct, "uncosted confirmation volume differs from the model run"), f8)
+  # calibration status consistent between 04b, 05 and 08 labels
+  fit_ok <- sc$statuses$fit_within_tolerance
+  ad <- d$bs$meta$calibration_adequacy
+  check(is.logical(fit_ok) && length(fit_ok) == 1L && !is.na(fit_ok) && is.character(ad) && nzchar(ad) &&
+          identical(grepl("INADEQUATE", ad), !fit_ok) && identical(d$econ$calibration_status, ad),
+        paste(ct, "calibration status labels disagree between 04b, 05 and 08"), fx)
+  # the GBD extract is the data the calibration used (published Numbers, calibration years)
+  rr <- as.data.table(d$cal$layer2_target_reconciliation)
+  gg <- d$gbd[metric_name == "Number" & cause_name == "Rheumatic heart disease", .(val = sum(val)), by = .(sex = sex_name, measure = measure_name, year)]
+  mm <- merge(rr[, .(sex, measure, year, number)], gg, by = c("sex", "measure", "year"))
+  check(nrow(rr) > 0 && nrow(mm) == nrow(rr) && max(abs(mm$number / mm$val - 1)) < 1e-9,
+        paste(ct, "GBD extract differs from the calibration targets"), paste0("re-run scripts/01_prepare_inputs.R -> 08 for ", ct))
+}
+# one specification across countries
+I0 <- D$Indonesia; U0 <- D$Uganda
+check(identical(I0$out$meta$engine_spec, U0$out$meta$engine_spec) && identical(I0$out$meta$years, U0$out$meta$years) &&
+        identical(I0$econ$discount_base_year, U0$econ$discount_base_year) &&
+        identical(I0$econ$params$disc_rate, U0$econ$params$disc_rate) &&
+        identical(I0$bs$states[[1]]$effects[SAP_F], U0$bs$states[[1]]$effects[SAP_F]) &&
+        identical(I0$bs$states[[1]]$effects$sap_eligibility, U0$bs$states[[1]]$effects$sap_eligibility) &&
+        identical(I0$bs$states[[1]]$natural_history$adult_prog_hazard_mult, U0$bs$states[[1]]$natural_history$adult_prog_hazard_mult) &&
+        identical(I0$bs$states[[1]]$natural_history$child_last_age, U0$bs$states[[1]]$natural_history$child_last_age) &&
+        identical(I0$out$meta$ramp_start, U0$out$meta$ramp_start) && identical(I0$out$meta$ramp_end, U0$out$meta$ramp_end),
+      "Indonesia and Uganda were run under different engines, years, discounting, SAP effects or ramps",
+      "re-run both countries under one specification (scripts/00_run_all.R, 03 -> 08)")
+LB_KEYS <- c("currency", "price_year", "currency_label")
+check(identical(I0$econ$report_labels[LB_KEYS], U0$econ$report_labels[LB_KEYS]) &&
+        identical(I0$econ$vsl_derivation$anchor[c("income_elasticity", "time_elasticity", "floor_mult")],
+                  U0$econ$vsl_derivation$anchor[c("income_elasticity", "time_elasticity", "floor_mult")]),
+      "Indonesia and Uganda economics use different currencies, price years or VSL methods", "re-run 08 for both countries")
+```
+
+```{r summarise, include=FALSE}
+# ---- Per-country results, Y_START..Y_END inclusive -------------------------------
+pick_end <- function(r, k) r$cv$sap[[k]][match(Y_END, r$yy)]
+summarise_country <- function(ct) {
+  d <- D[[ct]]
+  s <- as.data.table(d$out$stages); inc <- as.data.table(d$econ$incremental)
+  ep <- d$econ$params; va <- d$econ$vsl_derivation$anchor; lb <- d$econ$report_labels
+  yy <- as.integer(d$out$meta$years)
+  st <- d$bs$states[[1]]; cv <- st$coverage; ef <- st$effects; nh <- st$natural_history
+  sc <- d$cal$stage_calibration
+  amax <- as.integer(ef$sap_protection_age_max); b <- as.integer(nh$child_last_age)
+  h <- inc[year >= Y_START & year <= Y_END][order(year)]
+  check(identical(as.integer(h$year), seq.int(Y_START, Y_END)),
+        paste0(ct, ": annual economic rows missing in ", Y_START, "-", Y_END), "re-run 08")
+  # economics recomputed for the window with the saved discount factors (signed)
+  cost <- h[, sum(inc_cost * df)]; ben <- h[, sum(benefit_total * df)]; net <- ben - cost
+  bcr  <- if (cost > 0) ben / cost else NA_real_
+  # health outcomes (undiscounted counts)
+  da <- h[, sum(deaths_avert)]; ref_cum <- h[, sum(death_ref)]
+  e  <- h[year == Y_END]
+  rate_ref <- e$death_ref / e$pop * 1e5; rate_sap <- e$death_sap / e$pop * 1e5
+  red_end  <- if (e$death_ref > 0) e$deaths_avert / e$death_ref else NA_real_
+  check(abs((1 - rate_sap / rate_ref) - red_end) < 1e-12, paste(ct, "2050 mortality-rate reduction inconsistent"), "re-run 06 -> 08")
+  da_pos <- h[deaths_avert > 1e-9]
+  first_da <- if (nrow(da_pos)) min(da_pos$year) else NA_integer_
+  rising <- h[year == Y_END, deaths_avert] > h[year == Y_END - 1L, deaths_avert]
+  # incremental cost by component, 08's definitions, discounted, window only
+  vol <- s[year >= Y_START & year <= Y_END, .(enc = sum(n_screened), py = sum(n_on_optimal_treatment), surg = sum(total_surgeries)),
+           by = .(scenario, year)]
+  vw <- merge(dcast(vol, year ~ scenario, value.var = c("enc", "py", "surg")), h[, .(year, df)], by = "year")
+  comp <- c(screen = vw[, sum((enc_sap - enc_ref) * df)] * ep$cost_screen_per_person,
+            sap    = vw[, sum((py_sap - py_ref) * df)] * ep$cost_sap_per_year,
+            surg   = vw[, sum((surg_sap - surg_ref) * df)] * ep$cost_surgery)
+  check(abs(sum(comp) - cost) <= 1e-8 * max(1, abs(cost)), paste(ct, "cost components do not add to the incremental cost"), "re-run 08")
+  bi <- as.data.table(d$econ$budget_impact)[year >= Y_START & year <= Y_END]
+  noben <- s[scenario == "sap" & year == Y_END, sum(n_on_bpg_B[age > amax]) / sum(n_on_optimal_treatment)]
+  # calibration diagnostics (last calibration year, both sexes)
+  fy  <- as.data.table(sc$fit_by_year); tol <- as.data.table(sc$fit_tolerance_summary)
+  cy0 <- as.integer(d$cal$meta$calib_year_start); cy1 <- as.integer(d$cal$meta$calib_year_end)
+  fr  <- function(m) { v <- fy[measure == m & year == cy1, ratio]; check(length(v) == 1L && is.finite(v), paste(ct, "fit ratio missing:", m), "re-run 04b -> 08"); v }
+  fit <- c(prev = fr("Prevalence"), prev_ch = fr("Prevalence 0-19"), prev_ad = fr("Prevalence 20+"),
+           death = fr("Deaths"), death_ch = fr("Deaths 0-19"), death_ad = fr("Deaths 20+"))
+  n_cp <- tol[role == "checkpoint", .N]; n_out <- tol[role == "checkpoint" & years_within < years_scored, .N]
+  fit_ok <- isTRUE(sc$statuses$fit_within_tolerance)
+  check(n_cp > 0 && identical(fit_ok, n_out == 0L), paste(ct, "fit status disagrees with the tolerance table"), "re-run 04b -> 08")
+  # GBD published counts, latest year in the extract
+  g <- d$gbd[metric_name == "Number" & cause_name == "Rheumatic heart disease", .(val = sum(val)), by = .(measure = measure_name, year)]
+  g_last <- max(g$year)
+  list(ct = ct, yy = yy, cv = cv, ef = ef, nh = nh, ep = ep, va = va, lb = lb, amax = amax, b = b,
+       dby = d$econ$discount_base_year,
+       cost = cost, ben = ben, net = net, bcr = bcr, cost_u = h[, sum(inc_cost)], ben_u = h[, sum(benefit_total)],
+       da = da, ref_cum = ref_cum, share_cum = da / ref_cum, da_end = e$deaths_avert, ref_end = e$death_ref,
+       rate_ref = rate_ref, rate_sap = rate_sap, red_end = red_end, first_da = first_da, rising = rising,
+       cost_pc = mean(h$inc_cost / h$pop), N0 = h[year == Y_START, pop], pop_end = e$pop,
+       comp = comp, sap_share = comp[["sap"]] / sum(comp), noben = noben,
+       conf_unc = bi[, sum(confirmations_incremental_uncosted)], inc_end = h[year == Y_END, inc_cost],
+       dpm = if (cost > 0) da / (cost / 1e6) else NA_real_,
+       vsl0 = h[year == Y_START, vsl], vsl_end = h[year == Y_END, vsl],
+       vsl_growth = (1 + va$income_growth)^va$time_elasticity - 1,
+       cum = h[, .(year, da = deaths_avert, cum_da = cumsum(deaths_avert), cum_net = cumsum((benefit_total - inc_cost) * df))],
+       fit = fit, fit_ok = fit_ok, n_cp = n_cp, n_out = n_out, cy0 = cy0, cy1 = cy1,
+       match_from = as.integer(sc$objective_components$match_from), tol = tol,
+       boundary = sc$bounds$boundary_hits,
+       gbd_prev = g[measure == "Prevalence" & year == g_last, val], gbd_deaths = g[measure == "Deaths" & year == g_last, val],
+       g_last = g_last)
+}
+R <- setNames(lapply(COUNTRIES, summarise_country), COUNTRIES)
+I <- R$Indonesia; U <- R$Uganda
+check(identical(c(I$b, I$amax, I$cy0, I$cy1, I$match_from, I$g_last), c(U$b, U$amax, U$cy0, U$cy1, U$match_from, U$g_last)),
+      "countries differ in age conventions, calibration window or GBD year", "re-run both countries under one specification")
+
+# shared assumptions (identical across countries by the checks above)
+BAGE <- I$b; AMAX <- I$amax; RRR <- I$ef$sap_progression_rrr; M_AD <- I$nh$adult_prog_hazard_mult
+SCR_LO <- I$cv$constants$screen_age_lo; SCR_HI <- I$cv$constants$screen_age_hi
+RAMP0 <- D$Indonesia$out$meta$ramp_start; RAMP1 <- D$Indonesia$out$meta$ramp_end
+DISC <- I$ep$disc_rate; DBY <- I$dby; PRICE_YEAR <- as.integer(I$lb$price_year)
+check(identical(I$lb$currency, "USD"), "reporting currency is not US dollars", "re-run 08")
+CUR_MD <- paste0("constant ", PRICE_YEAR, " US\\$"); CUR_HTML <- paste0("constant ", PRICE_YEAR, " US&#36;")
+ELAST <- I$va$income_elasticity; FLOOR <- I$va$floor_mult
+CY0 <- I$cy0; CY1 <- I$cy1; MFROM <- I$match_from; GY <- I$g_last
+WIN <- paste0(Y_START, "–", Y_END)
+
+# two-country phrasing helpers
+pair_txt <- function(a, b, f) { fa <- f(a); fb <- f(b); if (identical(fa, fb)) fa else paste0(fa, " (Indonesia) and ", fb, " (Uganda)") }
+pair_in  <- function(a, b, f) { fa <- f(a); fb <- f(b); if (identical(fa, fb)) fa else paste0(fa, " in Indonesia, ", fb, " in Uganda") }
+# scale-up level reached in Y_END, reference level in square brackets (no nested parentheses)
+cov_txt  <- function(k, unit = "") paste0(pair_in(pick_end(I, k), pick_end(U, k), fmt_cov), unit, " [",
+                                          pair_in(I$cv$ref[[k]][1], U$cv$ref[[k]][1], fmt_cov), "]")
+fit_ok_both <- c(Indonesia = I$fit_ok, Uganda = U$fit_ok)
+fit_lead <- if (!any(fit_ok_both)) "Neither baseline reproduces" else if (all(fit_ok_both)) "Both baselines reproduce" else
+  paste0("Only the ", names(fit_ok_both)[fit_ok_both], " baseline reproduces")
+fit_lead <- paste0(fit_lead, " GBD within")
+vsl_cmp <- if (I$vsl0 > U$vsl0) "a higher" else if (I$vsl0 < U$vsl0) "a lower" else "the same"
+both <- function(fI, fU, sep = " and ") paste0(fI, " in Indonesia", sep, fU, " in Uganda")
+net_pos <- c(Indonesia = I$net > 0, Uganda = U$net > 0)
+ben_phrase <- if (all(net_pos)) "exceed incremental costs in both countries" else if (!any(net_pos))
+  "fall short of incremental costs in both countries" else
+  paste0("exceed incremental costs in ", names(net_pos)[net_pos], " but not in ", names(net_pos)[!net_pos])
+da_all_pos <- I$da > 0 && U$da > 0
+over_under <- function(r) if (r > 1) "overstated" else if (r < 1) "understated" else "unaffected"
+```
+
+```{css, echo=FALSE}
+:root { --navy:#0C2A55; --dblue:#002664; --red:#D61C26; --orange:#F3631B; --pale:#F4F7FA; --line:#D8E0E8; --muted:#5b6b7c; }
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--pale); color: var(--navy); max-width: 1120px; margin: 0 auto; padding: 0 16px 56px;
+       box-sizing: border-box; font-family: "Source Sans 3", "Source Sans Pro", "Segoe UI", Calibri, Arial, sans-serif;
+       font-size: 17px; line-height: 1.55; }
+h1.title { background: var(--dblue); color: #fff; font-size: 30px; line-height: 1.2; margin: 0 -16px; padding: 28px 24px 6px; }
+h3.subtitle { background: var(--dblue); color: #dfe7f1; font-size: 18px; font-weight: 400; text-transform: none;
+              letter-spacing: 0; margin: 0 -16px 24px; padding: 0 24px 20px; border-bottom: 6px solid var(--red); }
+#TOC { background: #fff; border: 1px solid var(--line); padding: 10px 18px; margin: 0 0 24px; font-size: 15px; }
+#TOC ul { margin: 4px 0; padding-left: 18px; }
+#TOC a { color: var(--dblue); text-decoration: none; }
+h2 { background: var(--dblue); color: #fff; font-size: 21px; letter-spacing: .02em; margin: 40px 0 16px;
+     padding: 9px 14px; border-left: 12px solid var(--red); }
+h3 { color: var(--dblue); font-size: 18px; margin: 22px 0 6px; text-transform: uppercase; letter-spacing: .03em; }
+p, li { max-width: 78ch; }
+a { color: var(--dblue); }
+.card { background: #fff; border: 1px solid var(--line); padding: 4px 20px 10px; margin: 0 0 14px; }
+.poster-title { display: block; font-size: 26px; font-weight: 700; line-height: 1.25; color: var(--dblue); margin: 12px 0 8px; }
+.keybox { background: #FFF5F5; border: 1px solid #F0D5D7; padding: 6px 20px 12px; margin: 14px 0; }
+.keybox h3, .takehome h3 { color: var(--red); }
+.takehome { background: #FFF5F5; border: 1px solid #F0D5D7; border-left: 8px solid var(--red); padding: 4px 20px 12px; }
+.takehome p { font-size: 20px; font-weight: 600; }
+.note { color: var(--muted); font-size: 15px; }
+figure.pfig { background: #fff; border: 1px solid var(--line); margin: 0 0 8px; padding: 12px; }
+figure.pfig img { display: block; width: 100%; height: auto; margin: 0 auto; }
+figure.pfig.portrait img { max-width: 640px; }
+.dl { font-size: 15px; margin: 8px 0 0; }
+.dl a { display: inline-block; margin-right: 16px; color: var(--dblue); font-weight: 600; }
+.caption { font-size: 15.5px; color: #26384f; background: #fff; border-left: 4px solid var(--orange); padding: 6px 14px; margin: 0 0 18px; }
+.caption p { margin: 6px 0; max-width: none; }
+table.ptab { border-collapse: collapse; width: 100%; background: #fff; font-size: 15.5px; margin: 6px 0 4px; }
+table.ptab th { background: var(--navy); color: #fff; text-align: left; padding: 7px 10px; font-weight: 600; }
+table.ptab td { border-bottom: 1px solid var(--line); padding: 6px 10px; vertical-align: top; }
+table.ptab tr:nth-child(even) td { background: #f8fafc; }
+table.ptab td:nth-child(n+2), table.ptab th:nth-child(n+2) { text-align: right; white-space: nowrap; }
+.tabwrap { overflow-x: auto; }
+.tabcap { font-size: 15px; color: #26384f; margin: 4px 0 18px; }
+#refs { font-size: 15px; }
+#refs .csl-entry { margin-bottom: 8px; padding-left: 2em; text-indent: -2em; }
+.appendix { font-size: 15px; }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  h1.title { font-size: 24px; }
+  table.ptab td:nth-child(n+2), table.ptab th:nth-child(n+2) { white-space: normal; }
+}
+```
+
+All projections, totals and statements below cover **`r WIN` inclusive** and come from the saved model runs for Indonesia and Uganda (engine `` `r D$Indonesia$out$meta$engine_spec` ``). Each block can be copied on its own. To copy a figure, right-click it, or use the PNG (300 dpi) and SVG (vector) links under it.
+
+## Poster text
+
+::: {.card .title-card}
+### Title
+[Development of a tool to conduct investment cases for RHD screening and secondary prevention programs]{.poster-title}
+
+**Neema W. Minja, William Garcia, David A. Watkins**\
+Department of Global Health, University of Washington, Seattle, USA
+
+World Congress on Rheumatic Heart Disease 2026 · 11–14 November 2026 · Perth, Australia · General abstracts
+:::
+
+::: {.card}
+### Background
+- In `r GY`, the Global Burden of Disease (GBD) study estimated about `r fmt_people(I$gbd_prev)` people living with rheumatic heart disease (RHD) and `r fmt_people(I$gbd_deaths)` RHD deaths in Indonesia, and about `r fmt_people(U$gbd_prev)` people and `r fmt_people(U$gbd_deaths)` deaths in Uganda.
+- The 2023 World Heart Federation (WHF) guidelines describe two-step echocardiographic screening, a screening echo followed by confirmatory echocardiography, and four RHD stages, A–D [@Rwebembera2023].
+- In Ugandan children aged 5–17 years with latent RHD, benzathine penicillin G (BPG) every 4 weeks reduced echocardiographic progression at 2 years (0.8% vs 8.2%); the trial authors concluded that more research is needed before population-level screening can be recommended [@Beaton2022].
+- Investment cases compare the cost of scaling up RHD interventions with the monetised value of the health gains they produce [@Coates2021].
+:::
+
+::: {.card}
+### Objective
+To build a tool for RHD investment cases and use it to estimate the RHD deaths averted, incremental costs and monetised benefits of scaling up echocardiographic screening and secondary antibiotic prophylaxis (SAP) with BPG in Indonesia and Uganda, `r WIN`.
+:::
+
+::: {.card}
+### Methods
+- **Model (Fig. 1).** A population-level state-transition model by single year of age and sex, with annual cycles and the WHF stages A–D [@Rwebembera2023]. Within each stage, people are undiagnosed, diagnosed off BPG, or on BPG. RHD deaths occur only from stage D; other-cause mortality applies in every state.
+- **Data and calibration.** RHD incidence, prevalence and deaths from GBD; population from UN World Population Prospects 2024. Age–sex incidence multipliers and six childhood transition probabilities were calibrated to GBD prevalence and RHD deaths (`r CY0`–`r CY1`, scored from `r MFROM`). Adult (age > `r BAGE`) B→C and C→D hazards are `r fmt_f(M_AD, 2)` × the childhood hazards.
+- **Scenarios.** Reference care held constant, against a scale-up that ramps linearly from `r RAMP0` to `r RAMP1`. By `r Y_END` the scale-up reaches (reference levels in brackets): one echo screen between ages `r SCR_LO` and `r SCR_HI` for `r cov_txt("screen_window_prob", " of people")`; BPG initiation among eligible diagnosed people `r cov_txt("bpg_initiation")` per year; annual BPG retention `r cov_txt("bpg_retention")`; and good adherence `r cov_txt("adherence_good")`.
+- **Prophylaxis effect.** BPG lowers A→B and B→C hazards by an assumed `r fmt_cov(RRR)` at full adherence (scaled by adherence) up to age `r AMAX`, with no direct effect on C→D or on mortality. This is an expert-informed scenario, informed by evidence on prevention of recurrent rheumatic fever [@Manyemba2002].
+- **Economics.** Costs are screening encounters, BPG person-years and valve surgery; confirmatory echoes carry no cost. Benefits are RHD deaths averted × a country-specific value of a statistical life (VSL). The VSL is transferred from a US value using income per capita and an income elasticity, as in an earlier RHD investment case [@Coates2021]; here PPP GNI per capita, elasticity `r fmt_f(ELAST, 1)` and a floor of `r FLOOR` × GNI per capita. Values are in `r CUR_MD`, discounted at `r fmt_cov(DISC)` to `r DBY`. All estimates are deterministic.
+:::
+
+::: {.card}
+### Results
+- Scale-up averts `r fmt_n(I$da)` RHD deaths in Indonesia and `r fmt_n(U$da)` in Uganda over `r WIN` (Fig. 2A). Deaths averted begin in `r pair_txt(I$first_da, U$first_da, as.character)`. In `r Y_END`, annual RHD deaths are `r fmt_pct(I$red_end)` (Indonesia) and `r fmt_pct(U$red_end)` (Uganda) below the reference arm.
+- Discounted incremental costs are `r usd_m(I$cost)` and `r usd_m(U$cost)`, and discounted monetised benefits `r usd_m(I$ben)` and `r usd_m(U$ben)` (Fig. 2B–C).
+- Net benefits are `r usd_m(I$net)` in Indonesia and `r usd_m(U$net)` in Uganda, with benefit–cost ratios of `r fmt_ratio(I$bcr)` and `r fmt_ratio(U$bcr)` (Fig. 2D–E).
+- BPG person-years account for `r fmt_pct(I$sap_share, 0)` (Indonesia) and `r fmt_pct(U$sap_share, 0)` (Uganda) of discounted incremental cost.
+:::
+
+::: {.card}
+### Conclusions
+- `r if (da_all_pos) paste0("Reaching the ", Y_END, " targets averts RHD deaths in both countries, but the effect builds slowly: prophylaxis acts on progression from early stages, and RHD deaths occur only after progression to stage D.") else paste0("Projected changes in RHD deaths through ", Y_END, " are ", fmt_n(I$da), " (Indonesia) and ", fmt_n(U$da), " (Uganda) deaths averted.")`
+- Through `r Y_END`, monetised benefits `r ben_phrase` (benefit–cost ratios `r fmt_ratio(I$bcr)` and `r fmt_ratio(U$bcr)`). Indonesia averts `r if (is.finite(I$dpm)) fmt_f(I$dpm, 1) else "an undefined number of"` deaths per discounted `r USD()`1 million against `r if (is.finite(U$dpm)) fmt_f(U$dpm, 1) else "an undefined number"` in Uganda, and values each at `r vsl_cmp` VSL (`r usd_m(I$vsl0, 2)` vs `r usd_m(U$vsl0, 2)` in `r Y_START`).
+- The tool lets local data, such as prevalence surveys, pilot programme costs and progression rates, replace its default inputs, so that results can inform programme planning and policy advocacy.
+:::
+
+::: {.takehome}
+### Take-home message
+`r if (da_all_pos) paste0("Echo screening plus BPG prophylaxis averts RHD deaths slowly; through ", Y_END, " its monetised benefits ", ben_phrase, ", and the returns depend on how fast untreated RHD progresses and how often stage D is fatal.") else paste0("Through ", Y_END, ", monetised benefits of echo screening plus BPG prophylaxis ", ben_phrase, ".")`
+:::
+
+::: {.card}
+### Contact
+Neema Minja · neemaminja@gmail.com
+:::
+
+## Figure 1 · Model schematic
+
+```{r fig-helpers, include=FALSE}
+theme_poster <- function(base = 16)
+  theme_minimal(base_size = base, base_family = FONT) +
+  theme(plot.title = element_text(face = "bold", colour = COL[["dblue"]], size = base, margin = margin(b = 2)),
+        plot.subtitle = element_text(colour = "grey25", size = base - 3, margin = margin(b = 6)),
+        plot.title.position = "plot",
+        axis.text = element_text(colour = COL[["navy"]], size = base - 2),
+        axis.title = element_text(colour = COL[["navy"]], size = base - 2),
+        panel.grid.minor = element_blank(),
+        plot.margin = margin(6, 10, 6, 6))
+# Write PNG (300 dpi, ragg) and SVG (svglite) to tempdir(); return both as base64.
+save_fig <- function(p, stem, w, h) {
+  png <- file.path(FIG_DIR, paste0(stem, ".png")); svg <- file.path(FIG_DIR, paste0(stem, ".svg"))
+  ragg::agg_png(png, width = w, height = h, units = "in", res = 300, background = "white"); print(p); grDevices::dev.off()
+  svglite::svglite(svg, width = w, height = h, bg = "white"); print(p); grDevices::dev.off()
+  list(png = base64enc::base64encode(png), svg = base64enc::base64encode(svg), w = w, h = h)
+}
+emit_fig <- function(f, id, stem, alt, portrait = FALSE) raw_html(
+  '<figure class="pfig', if (portrait) ' portrait' else '', '" id="', id, '">',
+  '<img id="', id, '-img" alt="', alt, '" src="data:image/png;base64,', f$png, '">',
+  '<div class="dl"><a href="#" download="', stem, '.png" onclick="this.href=document.getElementById(\'', id, '-img\').src;">',
+  'Download PNG (300 dpi, ', f$w, ' &times; ', f$h, ' in)</a>',
+  '<a href="data:image/svg+xml;base64,', f$svg, '" download="', stem, '.svg">Download SVG (vector)</a></div></figure>')
+```
+
+```{r fig1, results='asis'}
+# Drawn from the implemented engine (R/abcd_engine.R) with values read from the saved runs:
+# entry A (age <= child_last_age) / B (older); progression A->B->C->D; RHD death only from D;
+# care layer undiagnosed -> confirmed diagnosis (screening + confirmation, or clinical
+# detection) -> on BPG (eligible A at <= child_last_age, B); SAP multiplies A->B and B->C
+# hazards at ages <= sap_protection_age_max. Plot text is ASCII (repository convention).
+check(identical(I$nh$entry_mix_child[["A"]], 1) && identical(I$nh$entry_mix_adult[["B"]], 1) &&
+        identical(U$nh$entry_mix_child[["A"]], 1) && identical(U$nh$entry_mix_adult[["B"]], 1),
+      "new disease no longer enters only A (childhood) and B (adult); Figure 1 would be wrong", "update Figure 1 to the new entry mixes")
+check(identical(as.character(I$ef$sap_effect_transitions), c("A_to_B", "B_to_C")) && identical(as.character(I$ef$sap_eligibility), c("A", "B")) &&
+        all(c(I$ef$sap_hr_C_to_D, I$ef$sap_hr_D_to_rhd_death, I$ef$sap_hr_prior_A_to_B_adult) == 1),
+      "the SAP effect is no longer limited to A->B and B->C among stage A/B; Figure 1 would be wrong", "update Figure 1")
+navy <- COL[["navy"]]; orng <- COL[["orange"]]
+xd <- 2.45; wd <- 3.3; hd <- 1.0
+ys <- c(N = 10.55, A = 8.8, B = 7.05, C = 5.3, D = 3.55, X = 1.8)
+dis <- data.table(x = xd, y = unname(ys), w = c(rep(wd, 5), 2.4), h = hd,
+  lab = c("No RHD", paste0("Stage A: minimal\n(age <= ", BAGE, " only)"), "Stage B: mild", "Stage C: advanced",
+          "Stage D: advanced,\nwith complications", "RHD death"),
+  fill = c("#FFFFFF", "#DCE8F5", "#A9C6E8", "#4F7DBA", COL[["red"]], navy),
+  txt  = c(navy, navy, navy, "#FFFFFF", "#FFFFFF", "#FFFFFF"))
+xc <- 7.45; wc <- 4.6
+care <- data.table(x = xc, y = c(9.8, 7.05, 4.25), w = wc, h = c(1.0, 1.0, 1.3),
+  lab = c("Undiagnosed", "Confirmed diagnosis\n(off BPG)", paste0("On BPG prophylaxis\n(stage A at age <= ", BAGE, ",\nor stage B)")),
+  fill = c("#FFFFFF", "#EEF3F9", "#FDE7DA"), txt = navy)
+vsegs <- data.table(x = xd, y = head(ys, -1) - hd / 2, yend = tail(ys, -1) + hd / 2,
+                    col = c(rep(navy, 4), COL[["red"]]))
+ab_y <- mean(ys[c("A", "B")]); bc_y <- mean(ys[c("B", "C")]); xl <- xd - wd / 2; xv <- 4.55
+arw <- arrow(length = unit(0.24, "cm"), type = "closed")
+p1 <- ggplot() +
+  # entry of new disease: A at young ages (straight), B at older ages (elbow on the left)
+  geom_segment(data = vsegs, aes(x = x, y = y, xend = x, yend = yend), colour = vsegs$col, linewidth = 0.9, arrow = arw) +
+  geom_path(aes(x = c(xl, 0.38, 0.38, xl - 0.03), y = c(ys[["N"]], ys[["N"]], ys[["B"]], ys[["B"]])),
+            colour = navy, linewidth = 0.9, arrow = arw) +
+  annotate("text", x = 0.17, y = mean(ys[c("N", "B")]), label = paste0("new RHD, age > ", BAGE), angle = 90,
+           size = 4.6, family = FONT, colour = navy) +
+  annotate("text", x = xd + 0.15, y = mean(ys[c("N", "A")]), label = paste0("new RHD, age <= ", BAGE), hjust = 0,
+           size = 4.6, family = FONT, colour = navy) +
+  annotate("text", x = xd + 0.15, y = mean(ys[c("D", "X")]), label = "RHD death\nonly from D", hjust = 0,
+           size = 4.6, family = FONT, colour = COL[["red"]], lineheight = 0.9) +
+  # care cascade
+  geom_segment(aes(x = 5.75, y = 9.8 - 0.5, xend = 5.75, yend = 7.05 + 0.5), colour = navy, linewidth = 0.9, arrow = arw) +
+  annotate("text", x = 5.95, y = mean(c(9.3, 7.55)), hjust = 0, size = 4.6, family = FONT, colour = navy, lineheight = 0.95,
+           label = paste0("Echo screen once, ages ", SCR_LO, "-", SCR_HI, ",\nthen confirmatory echo;\nor clinical detection")) +
+  geom_segment(aes(x = 5.75, y = 7.05 - 0.5, xend = 5.75, yend = 4.25 + 0.65), colour = navy, linewidth = 0.9,
+               arrow = arrow(length = unit(0.24, "cm"), type = "closed", ends = "both")) +
+  annotate("text", x = 5.95, y = mean(c(6.55, 4.9)), hjust = 0, size = 4.6, family = FONT, colour = navy,
+           label = "Start or stop BPG") +
+  # prophylaxis effect on A->B and B->C (dashed, orange)
+  geom_path(aes(x = c(xc - wc / 2, xv, xv), y = c(4.25, 4.25, ab_y)), colour = orng, linewidth = 1, linetype = "22") +
+  geom_segment(aes(x = xv, y = ab_y, xend = xd + 0.12, yend = ab_y), colour = orng, linewidth = 1, linetype = "22", arrow = arw) +
+  geom_segment(aes(x = xv, y = bc_y, xend = xd + 0.12, yend = bc_y), colour = orng, linewidth = 1, linetype = "22", arrow = arw) +
+  annotate("text", x = xc, y = 2.95, size = 4.6, family = FONT, colour = orng, fontface = "bold", lineheight = 0.95,
+           label = paste0("BPG reduces A->B and B->C\nhazards by ", fmt_cov(RRR), " x adherence,\nat ages <= ", AMAX)) +
+  # boxes and labels
+  geom_rect(data = dis, aes(xmin = x - w / 2, xmax = x + w / 2, ymin = y - h / 2, ymax = y + h / 2),
+            fill = dis$fill, colour = navy, linewidth = 0.6) +
+  geom_text(data = dis, aes(x, y, label = lab), colour = dis$txt, size = 5.6, family = FONT, fontface = "bold", lineheight = 0.9) +
+  geom_rect(data = care, aes(xmin = x - w / 2, xmax = x + w / 2, ymin = y - h / 2, ymax = y + h / 2),
+            fill = care$fill, colour = navy, linewidth = 0.6) +
+  geom_text(data = care, aes(x, y, label = lab), colour = navy, size = 5.6, family = FONT, fontface = "bold", lineheight = 0.9) +
+  annotate("text", x = 0.05, y = 11.5, hjust = 0, label = "DISEASE (WHF STAGES)", size = 5, family = FONT,
+           fontface = "bold", colour = COL[["dblue"]]) +
+  annotate("text", x = xc - wc / 2, y = 11.5, hjust = 0, label = "DIAGNOSIS AND CARE", size = 5, family = FONT,
+           fontface = "bold", colour = COL[["dblue"]]) +
+  annotate("text", x = xc - wc / 2, y = 11.0, hjust = 0, label = "(within every stage A-D)", size = 4.4, family = FONT,
+           colour = navy) +
+  annotate("text", x = xc - wc / 2, y = 1.2, hjust = 0, vjust = 0.5, size = 4.1, family = FONT, colour = "grey20", lineheight = 1,
+           label = paste0("Other-cause mortality in every state.\nAdult (age > ", BAGE, ") B->C and C->D hazards\n= ",
+                          fmt_f(M_AD, 2), " x childhood hazards.\nValve surgery (both arms) lowers\nC->D and D->death.")) +
+  scale_x_continuous(limits = c(0, 10), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0, 11.8), expand = c(0, 0)) +
+  theme_void(base_family = FONT) + theme(plot.margin = margin(4, 4, 4, 4))
+F1 <- save_fig(p1, "WCRHD2026_Fig1_model_schematic", 7.5, 8.85)
+emit_fig(F1, "fig1", "WCRHD2026_Fig1_model_schematic",
+         "Model schematic: WHF stages A to D with RHD death only from D, and a care cascade from undiagnosed to confirmed diagnosis to BPG, which slows A to B and B to C",
+         portrait = TRUE)
+```
+
+::: {.caption}
+**Figure 1. Simplified structure of the implemented model.** New RHD enters stage A at age ≤ `r BAGE` or stage B at older ages. Disease progresses through the WHF stages A–D [@Rwebembera2023], and RHD death occurs only from stage D. Within every stage, people stay undiagnosed until a first confirmed diagnosis, either by one echo screen between ages `r SCR_LO` and `r SCR_HI` followed by confirmatory echocardiography, or by clinical detection. Diagnosed people in stage A (age ≤ `r BAGE`) or B can start BPG, which lowers A→B and B→C hazards by an assumed `r fmt_cov(RRR)` × adherence up to age `r AMAX`. Also modelled but not drawn: B→A and C→B regression and resolution of stage A (age ≤ `r BAGE`); normalisation of adult stage B; reclassification of surviving stage A as prior-A history at age `r BAGE + 1L` (excluded from prevalence; can re-enter B); and valve surgery, equal in both arms.
+:::
+
+## Figure 2 · Principal results
+
+```{r fig2, results='asis'}
+# Panel A: cumulative deaths averted (count, undiscounted). Panels B-D: discounted incremental
+# cost, monetised benefit and net benefit on one common US$-million scale. Panel E: BCR with a
+# break-even line at 1. Every value is summed over Y_START..Y_END only.
+cum <- rbindlist(lapply(COUNTRIES, function(ct) R[[ct]]$cum[, .(country = ct, year, cum_da)]))
+cum[, country := factor(country, levels = COUNTRIES)]
+endl <- cum[year == Y_END]
+gap <- 0.12 * max(abs(cum$cum_da), 1)        # keep the two end labels apart if the lines end close together
+endl[, ly := cum_da]
+if (abs(diff(endl$cum_da)) < gap) { o <- order(endl$cum_da); endl$ly[o] <- mean(endl$cum_da) + c(-gap, gap) / 2 }
+pA <- ggplot(cum, aes(year, cum_da, colour = country, linetype = country)) +
+  geom_hline(yintercept = 0, colour = "grey65") +
+  geom_line(linewidth = 1.5) +
+  geom_point(data = endl, size = 3, show.legend = FALSE) +
+  geom_text(data = endl, aes(x = Y_END + 0.6, y = ly, label = paste0(country, "\n", fmt_n(cum_da))), hjust = 0,
+            size = 5.3, family = FONT, fontface = "bold", lineheight = 0.9, show.legend = FALSE) +
+  scale_colour_manual(values = COL_CT) + scale_linetype_manual(values = LT_CT) +
+  scale_x_continuous(breaks = c(Y_START, seq(2030, Y_END, by = 5)), expand = c(0, 0)) +
+  scale_y_continuous(labels = scales::label_comma(), expand = expansion(mult = c(0.02, 0.06))) +
+  coord_cartesian(xlim = c(Y_START, Y_END), clip = "off") +
+  labs(title = "A  Cumulative RHD deaths averted", subtitle = paste0("Scale-up vs reference, ", Y_START, "-", Y_END, ", undiscounted"),
+       x = NULL, y = "RHD deaths averted") +
+  theme_poster(16) + theme(legend.position = "none", plot.margin = margin(6, 105, 6, 6))
+
+eco <- rbindlist(lapply(COUNTRIES, function(ct) { r <- R[[ct]]
+  data.table(country = ct, cost = r$cost / 1e6, ben = r$ben / 1e6, net = r$net / 1e6, bcr = r$bcr) }))
+eco[, country := factor(country, levels = rev(COUNTRIES))]
+rng  <- range(0, eco$cost, eco$ben, eco$net); span <- diff(rng)
+lims <- c(rng[1] - 0.03 * span, rng[2] + 0.30 * span)
+money_lab <- function(v) paste0(ifelse(v < 0, "-", ""), "US$", formatC(abs(v), format = "f", digits = 1, big.mark = ","), "m")
+bar_panel <- function(dd, ttl, sub, lims, show_y, vline = 0) {
+  # labels sit just right of the bar (or of zero / the reference line); long bars carry them inside, in white
+  dd <- copy(dd); pad <- 0.03 * diff(lims)
+  dd[, inside := is.finite(v) & v > 0.5 * lims[2]]
+  dd[, lx := fifelse(inside, v - pad, pmax(v, vline, 0, na.rm = TRUE) + pad)]
+  ggplot(dd, aes(v, country, fill = country)) +
+    geom_col(width = 0.62, na.rm = TRUE) +
+    geom_vline(xintercept = 0, colour = "grey35", linewidth = 0.5) +
+    geom_text(aes(x = lx, label = lab, hjust = fifelse(inside, 1, 0)), size = 5.3, family = FONT, fontface = "bold",
+              colour = fifelse(dd$inside, "#FFFFFF", COL[["navy"]])) +
+    scale_fill_manual(values = COL_CT) +
+    scale_x_continuous(limits = lims, expand = c(0, 0)) +
+    coord_cartesian(clip = "off") +
+    labs(title = ttl, subtitle = sub, x = NULL, y = NULL) +
+    theme_poster(16) +
+    theme(legend.position = "none", panel.grid = element_blank(), axis.text.x = element_blank(),
+          axis.text.y = if (show_y) element_text(face = "bold", size = 15, colour = COL[["navy"]]) else element_blank())
+}
+sub_m <- paste0("US$ million, discounted ", fmt_cov(DISC))
+pB <- bar_panel(eco[, .(country, v = cost, lab = money_lab(cost))], "B  Incremental cost", sub_m, lims, TRUE)
+pC <- bar_panel(eco[, .(country, v = ben, lab = money_lab(ben))], "C  Monetised benefit", sub_m, lims, FALSE)
+pD <- bar_panel(eco[, .(country, v = net, lab = money_lab(net))], "D  Net benefit (C - B)", sub_m, lims, TRUE)
+eb <- eco[, .(country, v = bcr, lab = vapply(bcr, fmt_ratio, ""))]
+blim <- c(0, max(c(eb$v, 1), na.rm = TRUE) * 1.55)
+pE <- bar_panel(eb, "E  Benefit-cost ratio", "C / B", blim, FALSE, vline = 1) +
+  geom_vline(xintercept = 1, linetype = "22", colour = COL[["red"]], linewidth = 0.8) +
+  annotate("text", x = 1, y = 2.48, label = " 1 = break-even", hjust = 0, vjust = 0, size = 4.3, family = FONT, colour = COL[["red"]])
+p2 <- pA + ((pB + pC) / (pD + pE)) + plot_layout(widths = c(1, 1.45))
+F2 <- save_fig(p2, "WCRHD2026_Fig2_results_2026_2050", 12, 6.6)
+emit_fig(F2, "fig2", "WCRHD2026_Fig2_results_2026_2050",
+         paste0("Indonesia and Uganda, ", Y_START, " to ", Y_END, ": cumulative RHD deaths averted, discounted incremental cost, monetised benefit, net benefit and benefit-cost ratio"))
+```
+
+::: {.caption}
+**Figure 2. Modelled health and economic outcomes of scaling up echo screening, confirmation and BPG prophylaxis versus reference care, Indonesia and Uganda, `r WIN`.** (A) Cumulative RHD deaths averted (undiscounted counts). (B–D) Incremental programme cost, monetised benefit (RHD deaths averted × VSL) and net benefit, in millions of `r CUR_MD`, discounted at `r fmt_cov(DISC)` to `r DBY`, on one common scale. (E) Benefit–cost ratio: discounted benefit ÷ discounted incremental cost; the dashed line marks 1. All values are summed over `r WIN` only. They are deterministic point estimates without uncertainty intervals. Confirmatory echocardiograms are not costed. In `r CY1` the calibrated baselines produced `r fmt_f(I$fit[["death"]], 1)` × (Indonesia) and `r fmt_f(U$fit[["death"]], 1)` × (Uganda) the GBD estimate of RHD deaths, so absolute deaths averted and monetised benefits may be `r pair_txt(I$fit[["death"]], U$fit[["death"]], over_under)`.
+:::
+
+## Supporting results
+
+```{r tab-results, results='asis'}
+row <- function(q, fI, fU) data.frame(q = q, i = fI, u = fU, stringsAsFactors = FALSE)
+tab <- rbind(
+  row(paste0("Population at programme start, ", Y_START, " (UN WPP 2024)"),
+      paste0(fmt_f(I$N0 / 1e6, 1), " million"), paste0(fmt_f(U$N0 / 1e6, 1), " million")),
+  row(paste0("RHD deaths in the reference arm, ", WIN, " (cumulative)"), fmt_n(I$ref_cum), fmt_n(U$ref_cum)),
+  row(paste0("<b>RHD deaths averted, ", WIN, "</b> (cumulative, undiscounted)"), paste0("<b>", fmt_n(I$da), "</b>"), paste0("<b>", fmt_n(U$da), "</b>")),
+  row("Deaths averted as a share of reference-arm RHD deaths over the period", fmt_pct(I$share_cum, 2), fmt_pct(U$share_cum, 2)),
+  row(paste0("RHD mortality rate in ", Y_END, ", reference &rarr; scale-up (deaths per 100,000)"),
+      paste0(fmt_f(I$rate_ref, 2), " &rarr; ", fmt_f(I$rate_sap, 2)), paste0(fmt_f(U$rate_ref, 2), " &rarr; ", fmt_f(U$rate_sap, 2))),
+  row(paste0("<b>Reduction in annual RHD mortality in ", Y_END, "</b>"), paste0("<b>", fmt_pct(I$red_end), "</b>"), paste0("<b>", fmt_pct(U$red_end), "</b>")),
+  row("Incremental cost, discounted", usd_m(I$cost, html = TRUE), usd_m(U$cost, html = TRUE)),
+  row("Monetised benefit (deaths averted &times; VSL), discounted", usd_m(I$ben, html = TRUE), usd_m(U$ben, html = TRUE)),
+  row("<b>Net benefit, discounted</b>", paste0("<b>", usd_m(I$net, html = TRUE), "</b>"), paste0("<b>", usd_m(U$net, html = TRUE), "</b>")),
+  row("<b>Benefit&ndash;cost ratio</b> (discounted benefit &divide; discounted cost)", paste0("<b>", fmt_ratio(I$bcr), "</b>"), paste0("<b>", fmt_ratio(U$bcr), "</b>")),
+  row(paste0("Average annual incremental cost per resident, ", WIN, " (undiscounted)"),
+      usd_u(I$cost_pc, 3, html = TRUE), usd_u(U$cost_pc, 3, html = TRUE)),
+  row("Share of discounted incremental cost spent on BPG person-years", fmt_pct(I$sap_share, 0), fmt_pct(U$sap_share, 0)),
+  row(paste0("Additional confirmatory echocardiograms, ", WIN, " (not costed)"), fmt_n(I$conf_unc), fmt_n(U$conf_unc)),
+  row(paste0("VSL in ", Y_START, " / ", Y_END, " (", CUR_HTML, ")"),
+      paste0(usd_m(I$vsl0, 2, TRUE), " / ", usd_m(I$vsl_end, 2, TRUE)), paste0(usd_m(U$vsl0, 2, TRUE), " / ", usd_m(U$vsl_end, 2, TRUE))),
+  row(paste0("Calibration, ", CY1, ": model &divide; GBD, prevalence / RHD deaths"),
+      paste0(fmt_f(I$fit[["prev"]], 2), " / ", fmt_f(I$fit[["death"]], 2)), paste0(fmt_f(U$fit[["prev"]], 2), " / ", fmt_f(U$fit[["death"]], 2))))
+names(tab) <- c(paste0("Scale-up vs reference, ", WIN), "Indonesia", "Uganda")
+raw_html('<div class="tabwrap">', as.character(kable(tab, format = "html", escape = FALSE, row.names = FALSE,
+                                                     table.attr = 'class="ptab" id="tab1"')), '</div>')
+```
+
+::: {.tabcap}
+**Table 1. Country comparison, `r WIN`.** Money in `r CUR_MD`, discounted at `r fmt_cov(DISC)` to `r DBY` unless marked undiscounted. Deaths are undiscounted counts. The `r Y_END` mortality rates use the shared WPP population of both arms, so the percentage reduction in the rate equals the percentage reduction in annual RHD deaths. Average annual cost per resident is the mean over `r WIN` of each year's incremental cost divided by that year's population.
+:::
+
+::: {.keybox}
+### Key findings (poster supporting text)
+Achieving the intervention targets could avert `r fmt_n(I$da)` and `r fmt_n(U$da)` RHD deaths over `r WIN` in Indonesia and Uganda, respectively. In `r Y_END`, this corresponds to a `r fmt_pct(I$red_end)` and `r fmt_pct(U$red_end)` reduction in the RHD mortality rate (`r fmt_f(I$rate_ref, 2)` to `r fmt_f(I$rate_sap, 2)` and `r fmt_f(U$rate_ref, 2)` to `r fmt_f(U$rate_sap, 2)` deaths per 100,000).
+
+The additional cost would average `r usd_u(I$cost_pc, 3)` and `r usd_u(U$cost_pc, 3)` per resident per year (undiscounted, `r CUR_MD`).
+
+Discounted at `r fmt_cov(DISC)`, the net economic benefit would be `r usd_m(I$net)` and `r usd_m(U$net)`, with benefit–cost ratios of `r fmt_ratio(I$bcr)` and `r fmt_ratio(U$bcr)`.
+:::
+
+```{r tab-inputs, results='asis'}
+ramp <- function(r, k) paste0(fmt_cov(r$cv$ref[[k]][1]), " &rarr; ", fmt_cov(pick_end(r, k)))
+same_both <- function(f) { a <- f(I); b <- f(U); c(a, b) }
+inp <- rbind(
+  row(paste0("One echo screen between ages ", SCR_LO, "&ndash;", SCR_HI, " (share of people screened)"), ramp(I, "screen_window_prob"), ramp(U, "screen_window_prob")),
+  row("BPG initiation among eligible diagnosed people, per year", ramp(I, "bpg_initiation"), ramp(U, "bpg_initiation")),
+  row("BPG retention, per year", ramp(I, "bpg_retention"), ramp(U, "bpg_retention")),
+  row("Good / partial adherence (share of people on BPG)",
+      paste0(ramp(I, "adherence_good"), " / ", ramp(I, "adherence_partial")), paste0(ramp(U, "adherence_good"), " / ", ramp(U, "adherence_partial"))),
+  row(paste0("Adherence weight (good + ", fmt_cov(I$cv$constants$partial_relative_protection), " &times; partial)"),
+      paste0(fmt_f(I$cv$ref$adherence_factor[1], 2), " &rarr; ", fmt_f(pick_end(I, "adherence_factor"), 2)),
+      paste0(fmt_f(U$cv$ref$adherence_factor[1], 2), " &rarr; ", fmt_f(pick_end(U, "adherence_factor"), 2))),
+  row("Clinical detection per year (both arms)", fmt_cov(I$cv$ref$clinical_detection[1]), fmt_cov(U$cv$ref$clinical_detection[1])),
+  row("Screening sensitivity / confirmation completion",
+      paste0(fmt_cov(I$cv$constants$sensitivity), " / ", fmt_cov(I$cv$constants$confirm_completion)),
+      paste0(fmt_cov(U$cv$constants$sensitivity), " / ", fmt_cov(U$cv$constants$confirm_completion))),
+  row(paste0("Assumed reduction in A&rarr;B and B&rarr;C hazards on BPG at full adherence (ages &le; ", AMAX, ")"), fmt_cov(I$ef$sap_progression_rrr), fmt_cov(U$ef$sap_progression_rrr)),
+  row(paste0("Unit cost: screening encounter / BPG person-year (", CUR_HTML, ")"),
+      paste0(usd_u(I$ep$cost_screen_per_person, 3, TRUE), " / ", usd_u(I$ep$cost_sap_per_year, 2, TRUE)),
+      paste0(usd_u(U$ep$cost_screen_per_person, 3, TRUE), " / ", usd_u(U$ep$cost_sap_per_year, 2, TRUE))),
+  row(paste0("Unit cost: valve surgery (", CUR_HTML, ")"), usd_u(I$ep$cost_surgery, 0, TRUE), usd_u(U$ep$cost_surgery, 0, TRUE)),
+  row(paste0("GNI per capita, PPP, ", I$va$income_anchor_year, " (international &#36;; VSL input)"), fmt_n(I$va$income_target_Y), fmt_n(U$va$income_target_Y)),
+  row("Real income growth carrying the VSL, per year", fmt_cov(I$va$income_growth), fmt_cov(U$va$income_growth)))
+names(inp) <- c(paste0("Reference &rarr; scale-up in ", Y_END), "Indonesia", "Uganda")
+raw_html('<div class="tabwrap">', as.character(kable(inp, format = "html", escape = FALSE, row.names = FALSE,
+                                                     table.attr = 'class="ptab" id="tab2"')), '</div>')
+```
+
+::: {.tabcap}
+**Table 2. Intervention and valuation assumptions in the saved runs.** Scale-up values ramp linearly from `r RAMP0` to `r RAMP1`; natural history, incidence, population, clinical detection and surgery are identical in both arms. The VSL is `r fmt_f(ELAST, 1)`-elastic to PPP GNI per capita, with a floor of `r FLOOR` × GNI per capita.
+:::
+
+## Limitations
+
+- **Calibration.** `r fit_lead` the prespecified fit tolerances over `r MFROM`–`r CY1`. In Indonesia, `r I$n_out` of `r I$n_cp` checkpoint quantities fall outside tolerance; in Uganda, `r U$n_out` of `r U$n_cp`. In `r CY1`, modelled RHD deaths were `r fmt_f(I$fit[["death"]], 2)` × GBD in Indonesia (ages 20+: `r fmt_f(I$fit[["death_ad"]], 2)` ×; ages 0–19: `r fmt_f(I$fit[["death_ch"]], 2)` ×) and `r fmt_f(U$fit[["death"]], 2)` × in Uganda (20+: `r fmt_f(U$fit[["death_ad"]], 2)` ×; 0–19: `r fmt_f(U$fit[["death_ch"]], 2)` ×). Modelled prevalence was `r fmt_f(I$fit[["prev"]], 2)` × and `r fmt_f(U$fit[["prev"]], 2)` ×. Absolute deaths averted and monetised benefits may therefore be `r pair_txt(I$fit[["death"]], U$fit[["death"]], over_under)`, and programme volumes and costs `r pair_txt(I$fit[["prev"]], U$fit[["prev"]], over_under)`.
+- **Assumed prophylaxis effect.** The `r fmt_cov(RRR)` reduction in progression hazards is an assumption. The evidence that informs it, a relative risk of 0.45 for recurrent rheumatic fever, comes from one of three poor-quality trials and measures recurrence, not valve progression [@Manyemba2002]. Benefit stops at age `r AMAX`, but stage B BPG continues and is costed: in `r Y_END`, `r fmt_pct(I$noben, 0)` (Indonesia) and `r fmt_pct(U$noben, 0)` (Uganda) of scale-up BPG person-years are for stage B at ages ≥ `r AMAX + 1L`. No direct effect on C→D or mortality is modelled.
+- **Prophylaxis scope.** WHF guidelines also recommend SAP for stages C and D [@Rwebembera2023]; the model provides BPG only for stage A (age ≤ `r BAGE`) and stage B.
+- **Costs.** Confirmatory echocardiograms carry no unit cost (`r fmt_n(I$conf_unc)` and `r fmt_n(U$conf_unc)` additional confirmations over `r WIN`), so incremental costs are understated and benefit–cost ratios overstated by that omission. Unit-cost bundles have no documented price year; they are treated as 2019 US dollars and converted to `r PRICE_YEAR` prices with local consumer price indices and exchange rates.
+- **Uncertainty.** All results are deterministic point estimates. No probabilistic or one-way sensitivity analysis was run.
+- **Valuation and horizon.** Monetised benefits value mortality risk reductions; they are not budget savings. The VSL grows `r pair_txt(I$vsl_growth, U$vsl_growth, function(x) fmt_pct(x, 1))` per year with assumed real income growth, faster than the `r fmt_cov(DISC)` discount rate. `r if (I$rising && U$rising) paste0("Annual deaths averted are still rising in ", Y_END, ", and outcomes after ", Y_END, " are excluded.") else paste0("Outcomes after ", Y_END, " are excluded.")`
+
+## References
+
+::: {#refs}
+:::
+
+## Appendix · Provenance and verification {.appendix}
+
+```{r appendix, results='asis'}
+mt <- function(f) format(file.mtime(f), "%Y-%m-%d %H:%M")
+lab <- c(out = "06_run_prevention_model.R", econ = "08_economic_evaluation.R", bs = "05_build_baseline.R",
+         cal = "04b_calibrate_structural.R", gbd = "01_prepare_inputs.R")
+prov <- rbindlist(lapply(COUNTRIES, function(ct) { f <- D[[ct]]$files
+  ff <- unlist(f[names(lab)])
+  data.table(Country = ct, Artifact = sub("^/", "", sub(ROOT, "", ff, fixed = TRUE)),
+             `Written by` = paste0("scripts/", lab), Modified = vapply(ff, mt, "")) }))
+raw_html('<div class="tabwrap">', as.character(kable(as.data.frame(prov), format = "html", escape = TRUE, row.names = FALSE,
+                                                     table.attr = 'class="ptab" id="tab-prov"')), '</div>')
+cal_note <- vapply(COUNTRIES, function(ct) if (D[[ct]]$cal_fallback)
+  paste0(ct, ": calibrated_rhd_parameters_last_valid.rds, the 04b output consumed by 05 (matched to baseline_state.rds on engine, ",
+         "calibrated transitions, stage-D mortality, fixed inputs, SAP specification, status and analysis-start state)") else
+  paste0(ct, ": calibrated_rhd_parameters.rds (matched to baseline_state.rds)"), "")
+cat("\n- **Engine:** `", D$Indonesia$out$meta$engine_spec, "` (mortality structure ", D$Indonesia$out$meta$mortality_structure,
+    "; SAP mechanism ", D$Indonesia$out$meta$sap_mechanism, "), identical in both countries.\n", sep = "")
+cat("- **Window:** the saved runs cover ", min(I$yy), "–", max(I$yy), ". Every figure, table and statement here is restricted to ", WIN,
+    ". Economic totals are re-summed from the annual `incremental` series of `rhd_economic_results.rds` with its saved discount factors ",
+    "(r = ", fmt_cov(DISC), ", base year ", DBY, "); the saved full-horizon summary is not used. BCR = discounted benefit ÷ discounted ",
+    "incremental cost (not defined if that cost is not positive); net benefit = their signed difference.\n", sep = "")
+cat("- **Calibration diagnostics read from:** ", paste(cal_note, collapse = "; "), ". Fit status and ratios are taken separately for each ",
+    "country from `stage_calibration$statuses`, `fit_tolerance_summary` and `fit_by_year` (target basis: ",
+    D$Indonesia$cal$stage_calibration$spec$target_basis, ").\n", sep = "")
+cat("- **GBD counts** (", GY, ") are the published Numbers in `temp_baseline_rates_gbd.rds`, verified against the calibration's GBD targets for ",
+    CY0, "–", CY1, ".\n", sep = "")
+cat("- **Consistency checks passed: ", N_CHECKS, ".** Location, scenarios and years; engine, mortality structure and SAP specification across ",
+    "04b, 05 and 06; calibrated parameters, reference care and care trajectories; shared population; D-only RHD deaths; deaths and costs in ",
+    "the economics recomputed from the model output; discount factors; benefits = deaths averted × saved VSL path; currency and price ",
+    "year; reproduction of the saved summary and per-capita series; uncosted confirmations; calibration status labels; GBD extract; ",
+    "the same specification in both countries; Figure 1 structure against the saved entry mixes and SAP specification.\n", sep = "")
+cat("- **Figures:** ggplot2 (ragg PNG at 300 dpi; svglite SVG), written to a temporary folder and embedded in this file.\n", sep = "")
+cat("- **Rendered:** ", format(Sys.time(), "%Y-%m-%d %H:%M %Z"), " with ", R.version.string, ", rmarkdown ",
+    as.character(utils::packageVersion("rmarkdown")), ", ggplot2 ", as.character(utils::packageVersion("ggplot2")), ".\n", sep = "")
+```

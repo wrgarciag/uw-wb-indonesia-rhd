@@ -149,7 +149,7 @@ header-includes:
 #  7  Scale-up averts [2,700] deaths (IDN) and [130] (UGA) by 2050  line figure                   econ$incremental: death_ref, deaths_avert (year <= Y_END)            2.0
 #  8  Each extra screen-detected diagnosis takes [530]/[160] screens table                        out$stages, year == Y_END: n_screened, n_dx_screen, ...              1.5
 #  9  Prophylaxis-years make up [x%]/[y%] of added cost             stacked bar figure            out$stages volumes x econ$params unit costs, discounted, <= Y_END    1.5
-# 10  Benefits are [4.2] times costs (IDN), [0.15] (UGA)            paired bar figure             econ$incremental, discounted sums <= Y_END                           1.5
+# 10  Benefits are [14] times costs (IDN), [0.24] (UGA)              paired bar figure             econ$incremental, discounted sums <= Y_END                           1.5
 # 11  Modelled deaths exceed GBD, so IDN's return is overstated      table                         cal stage_calibration$fit_by_year (Deaths, last calibration year)   1.0
 # 12  Returns hinge on progression, targeting and confirmation cost  three parallel points         bs natural_history$derived; out$stages n_on_bpg_B; budget_impact     1.0
 # 13  Closing sentence (guarded)                                    standout                       as above                                                             0.5
@@ -228,6 +228,23 @@ fmt_m   <- function(x, d = 0) paste0(if (x < 0) "$-$" else "", "US\\$", formatC(
 fmt_mn  <- function(x, d = 1) paste0(formatC(x / 1e6, format = "f", digits = d, big.mark = ","), " m")
 fmt_f   <- function(x, d = 2) formatC(x, format = "f", digits = d)
 fmt_r   <- function(x) if (abs(x) >= 1) fmt_f(x, 1) else fmt_f(x, 2)               # ratios: 4.2, 0.15
+fmt_int <- function(x, d = 0) paste0("int\\$", fmt_n(x, d))                          # international dollars
+tex_lab <- function(x) gsub("$", "\\$", x, fixed = TRUE)                              # 08 labels -> LaTeX text
+
+# VSL path as saved by 08 (reference-case default): the annual derivation reproduces the
+# incremental table's VSL, the unfloored anchor grows at the time elasticity, the floor
+# applies every year, and int$ of the anchor year convert to constant 2025 US$ with the
+# saved PPP, CPI and exchange-rate factors. Labels must say constant 2025 US$.
+vsl_ok <- function(econ, inc) {
+  vd <- econ$vsl_derivation; lb <- econ$report_labels
+  if (is.null(vd) || is.null(lb)) return(FALSE)
+  va <- as.data.table(vd$annual); a <- vd$anchor; m <- match(inc$year, va$year)
+  !anyNA(m) && identical(lb$currency, "USD") && identical(as.integer(lb$price_year), 2025L) &&
+    max(abs(inc$vsl / va$vsl_usd2025[m] - 1)) < 1e-12 &&
+    max(abs(va$raw_vsl_intY / (a$raw_vsl_anchor_intY * va$income_growth_index^a$time_elasticity) - 1)) < 1e-10 &&
+    max(abs(va$vsl_intY / pmax(va$raw_vsl_intY, va$floor_vsl_intY, na.rm = TRUE) - 1)) < 1e-12 &&
+    max(abs(va$vsl_usd2025 / (va$vsl_intY * a$intY_to_usd2025) - 1)) < 1e-10
+}
 
 # ---- Integrity checks, per country ----------------------------------------------
 CARE_VEC <- c("screen_window_prob", "clinical_detection", "bpg_initiation", "bpg_retention",
@@ -291,7 +308,7 @@ for (ct in COUNTRIES) {
           ee[, max(abs(ref_c - cost_ref) / pmax(cost_ref, 1), abs(sap_c - cost_sap) / pmax(cost_sap, 1))] < 1e-9 &&
           max(abs(inc$df - 1 / (1 + ep$disc_rate)^(inc$year - dby))) < 1e-12 &&
           max(abs(inc$benefit_total - inc$deaths_avert * inc$vsl)) < 1e-6 * max(1, abs(inc$benefit_total)) &&
-          max(abs(inc$vsl - ep$vsl_mult * ep$gni_pc_base * (1 + ep$gdp_growth)^(inc$year - ep$gni_pc_base_year)) / inc$vsl) < 1e-10,
+          vsl_ok(d$econ, inc),
         paste(ct, "saved economics were not computed from this run under the documented conventions"), paste("re-run 08 for", ct))
   es <- as.data.table(d$econ$summary)[location == ct]
   check(nrow(es) == 1L && abs(sum(inc$inc_cost * inc$df) - es$total_cost) <= 1e-8 * abs(es$total_cost) &&
@@ -307,6 +324,15 @@ check(identical(D$Indonesia$out$meta$engine_spec, D$Uganda$out$meta$engine_spec)
                   D$Uganda$bs$states[[1]]$natural_history$adult_prog_hazard_mult),
       "Indonesia and Uganda were run under different engines, years, discounting or SAP specifications",
       "re-run both countries under one specification")
+LB_KEYS <- c("currency_label", "discounting_label", "vsl_method_label", "analysis_period_label", "sensitivity_status")
+check(identical(D$Indonesia$econ$report_labels[LB_KEYS], D$Uganda$econ$report_labels[LB_KEYS]) &&
+        identical(D$Indonesia$econ$vsl_derivation$anchor[c("income_elasticity", "time_elasticity", "floor_mult")],
+                  D$Uganda$econ$vsl_derivation$anchor[c("income_elasticity", "time_elasticity", "floor_mult")]),
+      "Indonesia and Uganda economics use different units, discounting or VSL methods", "re-run 08 for both countries")
+LB  <- D$Indonesia$econ$report_labels
+CUR <- tex_lab(LB$currency_label)                                 # constant 2025 US\$
+VA  <- D$Indonesia$econ$vsl_derivation$anchor
+EL  <- VA$income_elasticity; FL <- VA$floor_mult
 
 # ---- Per-country results, analysis start through Y_END inclusive -----------------
 summarise_country <- function(ct) {
@@ -355,7 +381,10 @@ summarise_country <- function(ct) {
        g_last = g_last, cy = cy, cy0 = as.integer(d$cal$meta$calib_year_start),
        fit = c(prev = fr("Prevalence"), prev_ch = fr("Prevalence 0-19"), prev_ad = fr("Prevalence 20+"),
                death = fr("Deaths"), death_ch = fr("Deaths 0-19"), death_ad = fr("Deaths 20+")),
-       vsl0 = h[year == y0, vsl], gni = ep$gni_pc_base,
+       vsl0 = h[year == y0, vsl], vsl_end = h[year == Y_END, vsl],
+       gni = d$econ$vsl_derivation$anchor$income_target_Y, gni_y = d$econ$vsl_derivation$anchor$income_anchor_year,
+       vsl_ratio = d$econ$vsl_derivation$anchor$raw_vsl_anchor_intY / d$econ$vsl_derivation$anchor$income_target_Y,
+       pfac = d$econ$price_adjustment$adjustment_factor[1],
        bc_ad = nh$derived$p_B_to_C_adult, cd_ad = nh$derived$p_C_to_D_adult, pD = nh$p_rhd_death_D,
        budget = bi[year <= Y_END], conf_unc = bi[year <= Y_END, sum(confirmations_incremental_uncosted)],
        inc_end = bi[year == Y_END, incremental])
@@ -441,7 +470,7 @@ GBD 2023 burden; UN WPP 2024 population; WHF stages A--D \parencite{Rwebembera20
 Deterministic scenario estimates for Indonesia and Uganda, `r Y0`--`r Y_END`.
 \end{uncertaintyblock}
 
-<!-- NOTES slide 2 (1.0 min, cumulative 1.5): Two contrasting settings: Indonesia, upper-middle income (GNI per capita `r fmt_usd(I$gni)` in `r I$ep$gni_pc_base_year`), and Uganda, low income (`r fmt_usd(U$gni)`). The model is a population-level state-transition model over age and sex, built on WHF echo stages, GBD burden and UN population projections, and follows the investment-case logic of Coates and colleagues: incremental programme costs against deaths averted valued with a value of a statistical life. Every number is a deterministic scenario estimate; there are no uncertainty intervals. Transition: why this matters. -->
+<!-- NOTES slide 2 (1.0 min, cumulative 1.5): Two contrasting settings: Indonesia, upper-middle income (GNI per capita `r fmt_int(I$gni)` at purchasing-power parity in `r I$gni_y`), and Uganda, low income (`r fmt_int(U$gni)`). The model is a population-level state-transition model over age and sex, built on WHF echo stages, GBD burden and UN population projections, and follows the investment-case logic of Coates and colleagues: incremental programme costs against deaths averted valued with a value of a statistical life. Every number is a deterministic scenario estimate; there are no uncertainty intervals. Transition: why this matters. -->
 
 ## About `r fmt_f(TOT_PREV / 1e6, 1)` million people in Indonesia and Uganda live with RHD, most of them undiagnosed
 
@@ -596,7 +625,7 @@ ggplot(cdt, aes(share, country, fill = comp)) +
   theme_deck + theme(panel.grid.major.y = element_blank(), axis.text.y = element_text(size = 11))
 ```
 
-\sourceline{Incremental programme cost, scale-up minus reference, `r Y0`--`r Y_END`, discounted at `r fmt_pct(I$ep$disc_rate)` to `r I$dby`, US\$. Dark: screening. Surgery: `r fmt_pct(SURSH[1])` and `r fmt_pct(SURSH[2])``r if (all(SURSH < 0)) " (fewer stage C/D operations)" else ""`. Confirmatory echoes are not priced.}
+\sourceline{Incremental programme cost, scale-up minus reference, `r Y0`--`r Y_END`, discounted at `r fmt_pct(I$ep$disc_rate)` to `r I$dby`, `r CUR`. Dark: screening. Surgery: `r fmt_pct(SURSH[1])` and `r fmt_pct(SURSH[2])``r if (all(SURSH < 0)) " (fewer stage C/D operations)" else ""`. Confirmatory echoes are not priced.}
 
 <!-- NOTES slide 9 (1.5 min, cumulative 11.0): Screening is cheap per encounter (`r fmt_usd(I$ep$cost_screen_per_person, 2)` in Indonesia, `r fmt_usd(U$ep$cost_screen_per_person, 2)` in Uganda); a year on BPG costs `r fmt_usd(I$ep$cost_sap_per_year)` and `r fmt_usd(U$ep$cost_sap_per_year)`. Because every confirmed case can stay on BPG for many years, prophylaxis dominates the bill. Surgery barely moves because coverage is the same in both arms. The `r fmt_n(I$conf_unc, -3)` and `r fmt_n(U$conf_unc, -3)` incremental confirmatory echoes to `r Y_END` carry no unit cost in the inputs, so these totals understate the programme cost. Annual incremental spending reaches `r fmt_m(I$inc_end, 1)` and `r fmt_m(U$inc_end, 1)` in `r Y_END`, undiscounted. Transition: costs against benefits. -->
 
@@ -622,9 +651,9 @@ ggplot(eb, aes(v, item, fill = key)) +
                      panel.spacing.x = unit(1.2, "lines"))
 ```
 
-\sourceline{Discounted at `r fmt_pct(I$ep$disc_rate)` to `r I$dby`, `r Y0`--`r Y_END`. Benefit = RHD deaths averted $\times$ value of a statistical life (VSL, `r I$ep$vsl_mult` $\times$ GNI per capita, `r I$ep$gni_pc_base_year` US\$); m = million. Net benefit: `r fmt_m(I$net)` and `r fmt_m(U$net)`.}
+\sourceline{Discounted at `r fmt_pct(I$ep$disc_rate)` to `r I$dby`, `r Y0`--`r Y_END`. `r CUR`. Benefit = RHD deaths averted $\times$ value of a statistical life (VSL: reference-case default, PPP income elasticity `r fmt_f(EL, 1)`, floor `r FL` $\times$ GNI per capita); m = million. Net benefit: `r fmt_m(I$net)` and `r fmt_m(U$net)`.}
 
-<!-- NOTES slide 10 (1.5 min, cumulative 12.5): This is a benefit-cost ratio, not an incremental cost-effectiveness ratio, and the benefits are monetised health gains, not cash savings to the health budget. Two things separate the countries. Per discounted million dollars, scale-up averts about `r fmt_n(DPM(I))` deaths in Indonesia but `r fmt_n(DPM(U), 1)` in Uganda. And each death averted is valued at `r fmt_usd(I$vsl0, -3)` in Indonesia against `r fmt_usd(U$vsl0, -3)` in Uganda in `r Y0`, because the VSL follows income. For context, Coates and colleagues reported a ratio of 4.7 to 2030 for secondary prevention with secondary and tertiary care across the African Union, with a different model and valuation. Transition: the obvious objection. -->
+<!-- NOTES slide 10 (1.5 min, cumulative 12.5): This is a benefit-cost ratio, not an incremental cost-effectiveness ratio, and the benefits are monetised health gains, not cash savings to the health budget. Two things separate the countries. Per discounted million dollars, scale-up averts about `r fmt_n(DPM(I))` deaths in Indonesia but `r fmt_n(DPM(U), 1)` in Uganda. And each death averted is valued at `r fmt_usd(I$vsl0, -3)` in Indonesia against `r fmt_usd(U$vsl0, -3)` in Uganda in `r Y0`, because the VSL follows income: it scales with purchasing-power income per capita at an elasticity of `r fmt_f(EL, 1)`, then grows with real income, reaching `r fmt_usd(I$vsl_end, -3)` and `r fmt_usd(U$vsl_end, -3)` by `r Y_END`. All values are `r CUR`. For context, Coates and colleagues reported a ratio of 4.7 to 2030 for secondary prevention with secondary and tertiary care across the African Union, with a different model and valuation. Transition: the obvious objection. -->
 
 ## Modelled deaths exceed GBD, so Indonesia's return is probably overstated
 
@@ -699,20 +728,22 @@ kb(care_tab, "lrr", widths = c("5.6cm", "3.2cm", "3.2cm"))
 
 \sourceline{Scale-up values reached in `r Y_END` after a linear ramp from `r Y0`. Screening sensitivity `r fmt_cov(I$cv$constants$sensitivity)`; confirmation completion `r fmt_cov(I$cv$constants$confirm_completion)`; specificity taken as perfect. Partial adherence gives `r fmt_cov(I$cv$constants$partial_relative_protection)` of full protection.}
 
-## Costs and benefits are discounted at `r fmt_pct(I$ep$disc_rate)` to `r I$dby`, and deaths averted are valued at `r I$ep$vsl_mult` times GNI per capita
+## Costs and benefits are discounted at `r fmt_pct(I$ep$disc_rate)` to `r I$dby`, and deaths averted are valued with a VSL that scales with income
 
 ```{r tab-econ-params}
 epr <- function(r) c(fmt_usd(r$ep$cost_screen_per_person, 2), fmt_usd(r$ep$cost_sap_per_year), fmt_usd(r$ep$cost_surgery),
-                     "not costed", fmt_usd(r$gni), fmt_pct(r$ep$gdp_growth, 1), fmt_usd(r$vsl0, -3))
+                     "not costed", fmt_f(r$pfac, 3), fmt_int(r$gni), paste0(fmt_f(r$vsl_ratio, 0), "$\\times$"),
+                     fmt_pct(r$ep$gdp_growth, 1), fmt_usd(r$vsl0, -3))
 ept <- data.frame(q = c("Echo screening encounter", "Person-year on BPG", "Valve surgery", "Confirmatory echo",
-                        paste0("GNI per capita, ", I$ep$gni_pc_base_year), "Real income growth (carries VSL)",
+                        "Price factor, assumed 2019 to 2025", paste0("GNI per capita, PPP, ", I$gni_y),
+                        paste0("VSL / GNI per capita, ", I$gni_y), "Real income growth (carries VSL)",
                         paste0("VSL in ", Y0)),
                   i = epr(I), u = epr(U))
-names(ept) <- c("US\\$", "Indonesia", "Uganda")
+names(ept) <- c(paste0("Constant ", LB$price_year, " US\\$"), "Indonesia", "Uganda")
 kb(ept, "lrr", widths = c("6.2cm", "3.0cm", "3.0cm"))
 ```
 
-\sourceline{Costs: health-system programme services (screening, BPG, surgery). Benefits: mortality risk reduction valued by VSL. GNI per capita: World Bank WDI (Atlas method). Unit costs carry no recorded price year and are treated as `r I$ep$gni_pc_base_year` US\$. No productivity benefit is added.}
+\sourceline{Unit costs: price year assumed 2019, converted with local CPI and exchange rates (World Bank WDI). VSL: U.S. US\$9.4 million (2015) scaled by PPP GNI per capita, elasticity `r fmt_f(EL, 1)`, floor `r FL` $\times$ GNI per capita.}
 
 ## Through `r Y_END`, scale-up costs `r fmt_usd(I$cpd, -2)` per RHD death averted in Indonesia and `r fmt_usd(U$cpd, -2)` in Uganda
 
@@ -726,7 +757,7 @@ names(ec_tab) <- c(paste0(Y0, "--", Y_END), "Indonesia", "Uganda")
 kb(ec_tab, "lrr", widths = c("6.2cm", "3.0cm", "3.0cm")) |> row_spec(4, bold = TRUE)
 ```
 
-\sourceline{Summed to `r Y_END` with the pipeline's definitions: cost per death = discounted cost / undiscounted deaths; DALYs = discounted deaths $\times$ `r I$ep$dalys_per_death` (years of life lost only). Deterministic; no sensitivity analysis.}
+\sourceline{`r CUR`, summed to `r Y_END` with the pipeline's definitions: cost per death = discounted cost / undiscounted deaths; DALYs = discounted deaths $\times$ `r I$ep$dalys_per_death` (years of life lost only). Deterministic; sensitivity analysis pending.}
 
 ## Annual incremental programme cost rises through the ramp, to `r fmt_m(I$inc_end, 1)` in Indonesia and `r fmt_m(U$inc_end, 1)` in Uganda
 
@@ -736,10 +767,10 @@ bt <- function(r) { b <- r$budget[year %in% yb][order(year)]; c(fmt_mn(b$cost_re
 bm_i <- matrix(bt(I), nrow = length(yb)); bm_u <- matrix(bt(U), nrow = length(yb))
 bud <- data.frame(Year = yb, a = bm_i[, 1], b = bm_i[, 2], c = bm_i[, 3], d = bm_u[, 1], e = bm_u[, 2], f = bm_u[, 3])
 names(bud) <- c("Year", "Ref.", "Scale-up", "Added", "Ref.", "Scale-up", "Added")
-kb(bud, "lrrrrrr") |> add_header_above(c(" " = 1, "Indonesia, US$" = 3, "Uganda, US$" = 3))
+kb(bud, "lrrrrrr") |> add_header_above(setNames(c(1, 3, 3), c(" ", paste0("Indonesia, ", LB$price_year, " US$"), paste0("Uganda, ", LB$price_year, " US$"))))
 ```
 
-\sourceline{Undiscounted annual programme cost (screening + BPG + surgery) by arm; m = million. Confirmatory echoes are not priced.}
+\sourceline{Undiscounted annual programme cost (screening + BPG + surgery) by arm, `r CUR`; m = million. Confirmatory echoes are not priced.}
 
 ## Most RHD deaths averted by `r Y_END` are among people aged `r TOP_BAND(I)`
 
