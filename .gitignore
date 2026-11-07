@@ -18,3 +18,5 @@
 
 # Model output files
 output/out_model/
+
+/backups/

@@ -36,7 +36,7 @@
 #   SAP       : n_on_optimal_treatment = on-BPG PERSON-YEARS of SAP-eligible confirmed
 #               disease (A at age <= 20, B; start of cycle, after the care update) — NOT
 #               the adherence-weighted protected volume (adherence enters the health
-#               effect only). Adult B on BPG is costed although its progression HR is 1;
+#               effect only). Stage B on BPG at age >= 40 is costed but has no modelled progression benefit;
 #   surgery   : the surgery trace (service; equal coverage in both arms).
 #   UNCOSTED  : confirmatory echoes (n_confirm_completed) — no unit cost exists in 00
 #               block J; their volume is reported and flagged, never priced here, so

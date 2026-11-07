@@ -11,7 +11,7 @@ prophylaxis (SAP/BPG) scale-up, with benefit-cost / cost-effectiveness. Multi-co
 Uganda) via a single switch. Descends from the NCD Countdown CCPM framework (legacy helpers remain in
 `R/utils.R`, unused).
 
-**Current engine**: `ABCD_ENGINE_SPEC = "abcd_first_diagnosis_v1_adult_prog_mult"` (`R/abcd_engine.R`).
+**Current engine**: `ABCD_ENGINE_SPEC = "abcd_first_diagnosis_v1_adult_prog_mult_sap55"` (`R/abcd_engine.R`).
 Fixed specification: `mortality_structure = "D_only"` and `sap_mechanism = "progression"` — 03 now
 **rejects** any other value (the old `all_stage` / `direct_mortality` comparators are gone). Many inputs
 are tagged **PROVISIONAL** pending clinical review.
@@ -19,7 +19,8 @@ are tagged **PROVISIONAL** pending clinical review.
 **Status (Nov 2026)**: 04b's epidemiological-fit checkpoint FAILS for both countries (structural and
 numerical validity pass; adult RHD deaths ~3–4× GBD in Indonesia). 05–08 run under an explicit user
 override (`PIPELINE_RUN_THROUGH <- "08"`), 05 labels the baseline `INADEQUATE`, and all outputs are
-**preliminary**. Details: `dev/checkpoint_first_diagnosis_2026-11-05.md`.
+**preliminary**. Details: `dev/checkpoint_first_diagnosis_2026-11-05.md`; SAP55 re-run (6 Nov 2026) and
+old-vs-new comparison: `dev/run_logs/2026-11-06_sap55/SUMMARY.md` (pre-change outputs in `backups/2026-11-06_pre_sap55/`).
 
 ## Running the Pipeline
 
@@ -37,7 +38,7 @@ evaluate `00` without block L, then source the scripts you need. Scripts can be 
 |---|---|---|
 | `01_prepare_inputs.R` | Read every CSV in `data-raw/epidemiology/` + `population/`, keep RHD + All causes for `LOCATION` (retains GBD UIs) | `temp_baseline_rates_gbd.rds`, `temp_population_gbd.rds` |
 | `02_build_demography.R` | WPP2024 backbone: observed `OBS_YEARS`, medium-variant `PROJ_YEARS` | `pop_observed.*`, `pop_projection.*`, `wpp/rhd_demography.Rda` |
-| `03_build_disease_model.R` | **Input builder only**: rate arrays, natural history, SAP HRs, care/screening inputs, surgery; requires every block G/H/I setting from 00 (no hidden defaults); stamps `engine_spec` | `disease_model_inputs.rds` |
+| `03_build_disease_model.R` | **Input builder only**: rate arrays, natural history, SAP progression multiplier, care/screening inputs, surgery; requires every block G/H/I setting from 00 (no hidden defaults); stamps `engine_spec` | `disease_model_inputs.rds` |
 | `04_calibration_random_tp.R` | **Layer 1** aggregate IR/CF proxy calibration (2000–2019) + builds Layer-2 target grids | `calibrated_rhd_parameters.rds`, `calibration_layer1_*.csv`, `calibration_layer2_*.csv` |
 | `04b_calibrate_structural.R` | **Layer 2** joint calibration on the production engine; bridges the full engine state to the analysis start | `$stage_calibration` in the bundle, `calibrated_rhd_parameters_last_valid.rds`, `calibration_structural_*.csv` |
 | `05_build_baseline.R` | Seed from 04b `initial_state$engine_state` (no reseeding); rejects bundles from another engine / SAP spec; fit-status label | `baseline_state.rds` |
@@ -57,7 +58,8 @@ fails with "unused arguments". Validation lives inside the scripts (04b structur
 
 ### Report and deck (read saved outputs only; never re-run the model)
 
-- `analysis/report.RMD` — HTML report, `params = list(country = "Indonesia" | "Uganda")`.
+- `analysis/report.RMD` — HTML report, `params = list(country = "Indonesia" | "Uganda")`; rendered as
+  `analysis/report.html` (Indonesia) and `analysis/report_Uganda.html`.
 - `reports/slideck-technical.Rmd` — Beamer/XeLaTeX deck covering both countries; uses
   `reports/beamer_preamble.tex`, `reports/apa.csl`, `library/references.bib`. Its `ENGINE` constant
   (≈ line 109) must equal `ABCD_ENGINE_SPEC` or the render stops. Keep deck-specific LaTeX in its YAML
@@ -99,9 +101,15 @@ fails with "unused arguments". Validation lives inside the scripts (04b structur
   `W_INC_STRUCT = 0`, 0–19/20+ split shares 0.5, 21+ diagnostic), `LAMBDA_PRIOR_STRUCT = 0.05`,
   `TRANS_BOUNDS`, fit tolerances (`STRUCT_FIT_TOL_PREV` 0.15, `_DEATH` 0.25 on |log ratio|),
   `STRUCT_N_STARTS`, `STRUCT_PARALLEL_STARTS`, `STRUCT_BRIDGE_TO_ANALYSIS_START`.
-- **H** Effects: GOAL-trial child HRs `sap_hr_A_to_B_child`, `sap_hr_B_to_C_child` (computed from arm
-  risks); adult B→C, prior-A, C→D and D-death HRs all 1 (no adult benefit, no mortality effect);
-  surgery RRRs on C→D and D→death.
+- **H** Effects (6 Nov 2026): "assumed 55% reduction in progression hazards (expert-informed scenario),
+  informed by evidence on prevention of recurrent rheumatic fever" — `sap_progression_rrr = 0.55`,
+  `sap_progression_hazard_mult` M = 0.45 (assumed full-adherence efficacy) on treated A→B and B→C only
+  (`sap_effect_transitions`), at attained age ≤ `sap_protection_age_max` = 39 (independent of the age-20
+  boundary and of eligibility; B on BPG at 40+ is costed, no benefit). Evidence is Manyemba et al. RR 0.45
+  for recurrent RF (PMID 12137650) — **not** a hazard ratio or valve-progression estimate; never call M a
+  "progression HR" or convert the RR with the model's B→C risk. Prior-A, C→D and D-death multipliers 1
+  (no mortality effect). `sap_effect_scale = "hazard_ratio"` names the implementation scale only. GOAL-trial
+  child HRs (0.0385 / 0.1998) remain commented out as a documented alternative. Surgery RRRs on C→D and D→death.
 - **I** Screening + care: one screen per person across ages 5–39 among the never-screened undiagnosed
   (`screen_sensitivity`, `confirm_completion`, `confirm_sensitivity`, specificity fixed at 1);
   `care_inputs` (screen window prob, clinical detection, BPG initiation/retention, adherence) per arm as
@@ -154,7 +162,10 @@ prior-A and normalised are excluded.
   hazard-scale competing risks (`abcd_compete`: `p_any = 1 − exp(−Σh)`, exact mass balance).
 - **Care update** each cycle: screening → true positives → confirmation → first confirmed diagnosis
   (U→X, at most once per person); clinical detection; BPG initiation (eligible: A ≤ 20, B), retention,
-  dropout. On-BPG protection `h × [1 − adh × (1 − HR)]`, `adh = good + rel × partial`.
+  dropout. On-BPG protection `h × [1 − adh × (1 − M)]` on A→B / B→C at age ≤ 39 (1 above),
+  `adh = good + rel × partial` (reference 0.70 → 0.615). The SAP spec travels 03 → 04b (`spec$sap_hr`) →
+  05 (`meta$sap_hr`) as a typed named list of 7 fields; 05 refuses incomplete / mismatched specs.
+  `n_effectively_protected` (on BPG × adh) counts every age, including 40+ where there is no benefit.
 - **Surgery is a SERVICE, not a state**: reduces C→D and D→death; held equal in both arms.
 - Calibrated parameters are **untreated** natural history; reference care is applied inside the engine
   in burn-in, calibration, bridge and projection. Only care inputs differ between `ref` and scale-up.

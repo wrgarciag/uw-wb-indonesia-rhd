@@ -6,7 +6,7 @@
 # calibration (04b: burn-in, scored window, bridge), so there is exactly one
 # implementation of the stage dynamics, care update, ageing and observation.
 #
-# DEFAULT SPECIFICATION (ABCD_ENGINE_SPEC = "abcd_first_diagnosis_v1_adult_prog_mult")
+# DEFAULT SPECIFICATION (ABCD_ENGINE_SPEC = "abcd_first_diagnosis_v1_adult_prog_mult_sap55")
 #   National population model that separates DISEASE HISTORY from FIRST CONFIRMED
 #   DIAGNOSIS. Per [age x sex] cell the state holds (all counts of persons):
 #     N_ns, N_sc       never-onset (no prior modelled disease), never / ever screened
@@ -53,8 +53,13 @@
 #   diagnosis) applies to all remaining undiagnosed disease (no overlap with screening).
 #   BPG: on-BPG retained with probability r; dropouts rejoin the diagnosed-off-BPG pool;
 #   initiation i among ELIGIBLE diagnosed people not on BPG (A at age <= 20, B).
-#   Protection for on-BPG people: h x [1 - adh x (1 - HR)] with adh = good + rel x
+#   Protection for on-BPG people: h x [1 - adh x (1 - M)] with adh = good + rel x
 #   partial (coverage, retention and adherence have distinct denominators/roles).
+#   M = ASSUMED full-adherence progression-hazard multiplier (0.45: "assumed 55% reduction
+#   in progression hazards (expert-informed scenario), informed by evidence on prevention
+#   of recurrent rheumatic fever"; Manyemba et al. RR 0.45 is for RF recurrence, not a
+#   hazard ratio and not a valve-progression estimate) on A->B and B->C only, at attained
+#   age <= sap_protection_age_max (39); 1 above it (BPG continues and is costed there).
 #   Burn-in (static) mode: each stage's living total is re-split into undiagnosed /
 #   diagnosed / on-BPG labels with the provisional initial shares (labels only; stage
 #   totals unchanged; no screening history accrues).
@@ -74,7 +79,10 @@
 # "_adult_prog_mult" (6 Nov 2026): v1 + the common adult B->C / C->D hazard multiplier. A
 # different label so bundles / baselines built without the multiplier are refused (05/06);
 # the multiplier VALUE is also part of abcd_nh_fixed() (03 -> 04b -> 05 consistency check).
-ABCD_ENGINE_SPEC <- "abcd_first_diagnosis_v1_adult_prog_mult"
+# "_sap55" (6 Nov 2026): SAP default = assumed 55% progression-hazard reduction (M = 0.45) on
+# A->B and B->C at attained age <= 39, replacing the GOAL-derived child HRs; bundles built
+# under the GOAL default are refused.
+ABCD_ENGINE_SPEC <- "abcd_first_diagnosis_v1_adult_prog_mult_sap55"
 ABCD_BURNIN_RECONCILIATION_MODES <- c("per_capita", "no_rhd_only")
 ABCD_STAGES             <- c("A", "B", "C", "D")
 ABCD_UNDX_NS            <- paste0("U_", ABCD_STAGES, "_ns")
@@ -175,21 +183,40 @@ abcd_nh_fixed <- function(nh)
          "entry_mix_child", "entry_mix_adult", "adult_prog_hazard_mult")],
     list(p_D_to_C = nh$tr$p_D_to_C, engine_spec = ABCD_ENGINE_SPEC))
 
-# SAP hazard ratios as [age x sex] matrices (validated): A->B child; B->C child / adult.
-# C->D and D->death HRs must be 1 in this default (C/D are not SAP-eligible).
+# SAP full-adherence progression-hazard multipliers as [age x sex] matrices (validated):
+# A->B and B->C = M at attained age <= sap_protection_age_max, 1 above it. M is an ASSUMED
+# multiplier (expert-informed scenario), not a published progression HR; the protection age
+# is independent of the natural-history boundary (child_m / adult_m) and of BPG eligibility.
+# C->D, D->death and prior-A multipliers must be 1 (C/D/prior-A are not SAP-eligible).
 # abcd_eff_prepare() validates once and caches the matrices in eff$.sap_hr (hot path).
 abcd_eff_prepare <- function(eff, nhe) { eff$.sap_hr <- abcd_sap_hr(eff, nhe); eff }
 abcd_sap_hr <- function(eff, nhe) {
   mech <- if (is.null(eff$sap_mechanism)) "progression" else as.character(eff$sap_mechanism)
   if (mech != "progression") stop("abcd_engine: only sap_mechanism = 'progression' is implemented.", call. = FALSE)
-  g <- function(nm) { v <- eff[[nm]]; if (is.null(v) || length(v) != 1L || !is.finite(v) || v < 0 || v > 1)
-    stop("abcd_engine: SAP hazard ratio '", nm, "' missing or outside [0, 1].", call. = FALSE); v }
-  hAB <- g("sap_hr_A_to_B_child"); hBCc <- g("sap_hr_B_to_C_child"); hBCa <- g("sap_hr_B_to_C_adult")
+  g <- function(nm) { v <- eff[[nm]]; if (is.null(v) || length(v) != 1L || !is.numeric(v) || !is.finite(v) || v < 0 || v > 1)
+    stop("abcd_engine: SAP multiplier '", nm, "' missing or outside [0, 1].", call. = FALSE); v }
+  M <- eff$sap_progression_hazard_mult
+  if (is.null(M) || length(M) != 1L || !is.numeric(M) || !is.finite(M) || M <= 0 || M > 1)
+    stop("abcd_engine: sap_progression_hazard_mult (assumed full-adherence progression-hazard multiplier M) must be one finite number in (0, 1] (00 block H).", call. = FALSE)
+  rrr <- eff$sap_progression_rrr
+  if (is.null(rrr) || length(rrr) != 1L || !is.numeric(rrr) || !is.finite(rrr) || rrr < 0 || rrr >= 1)
+    stop("abcd_engine: sap_progression_rrr must be one finite number in [0, 1) (00 block H).", call. = FALSE)
+  if (abs((1 - rrr) - M) > 1e-12)
+    stop("abcd_engine: sap_progression_hazard_mult (", format(M), ") must equal 1 - sap_progression_rrr (", format(1 - rrr), ").", call. = FALSE)
+  amax <- eff$sap_protection_age_max
+  if (is.null(amax) || length(amax) != 1L || !is.numeric(amax) || !is.finite(amax) || amax != round(amax) ||
+      amax < min(nhe$ages) || amax > max(nhe$ages))
+    stop("abcd_engine: sap_protection_age_max must be one finite integer-valued attained age within the modelled ages (",
+         min(nhe$ages), "-", max(nhe$ages), ") (00 block H).", call. = FALSE)
+  if (!identical(as.character(eff$sap_effect_transitions), c("A_to_B", "B_to_C")))
+    stop("abcd_engine: sap_effect_transitions must be exactly c(\"A_to_B\", \"B_to_C\") (00 block H).", call. = FALSE)
   for (nm in c("sap_hr_C_to_D", "sap_hr_D_to_rhd_death", "sap_hr_prior_A_to_B_adult"))
     if (!isTRUE(all.equal(g(nm), 1)))
       stop("abcd_engine: ", nm, " must be 1 (C, D and adult prior-A are not SAP-eligible in this default).", call. = FALSE)
-  list(A_to_B = nhe$child_m * hAB + nhe$adult_m,
-       B_to_C = nhe$child_m * hBCc + nhe$adult_m * hBCa)
+  # protection mask on ATTAINED age, replicated over sexes ([age x sex], like child_m / adult_m)
+  prot <- matrix(as.numeric(nhe$ages <= amax), length(nhe$ages), length(nhe$sexes), dimnames = list(nhe$ages, nhe$sexes))
+  list(A_to_B = prot * M + (1 - prot),
+       B_to_C = prot * M + (1 - prot))
 }
 
 # ------------------------------------------------------------------------------

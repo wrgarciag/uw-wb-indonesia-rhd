@@ -132,9 +132,16 @@ if (is.null(bp$initialisation$burnin_reconciliation) || !identical(bp$initialisa
        "' differs from STRUCT_BURNIN_RECONCILIATION = '", burnin_now, "' (00 block G2); re-run 04b.", call. = FALSE)
 if (is.null(bp$initial_state) || is.null(bp$initial_state$engine_state))
   stop("04b best_parameters has no analysis-start engine state (bridge disabled, or a bundle from another engine). Set STRUCT_BRIDGE_TO_ANALYSIS_START = TRUE and re-run 04b.", call. = FALSE)
+SAP_SPEC_FIELDS <- c("sap_progression_rrr", "sap_progression_hazard_mult", "sap_protection_age_max",
+                     "sap_effect_transitions", "sap_hr_prior_A_to_B_adult", "sap_hr_C_to_D", "sap_hr_D_to_rhd_death")
+sap_missing <- c(setdiff(SAP_SPEC_FIELDS, names(sc$spec$sap_hr)[!vapply(sc$spec$sap_hr, is.null, logical(1))]),
+                 setdiff(SAP_SPEC_FIELDS, names(dmi$effects)[!vapply(dmi$effects, is.null, logical(1))]))
+if (length(sap_missing))
+  stop("SAP specification incomplete in the 04b bundle or the disease inputs (missing: ", paste(unique(sap_missing), collapse = ", "),
+       "); old specifications are not accepted -- re-run 03 -> 04 -> 04b.", call. = FALSE)
 if (!identical(sc$spec$sap_eligibility, dmi$effects$sap_eligibility) ||
-    !isTRUE(all.equal(unlist(sc$spec$sap_hr), unlist(dmi$effects[names(sc$spec$sap_hr)]))))
-  stop("SAP eligibility / hazard ratios used as reference care in 04b differ from the disease inputs; re-run 04b.", call. = FALSE)
+    !identical(sc$spec$sap_hr[SAP_SPEC_FIELDS], dmi$effects[SAP_SPEC_FIELDS]))
+  stop("SAP eligibility / progression-multiplier specification used as reference care in 04b differs from the disease inputs; re-run 04b.", call. = FALSE)
 message(sprintf("  natural history: CALIBRATED by 04b (status %s; engine %s; burn-in %s) | transitions %s | D death %.4f (all histories)",
                 sc$status, bp$engine_spec, bp$initialisation$burnin_reconciliation,
                 paste(sprintf("%s=%.4f", names(bp$transitions), unlist(bp$transitions)), collapse = ", "),
@@ -340,6 +347,8 @@ baseline_state <- list(
       adult_progression = dmi$natural_history$adult_progression,
       effective_adult_transitions = unlist(bp$natural_history$derived[c("p_B_to_C_adult", "p_C_to_D_adult", "p_prior_A_to_B_adult")]),
       sap_eligibility = dmi$effects$sap_eligibility, sap_effect_sources = dmi$effects$sap_effect_sources,
+      sap_progression_rrr = dmi$effects$sap_progression_rrr, sap_progression_hazard_mult = dmi$effects$sap_progression_hazard_mult,
+      sap_protection_age_max = dmi$effects$sap_protection_age_max, sap_effect_transitions = dmi$effects$sap_effect_transitions,
       dx_mix_benchmark = dmi$dx_mix_benchmark, screen_specificity = cov$screen_specificity),
     observation_definitions = list(
       sick = "total CLASSIFIABLE RHD (undiagnosed + diagnosed, stages A-D); adult prior-A and normalised history excluded",
@@ -362,7 +371,7 @@ baseline_state <- list(
     RATE_BASE_YEAR  = dmi$meta$RATE_BASE_YEAR,
     mortality_structure = dmi$meta$mortality_structure,
     sap_mechanism = dmi$effects$sap_mechanism,
-    sap_hr = unlist(dmi$effects[c("sap_hr_A_to_B", "sap_hr_B_to_C", "sap_hr_C_to_D", "sap_hr_D_to_rhd_death")]),
+    sap_hr = sc$spec$sap_hr[SAP_SPEC_FIELDS],   # typed SAP specification used by 04b (== disease inputs, checked above)
     sap_effect_scale = dmi$effects$sap_effect_scale,
     sap_effect_sources = dmi$effects$sap_effect_sources,
     baseline_care_interpretation = dmi$meta$baseline_care_interpretation,
@@ -374,7 +383,7 @@ baseline_state <- list(
                           "first confirmed diagnosis = q x sens x confirmation completion x confirmation sensitivity among never-screened",
                           "undiagnosed disease, then clinical detection k among all remaining undiagnosed (no overlap); on BPG retained r,",
                           "dropouts rejoin diagnosed-off-BPG; initiation i among eligible diagnosed off BPG (A <= 20, B);",
-                          "protection on BPG: h x [1 - adh (1 - HR)]")),
+                          "protection on BPG: h x [1 - adh (1 - M)] on A->B and B->C at attained age <= sap_protection_age_max (M = assumed full-adherence multiplier)")),
     screening_volume_definition = "n_screened = screening ENCOUNTERS = q x never-screened people without a prior confirmed diagnosis at ages 5-39 (one screen per person; people without RHD included)",
     sap_volume_definition = "n_on_optimal_treatment = on-BPG persons (confirmed A at age <= 20 and B; start of cycle, after the care update) = SAP person-years costed in 08; protection-weighted volume is n_effectively_protected",
     confirmation_volume_definition = "n_confirm_completed = confirmatory echoes completed among true screen positives (UNCOSTED: no unit cost in 00 block J)",

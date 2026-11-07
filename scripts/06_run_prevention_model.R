@@ -249,6 +249,10 @@ run_location <- function(loc, baseline_state) {
   fail(stg_all[, any(abs(eff_cf - 1) > 1e-12)], "progression mode: direct SAP mortality multiplier must be 1.")
   fail(stg_all[, any(sap_prog_mult_A_to_B > 1 + 1e-12 | sap_prog_mult_B_to_C > 1 + 1e-12 | sap_prog_mult_C_to_D > 1 + 1e-12)],
        "progression multipliers exceed 1.")
+  sap_amax <- eff$sap_protection_age_max   # persisted model specification (baseline_state $effects)
+  fail(is.null(sap_amax) || stg_all[age > sap_amax, any(!is.finite(sap_prog_mult_A_to_B) | !is.finite(sap_prog_mult_B_to_C) |
+                                                        abs(sap_prog_mult_A_to_B - 1) > 1e-12 | abs(sap_prog_mult_B_to_C - 1) > 1e-12)],
+       "SAP progression multipliers are not 1 above the protection age (sap_protection_age_max).")
   # care nesting: on BPG <= eligible diagnosed <= diagnosed <= classifiable; protection <= on-BPG;
   # screen diagnoses <= confirmations <= true positives; first diagnoses split by route and stage
   fail(stg_all[, any(n_on_optimal_treatment > n_bpg_eligible_diagnosed * (1 + 1e-9) + 1e-9 |

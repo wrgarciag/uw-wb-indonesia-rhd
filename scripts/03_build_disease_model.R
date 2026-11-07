@@ -164,37 +164,43 @@ for (m in dx_mix_benchmark[c("child", "adult")])
 
 # ------------------------------------------------------------------------------
 # 3. INTERVENTION EFFECTS  (relative risk reductions on [0,1]; SAP mechanism)
-#    SAP mechanism (00 block H): "progression" (PRIMARY; pathway-specific HAZARD
-#    RATIOS on A->B, B->C, C->D) or "direct_mortality" (LEGACY comparator; the
-#    former 55% RRR on every stage's RHD death, used ONLY in that mode).
+#    SAP mechanism (00 block H): "progression" only (03 rejects anything else): an
+#    ASSUMED full-adherence multiplier M on the treated A->B and B->C hazards at
+#    attained age <= sap_protection_age_max; no C->D and no direct mortality effect.
 # ------------------------------------------------------------------------------
 effects <- list(
   eff_surgery_C_to_D         = req("eff_surgery_C_to_D"),          # [LIT] surgery RRR on C -> D progression
   eff_surgery_D_to_rhd_death = req("eff_surgery_D_to_rhd_death"),  # [LIT] surgery RRR on D -> RHD death
   sap_mechanism    = req("sap_mechanism"),
-  sap_effect_scale = req("sap_effect_scale"),                      # scale the sap_hr_* are stated on
-  sap_hr_A_to_B_child = req("sap_hr_A_to_B_child"),                # [GOAL-derived; provisional stage mapping] age <= 20
-  sap_hr_B_to_C_child = req("sap_hr_B_to_C_child"),                # [GOAL-derived; provisional stage mapping] age <= 20
-  sap_hr_B_to_C_adult = req("sap_hr_B_to_C_adult"),                # 1: child trial effect NOT extrapolated to adults
+  sap_effect_scale = req("sap_effect_scale"),                      # implementation scale (hazard multiplier), not the evidence type
+  sap_progression_rrr         = req("sap_progression_rrr"),          # [ASSUMPTION; expert-informed scenario] 0.55
+  sap_progression_hazard_mult = req("sap_progression_hazard_mult"),  # M = 1 - RRR = 0.45, assumed full-adherence efficacy
+  sap_protection_age_max      = req("sap_protection_age_max"),       # attained age <= 39 (< 40); independent of child_last_age
+  sap_effect_transitions      = req("sap_effect_transitions"),       # c("A_to_B", "B_to_C"): same M on both (assumption)
   sap_hr_prior_A_to_B_adult = req("sap_hr_prior_A_to_B_adult"),    # 1: adult prior-A is not SAP-eligible
   sap_hr_C_to_D    = req("sap_hr_C_to_D"),                         # 1: C is not SAP-eligible in this default
   sap_hr_D_to_rhd_death = req("sap_hr_D_to_rhd_death"),            # 1: no direct SAP mortality benefit
   sap_eligibility  = req("sap_eligibility"),
   sap_effect_sources = c(
-    A_to_B_child = "GOAL trial 24-month arm risks 0.075 vs 0.003 -> HR = log(1-0.003)/log(1-0.075); provisional stage mapping (borderline ~ A); not annualised again",
-    B_to_C_child = "GOAL trial 24-month arm risks 0.119 vs 0.025 -> HR = log(1-0.025)/log(1-0.119); provisional stage mapping (mild definite ~ B); not annualised again",
-    B_to_C_adult = "HR 1: conservative; the child trial effect is not extrapolated to adults (adult B on BPG has programme cost but no quantified progression benefit)",
-    C_to_D = "HR 1: C/D not SAP-eligible in this simplified default",
-    D_to_rhd_death = "HR 1: no direct SAP mortality effect")
+    label = "assumed 55% reduction in progression hazards (expert-informed scenario), informed by evidence on prevention of recurrent rheumatic fever",
+    evidence = "Manyemba et al. (Cochrane, PMID 12137650) report RR = 0.45 for recurrent rheumatic fever (55% RRR), from one trial. This is not a hazard ratio and not a valve-progression estimate.",
+    A_to_B = "M = 0.45 (ASSUMED full-adherence progression-hazard multiplier; not estimated, not converted from the recurrence RR); attained age <= sap_protection_age_max",
+    B_to_C = "M = 0.45 (same ASSUMED multiplier as A->B: explicit extrapolation); attained age <= sap_protection_age_max",
+    protection_age = "benefit at attained age <= 39 (< 40), independent of the natural-history boundary (20); stage B on BPG at age >= 40 stays on BPG and is costed but has no modelled progression benefit",
+    eligibility = "unchanged: diagnosed A at age <= 20 and diagnosed B; no new age stop for stage B BPG; existing initiation / retention / dropout and A -> adult prior-A rules; C/D ineligible",
+    adherence = "unchanged: a = good + rel x partial; h_BPG = h_untreated x [1 - a x (1 - M)]; M is assumed full-adherence efficacy, which the published RR does not establish",
+    goal_alternative = "documented alternative (inactive): GOAL trial child HRs A->B 0.0385, B->C 0.1998 (age <= 20; provisional stage mapping), adult 1",
+    C_to_D = "multiplier 1: C/D not SAP-eligible in this simplified default",
+    D_to_rhd_death = "multiplier 1: no direct SAP mortality effect")
 )
 if (!identical(effects$sap_mechanism, "progression"))
   stop("The default engine implements sap_mechanism = 'progression' only (got '", effects$sap_mechanism, "').", call. = FALSE)
 if (effects$sap_effect_scale != "hazard_ratio")
-  stop("Only sap_effect_scale = 'hazard_ratio' is implemented (h(c) = h0 [1 - c (1 - HR)]).", call. = FALSE)
+  stop("Only sap_effect_scale = 'hazard_ratio' (implementation scale: h_BPG = h0 [1 - a (1 - M)]) is implemented.", call. = FALSE)
 if (!identical(as.character(effects$sap_eligibility), ABCD_SAP_ELIGIBLE))
   stop("The engine implements SAP eligibility A (age <= child_last_age) and B only (got ",
        paste(effects$sap_eligibility, collapse = "/"), ").", call. = FALSE)
-invisible(abcd_sap_hr(effects, nhe0))                     # validates the HRs (C->D, D death, prior-A must be 1)
+invisible(abcd_sap_hr(effects, nhe0))   # validates M (assumed progression-hazard multiplier, not the published recurrence RR), RRR, age cutoff, transitions; C->D, D death, prior-A must be 1
 
 # ------------------------------------------------------------------------------
 # 4. SURGERY SERVICE  (fractions requiring surgery + coverage; NOT a state)
@@ -396,7 +402,7 @@ if (any(ir_rhd0 + oth_mort0 > 1 + 1e-9))
 # --- natural-history / effect / surgery / care sanity --------------------------
 # (abcd_nh_build above already validated every natural-history input.)
 prob_params <- c(unlist(effects[c("eff_surgery_C_to_D", "eff_surgery_D_to_rhd_death",
-                                  "sap_hr_A_to_B_child", "sap_hr_B_to_C_child", "sap_hr_B_to_C_adult", "sap_hr_C_to_D")]),
+                                  "sap_progression_rrr", "sap_progression_hazard_mult", "sap_hr_C_to_D")]),
                  coverage$confirm_completion, coverage$confirm_sensitivity,
                  surgery$frac_C_requiring_surgery, surgery$frac_D_requiring_surgery,
                  surgery$coverage_ref_baseline, surgery$coverage_ref_target,
@@ -463,7 +469,7 @@ disease_model_inputs <- list(
   natural_history = natural_history,          # full default natural history (fixed + calibrated + derived)
   p_rhd_death = p_rhd_death,   # legacy c(A,B,C,D): exact zeros + the single D input (all histories)
   dx_mix_benchmark = dx_mix_benchmark,        # provisional stage-at-first-diagnosis benchmark (diagnostic only)
-  effects     = effects,       # SAP progression hazard ratios (age-specific) + surgery RRRs + eligibility
+  effects     = effects,       # SAP assumed progression-hazard multiplier + protection age + surgery RRRs + eligibility
   surgery     = surgery,       # surgery-service fractions + coverage (ref/scale-up)
   coverage    = coverage,      # pooled care-cascade STRUCTURE (per-arm baselines/targets, window, init)
   meta = list(
@@ -508,8 +514,9 @@ message(sprintf("  transition centres: %s | adult B->normalised %.3f (fixed) | a
 message(sprintf("  D_only: D death %.4f (fixed, all histories) | entry mix child %s | adult %s | child rules at age <= %d",
                 nhe0$pd, paste(natural_history$entry_mix_child, collapse = "/"), paste(natural_history$entry_mix_adult, collapse = "/"),
                 natural_history$child_last_age))
-message(sprintf("  SAP HRs A->B child %.4f, B->C child %.4f / adult %.2f, C->D %.2f, D death %.0f | eligibility %s | screening ages %d-%d (W = %d), sens %.2f, confirm %.2f x %.2f",
-                effects$sap_hr_A_to_B_child, effects$sap_hr_B_to_C_child, effects$sap_hr_B_to_C_adult, effects$sap_hr_C_to_D,
+message(sprintf("  SAP: ASSUMED progression-hazard multiplier M %.2f (RRR %.2f; expert-informed scenario, not the published recurrence RR) on %s at attained age <= %d; C->D %.2f, D death %.0f | eligibility %s | screening ages %d-%d (W = %d), sens %.2f, confirm %.2f x %.2f",
+                effects$sap_progression_hazard_mult, effects$sap_progression_rrr, paste(effects$sap_effect_transitions, collapse = "/"),
+                as.integer(effects$sap_protection_age_max), effects$sap_hr_C_to_D,
                 effects$sap_hr_D_to_rhd_death, paste(effects$sap_eligibility, collapse = "/"),
                 coverage$screen_age_lo, coverage$screen_age_hi, coverage$screen_window_years, coverage$screen_sensitivity,
                 coverage$confirm_completion, coverage$confirm_sensitivity))

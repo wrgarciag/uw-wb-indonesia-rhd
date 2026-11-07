@@ -224,7 +224,7 @@ bst     <- bstate$states[[loc1]]
 tr      <- bst$transitions        # calibrated annual probabilities (incl. p_D_to_C = 0)
 pdth    <- bst$p_rhd_death        # c(A,B,C,D): exact zeros + the single D input
 nh      <- bst$natural_history    # child_last_age, entry mixes, adult normalisation, D input, ...
-eff     <- bst$effects            # age-specific SAP hazard ratios, eligibility, surgery effects
+eff     <- bst$effects            # assumed SAP progression-hazard multiplier + protection age, eligibility, surgery effects
 srg     <- bst$surgery
 cov     <- bst$coverage           # realised per-arm care trajectories ($ref, $sap) + $constants + $init
 cov_years <- bstate$meta$years
@@ -232,6 +232,13 @@ seed    <- bst$seed               # aggregate classifiable stocks ENTERING the f
 seed_tot <- sum(seed$A + seed$B + seed$C + seed$D)
 seed_share <- c(A = sum(seed$A), B = sum(seed$B), C = sum(seed$C), D = sum(seed$D)) / seed_tot
 CHILD_MAX <- as.integer(nh$child_last_age)            # modelling convention: child rules at age <= 20
+# SAP default: assumed full-adherence progression-hazard multiplier M on A->B and B->C at attained age <= SAP_AMAX
+SAP_M    <- eff$sap_progression_hazard_mult; SAP_RRR <- eff$sap_progression_rrr
+SAP_AMAX <- as.integer(eff$sap_protection_age_max)
+SAP_LABEL <- "assumed 55% reduction in progression hazards (expert-informed scenario), informed by evidence on prevention of recurrent rheumatic fever"
+EV_RR    <- 0.45     # Manyemba et al. (Cochrane, PMID 12137650): RR for recurrent rheumatic fever (published figure, not a model value)
+A_ILLUS  <- 0.90     # ILLUSTRATIVE adherence weight (not the reference schedule)
+sap_f    <- function(a) 1 - a * (1 - SAP_M)                 # on-BPG multiplier at protected ages
 adequacy <- bstate$meta$calibration_adequacy
 # common adult progression HAZARD multiplier m (fixed): adult (> CHILD_MAX) B -> C and C -> D
 # p_adult = 1 - (1 - p_child)^m; effective adult values as run by 06 (natural_history$derived)
@@ -341,12 +348,14 @@ check(max(abs(pp_chk$ref - pp_chk$sap)) < 1e-6, "arms do not share one populatio
 check(D_ONLY && stg[, all(rhd_deaths_A == 0 & rhd_deaths_B == 0 & rhd_deaths_C == 0)] && all(pdth[c("A", "B", "C")] == 0) &&
         stg[, max(abs(rhd_deaths - rhd_deaths_D))] < 1e-9,
       "the run has RHD deaths outside stage D (D-only specification)", c(f_bs, f_out), rerun_05)
-hr_ab <- function(a) ifelse(a <= CHILD_MAX, eff$sap_hr_A_to_B_child, 1)
-hr_bc <- function(a) ifelse(a <= CHILD_MAX, eff$sap_hr_B_to_C_child, eff$sap_hr_B_to_C_adult)
+m_age <- function(a) ifelse(a <= SAP_AMAX, SAP_M, 1)   # assumed M at attained age <= protection age, else 1
 check(stg[, max(abs(eff_cf - 1))] < 1e-12 && stg[, max(abs(sap_prog_mult_C_to_D - 1))] < 1e-12 &&
-        stg[, max(abs(sap_prog_mult_A_to_B - (1 - sap_adherence_factor * (1 - hr_ab(age)))),
-                  abs(sap_prog_mult_B_to_C - (1 - sap_adherence_factor * (1 - hr_bc(age)))))] < 1e-9,
-      "SAP progression multipliers do not match the saved age-specific hazard ratios and adherence", c(f_bs, f_out), rerun_05)
+        stg[, max(abs(sap_prog_mult_A_to_B - (1 - sap_adherence_factor * (1 - m_age(age)))),
+                  abs(sap_prog_mult_B_to_C - (1 - sap_adherence_factor * (1 - m_age(age)))))] < 1e-9 &&
+        stg[age > SAP_AMAX, all(sap_prog_mult_A_to_B == 1 & sap_prog_mult_B_to_C == 1)] &&
+        identical(SC$spec$sap_hr[names(bstate$meta$sap_hr)], bstate$meta$sap_hr),
+      "SAP progression multipliers do not match the saved assumed multiplier, protection age and adherence (or 04b / 05 SAP specs differ)",
+      c(f_bs, f_out), rerun_05)
 # care volumes: definitions and nesting
 check(stg[, max(abs(n_on_optimal_treatment - n_on_bpg_A - n_on_bpg_B))] < 1e-6 && stg[age > CHILD_MAX, all(n_on_bpg_A == 0 & A == 0)] &&
         stg[, all(n_on_optimal_treatment <= n_bpg_eligible_diagnosed + 1e-9 & n_bpg_eligible_diagnosed <= n_diagnosed + 1e-9 &
@@ -424,9 +433,11 @@ bcr_txt <- if (bcr_defined) fmt_f(tot$bcr) else
 conf_unc <- sum(budget$confirmations_incremental_uncosted)
 st_y <- stg[, .(prev = sum(A + B + C + D), dx = sum(diagnosed_end), undx = sum(undiagnosed_end), D = sum(D),
                 deaths = sum(rhd_deaths), first_dx = sum(n_new_diagnoses), enc = sum(n_screened),
-                sap_py = sum(n_on_optimal_treatment), sap_py_adultB = sum(n_on_bpg_B[age > CHILD_MAX]),
+                sap_py = sum(n_on_optimal_treatment), sap_py_noben = sum(n_on_bpg_B[age > SAP_AMAX]),
+                eff_prot = sum(n_effectively_protected), eff_prot_noben = sum(n_effectively_protected[age > SAP_AMAX]),
                 prior_A = sum(prior_A_end), pop = sum(pop)), by = .(scenario, year)]
-adultB_share50 <- st_y[scenario == "sap" & year == y50, sap_py_adultB / sap_py]
+noben_share50 <- st_y[scenario == "sap" & year == y50, sap_py_noben / sap_py]          # B on BPG above the protection age
+noben_prot_share50 <- st_y[scenario == "sap" & year == y50, eff_prot_noben / eff_prot]  # adherence-weighted exposure above it
 d_share0 <- seed_share[["D"]]                                   # D share of classifiable RHD ENTERING the first analysis year
 fy <- as.data.table(SC$fit_by_year)
 gbd_d_last <- fy[measure == "Deaths" & year == cal_y1, target]
@@ -520,13 +531,13 @@ hl <- data.table(
                sprintf("RHD deaths averted %s (%s of reference deaths)", proj_years, fmt_pct(rel_deaths_cum, 2)),
                "Incremental cost (discounted)", "Monetised benefit (discounted, VSL)", "Benefit-cost ratio",
                "Cost per death averted / per DALY averted",
-               sprintf("Scale-up SAP person-years in %d that are adult B (HR 1)", y50),
+               sprintf("Scale-up SAP person-years in %d that are stage B at age ≥ %d (costed, no modelled benefit)", y50, SAP_AMAX + 1L),
                "Incremental confirmatory echoes (UNCOSTED)"),
   Value = c(fmt_n(seed_tot), fmt_pct(d_share0, 1), fmt_n(mod_d_first), fmt_n(da50), fmt_n(deaths_averted_cum),
             usd_m(tot$total_cost), usd_m(tot$total_benefit), bcr_txt,
             paste0(if (is.finite(tot$cost_per_death)) fmt_usd(tot$cost_per_death) else "not defined", " / ",
                    if (is.finite(tot$cost_per_daly)) fmt_usd(tot$cost_per_daly) else "not defined"),
-            fmt_pct(adultB_share50, 0), fmt_n(conf_unc)))
+            fmt_pct(noben_share50, 0), fmt_n(conf_unc)))
 kbl_std(hl, caption = paste0("Table 2. Preliminary headline results (", CTRY, "; discounted to ", disc_base,
                              " at ", fmt_pct(eparams$disc_rate, 1), "; US$). Not a credible calibrated baseline — see the checkpoint."),
         align = c("l", "r"))
@@ -582,12 +593,17 @@ inp <- rbindlist(list(
                        paste0(fmt_pct(cov$init$diagnosed_share, 1), " / ", fmt_pct(cov$init$on_bpg_share, 2))),
              Source = c("programme assumption", "PROVISIONAL", "PROVISIONAL", "PROVISIONAL", "PROVISIONAL", "PROVISIONAL",
                         paste0("PROVISIONAL; applied in ", cov$init$year))),
-  data.table(Group = "SAP hazard ratios (on BPG)",
-             Parameter = c("A → B, age ≤ 20", "B → C, age ≤ 20", "B → C, age > 20", "C → D", "D → RHD death"),
-             Value = fmt_f(c(eff$sap_hr_A_to_B_child, eff$sap_hr_B_to_C_child, eff$sap_hr_B_to_C_adult, eff$sap_hr_C_to_D,
-                             eff$sap_hr_D_to_rhd_death), 4),
-             Source = c("GOAL-derived; provisional stage mapping", "GOAL-derived; provisional stage mapping",
-                        "1: child effect not extrapolated to adults", "1: C not SAP-eligible", "1: no direct mortality effect")),
+  data.table(Group = "SAP progression effect (on BPG)",
+             Parameter = c("Assumed progression-hazard RRR", "Assumed full-adherence multiplier M, A → B and B → C",
+                           "Protection (benefit) age, attained", "A → B / B → C multiplier above the protection age",
+                           "C → D", "D → RHD death", "Adult prior-A → B"),
+             Value = c(fmt_pct(SAP_RRR, 0), fmt_f(SAP_M, 2), paste0("≤ ", SAP_AMAX), "1",
+                       fmt_f(c(eff$sap_hr_C_to_D, eff$sap_hr_D_to_rhd_death, eff$sap_hr_prior_A_to_B_adult), 0)),
+             Source = c("ASSUMPTION: expert-informed scenario (not estimated)",
+                        "ASSUMPTION; same M on both transitions is an extrapolation",
+                        "ASSUMPTION; independent of the age-20 natural-history boundary and of BPG eligibility",
+                        "BPG continues and is costed; no modelled benefit",
+                        "1: C not SAP-eligible", "1: no direct mortality effect", "1: prior-A not SAP-eligible")),
   data.table(Group = "Surgery service (both arms)",
              Parameter = c("Share of C / D requiring surgery", "Surgery coverage", "Surgery RRR on C → D / on D death"),
              Value = c(paste0(fmt_pct(srg$frac_C_requiring_surgery, 0), " / ", fmt_pct(srg$frac_D_requiring_surgery, 0)),
@@ -778,18 +794,42 @@ C, D and adult prior-A have no SAP programme volume. Protection for a person on 
 multiplies the relevant progression hazard by
 
 $$
-f = 1 - a\,(1-\text{HR}),\qquad a = \text{good} + \rho\cdot\text{partial},
+f = 1 - a\,(1-M),\qquad a = \text{good} + \rho\cdot\text{partial},
 $$
 
-with age-specific hazard ratios A → B (age ≤ 20) `r fmt_f(eff$sap_hr_A_to_B_child, 4)`,
-B → C (age ≤ 20) `r fmt_f(eff$sap_hr_B_to_C_child, 4)` and B → C (age > 20)
-`r fmt_f(eff$sap_hr_B_to_C_adult, 2)`; C → D and D → death have HR 1. The child HRs
-are derived from the GOAL trial's 24-month arm risks
-($\text{HR} = \log(1-p_\text{SAP}) / \log(1-p_\text{control})$; not annualised again)
-under a provisional stage mapping. **Adult B on BPG therefore carries programme cost
-but no quantified progression benefit**, and screening alone has no treatment or
-mortality effect. Coverage, retention and adherence have distinct denominators and
-roles: on-BPG person-years are the costed SAP volume, adherence enters protection only.
+where $M$ is the full-adherence multiplier on the progression hazard. The default is
+an **`r SAP_LABEL`**. *Evidence:* Manyemba et al. (Cochrane, PMID 12137650) report
+RR = `r fmt_f(EV_RR, 2)` for recurrent rheumatic fever (`r fmt_pct(1 - EV_RR, 0)` RRR),
+from one trial. This is not a hazard ratio and not a valve-progression estimate.
+$M$ = `r fmt_f(SAP_M, 2)` is therefore **assumed, not estimated**: it is not converted
+from the recurrence RR (that would need the untreated *recurrence* risk over the
+trial follow-up, not the model's B → C risk), and applying the same $M$ to A → B and
+B → C is an explicit extrapolation. Four decisions are kept separate:
+
+1. **Effect.** $M$ = `r fmt_f(SAP_M, 2)` on the treated A → B and B → C hazards only;
+   C → D, D → death and adult prior-A → B have multiplier 1 (no direct mortality effect).
+2. **Benefit age.** Attained age ≤ `r SAP_AMAX` (below `r SAP_AMAX + 1L`), independent
+   of the natural-history boundary at age `r CHILD_MAX`.
+3. **Eligibility and duration (unchanged).** Diagnosed A at age ≤ `r CHILD_MAX` and
+   diagnosed B; no age stop for stage B BPG; existing initiation, retention and dropout;
+   surviving A becomes adult prior-A at `r CHILD_MAX + 1` (BPG ends); C and D are not
+   eligible. Stage B people on BPG at age ≥ `r SAP_AMAX + 1L` stay on BPG and are
+   **costed but receive no modelled progression benefit**; the protection age is not a
+   stopping rule, and "no age stop" is not lifelong guaranteed treatment.
+4. **Adherence (unchanged).** $M$ is an assumed *full-adherence* efficacy, which the
+   published RR does not establish. The reference adherence weight
+   $a$ = `r fmt_f(cov$ref$adherence_factor[1], 2)` gives $f$ = `r fmt_f(sap_f(cov$ref$adherence_factor[1]), 3)`
+   at protected ages (scale-up target $a$ = `r fmt_f(cov$sap$adherence_factor[length(cov$sap$adherence_factor)], 2)`
+   gives `r fmt_f(sap_f(cov$sap$adherence_factor[length(cov$sap$adherence_factor)]), 3)`); the
+   *illustrative* value $a$ = `r fmt_f(A_ILLUS, 2)` gives `r fmt_f(sap_f(A_ILLUS), 3)``r if (isTRUE(all.equal(A_ILLUS, cov$sap$adherence_factor[length(cov$sap$adherence_factor)]))) " (here it coincides with the scale-up target; the reference schedule stays at the value above)" else " (not a value in either arm's schedule)"`.
+   Above age `r SAP_AMAX`, $f$ = 1 whatever the adherence.
+
+The GOAL trial's child hazard ratios (A → B 0.0385, B → C 0.1998 at age ≤ 20 from
+24-month arm risks, provisional stage mapping) remain a documented alternative and
+direct childhood progression evidence; they are not the active effect. Screening alone
+has no treatment or mortality effect. Coverage, retention and adherence have distinct
+denominators and roles: on-BPG person-years are the costed SAP volume, adherence enters
+protection only.
 
 ## Initialisation and bridge to the analysis start
 
@@ -1168,13 +1208,16 @@ print(ggplot(da, aes(year)) + geom_col(aes(y = averted), fill = reduction_col, a
 ```{r results-text, echo=FALSE, results='asis'}
 e <- st_y[year == y50]
 cat(sprintf(paste0("By %d the scale-up raises the diagnosed share of classifiable RHD from %s to %s and on-BPG person-years from %s to %s, ",
-                   "but averts only **%s RHD deaths over %d–%d** (%s of %s reference deaths) and **%s over %s**. The effect is small because ",
-                   "the SAP effect applies to children (A → B and B → C at age ≤ %d) while modelled RHD deaths are mostly adult and come from ",
-                   "C → D, which SAP does not change; %s of scale-up SAP person-years in %d are adult B, which carries cost with HR 1.\n\n"),
+                   "and averts **%s RHD deaths over %d–%d** (%s of %s reference deaths) and **%s over %s**. SAP acts only through the ",
+                   "*assumed* slowing of A → B and B → C among people on BPG at attained age ≤ %d (an expert-informed scenario, not an ",
+                   "estimated effect); RHD deaths come only from D, reached through C → D, which SAP does not change, so averted deaths lag ",
+                   "the programme. %s of scale-up SAP person-years in %d are stage B at age ≥ %d, which carry cost but no modelled benefit. ",
+                   "The adherence-weighted BPG exposure (on BPG × adherence weight) counts every age; %s of it in %d lies above the ",
+                   "protection age, where it confers no modelled benefit.\n\n"),
             y50, fmt_pct(e[scenario == "ref", dx / prev], 1), fmt_pct(e[scenario == "sap", dx / prev], 1),
             fmt_n(e[scenario == "ref", sap_py]), fmt_n(e[scenario == "sap", sap_py]), fmt_n(da50), year_min, y50,
-            fmt_pct(da50 / d50_ref, 2), fmt_n(d50_ref), fmt_n(deaths_averted_cum), proj_years, CHILD_MAX,
-            fmt_pct(adultB_share50, 0), y50))
+            fmt_pct(da50 / d50_ref, 2), fmt_n(d50_ref), fmt_n(deaths_averted_cum), proj_years, SAP_AMAX,
+            fmt_pct(noben_share50, 0), y50, SAP_AMAX + 1L, fmt_pct(noben_prot_share50, 0), y50))
 ```
 
 ## First diagnoses, screening and confirmation
@@ -1215,13 +1258,17 @@ kbl_std(vol_t, caption = paste0("Table 18. Programme volumes (screening encounte
 ```
 
 ```{r fig-sap-py, echo=FALSE, fig.width=11, fig.height=4}
-sp <- stg[, .(`A (age <= 20)` = sum(n_on_bpg_A), `B (age <= 20)` = sum(n_on_bpg_B[age <= CHILD_MAX]),
-              `B (age > 20, HR 1)` = sum(n_on_bpg_B[age > CHILD_MAX])), by = .(scenario, year)]
+sp_lab <- c(paste0("A (age <= ", CHILD_MAX, ")"), paste0("B (age <= ", CHILD_MAX, ")"),
+            paste0("B (age ", CHILD_MAX + 1L, "-", SAP_AMAX, ")"), paste0("B (age >= ", SAP_AMAX + 1L, ", no benefit)"))
+sp <- stg[, .(v1 = sum(n_on_bpg_A), v2 = sum(n_on_bpg_B[age <= CHILD_MAX]),
+              v3 = sum(n_on_bpg_B[age > CHILD_MAX & age <= SAP_AMAX]), v4 = sum(n_on_bpg_B[age > SAP_AMAX])), by = .(scenario, year)]
+setnames(sp, c("v1", "v2", "v3", "v4"), sp_lab)
 sp <- melt(sp, id.vars = c("scenario", "year"), variable.name = "group", value.name = "n")
 sp[, scenario := factor(scenario_labels_short[as.character(scenario)], levels = scenario_labels_short)]
 ggplot(sp, aes(year, n / 1e3, fill = group)) + geom_area(colour = "white", linewidth = 0.1) + facet_wrap(~ scenario) +
-  scale_fill_manual(values = c(`A (age <= 20)` = "#8CBFDA", `B (age <= 20)` = "#2166ac", `B (age > 20, HR 1)` = "#bdbdbd"), name = NULL) +
-  labs(title = "On-BPG (SAP) person-years by stage and age", subtitle = "Adult B on BPG is costed but has no modelled progression benefit",
+  scale_fill_manual(values = setNames(c("#8CBFDA", "#2166ac", "#6BAED6", "#bdbdbd"), sp_lab), name = NULL) +
+  labs(title = "On-BPG (SAP) person-years by stage and age",
+       subtitle = paste0("All on-BPG person-years are costed; the assumed progression benefit applies only at ages <= ", SAP_AMAX),
        x = NULL, y = "thousand person-years") +
   base_theme(11) + theme(legend.position = "bottom")
 ```
@@ -1384,13 +1431,16 @@ ggplot(bc_long, aes(year, value / 1e6, colour = stream)) +
   case fatality falls across the scored years while natural history is constant.
   `r if (length(SC$bounds$boundary_hits)) paste0("Parameters at a bound: ", paste(SC$bounds$boundary_hits, collapse = ", "), ".") else ""`
 - **Provisional inputs.** Transition centres, adult normalisation, entry mixes,
-  the diagnosis-composition benchmark, care inputs and the stage mapping of the
-  GOAL-derived hazard ratios are provisional modelling values; matching GBD would
-  not validate them clinically.
-- **SAP effect.** Benefit is limited to children (A → B, B → C at age ≤
-  `r CHILD_MAX`); adult B on BPG is costed with HR 1, and C/D are not SAP-eligible.
-  The hazard-scale protection is a population-average approximation over adherence
-  groups.
+  the diagnosis-composition benchmark and care inputs are provisional modelling
+  values; matching GBD would not validate them clinically.
+- **SAP effect (assumed).** The `r fmt_pct(SAP_RRR, 0)` progression-hazard reduction
+  is an expert-informed scenario, informed by a recurrence-of-rheumatic-fever RR from
+  one trial; it is not an empirically established valve-progression effect, and the
+  same multiplier on A → B and B → C is an extrapolation. Benefit applies only at
+  attained age ≤ `r SAP_AMAX`; stage B on BPG at older ages is costed without modelled
+  benefit, and C/D are not SAP-eligible. The hazard-scale protection is a
+  population-average approximation over adherence groups, with $M$ taken as
+  full-adherence efficacy.
 - **Uncosted confirmation.** No unit cost exists for confirmatory echoes; total
   cost is understated and the BCR is overstated by their omitted cost.
 - **Partial identification.** GBD provides only total prevalence and deaths, so

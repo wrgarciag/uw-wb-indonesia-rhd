@@ -425,18 +425,41 @@ STRUCT_BRIDGE_TO_ANALYSIS_START <- TRUE
 # (block I): h = h(0) x [1 - adh x (1 - HR)], adh = good + rel x partial adherence.
 # Screening alone has no treatment or mortality effect. No direct mortality effect.
 sap_mechanism    <- "progression"     # the implemented default (03 rejects anything else)
-sap_effect_scale <- "hazard_ratio"
-# Child HRs from the GOAL trial (Uganda, children 5-17 with latent RHD, 24-month
-# follow-up; control vs prophylaxis 2-year risks): A->B 0.075 vs 0.003; B->C 0.119 vs
-# 0.025 -> HR = log(1 - p_sap) / log(1 - p_ctrl) (a hazard ratio; NOT annualised again).
-# PROVISIONAL stage mapping (borderline ~ A, mild definite ~ B). Explicit conservative
-# choices for this default: the child trial effect is NOT extrapolated to adults.
-goal_ctrl_A_to_B <- 0.075; goal_sap_A_to_B <- 0.003
-goal_ctrl_B_to_C <- 0.119; goal_sap_B_to_C <- 0.025
-hr_from_arm_risks <- function(p_sap, p_ctrl) log1p(-p_sap) / log1p(-p_ctrl)
-sap_hr_A_to_B_child <- hr_from_arm_risks(goal_sap_A_to_B, goal_ctrl_A_to_B)   # ~0.03853835 (age <= 20)
-sap_hr_B_to_C_child <- hr_from_arm_risks(goal_sap_B_to_C, goal_ctrl_B_to_C)   # ~0.19982855 (age <= 20)
-sap_hr_B_to_C_adult <- 1              # age > 20: adult B on BPG has programme cost but NO quantified progression benefit
+sap_effect_scale <- "hazard_ratio"    # internal identifier of the IMPLEMENTATION scale (multiplier on the
+                                      # progression hazard); it does NOT describe the published evidence
+# DEFAULT: "assumed 55% reduction in progression hazards (expert-informed scenario), informed
+# by evidence on prevention of recurrent rheumatic fever".
+# Evidence: Manyemba et al. (Cochrane, PMID 12137650) report RR = 0.45 for recurrent rheumatic
+# fever (55% RRR), from one trial. This is not a hazard ratio and not a valve-progression
+# estimate. M = 0.45 is an ASSUMED full-adherence multiplier on the treated A->B and B->C
+# hazards (same M on both transitions = explicit extrapolation); it is not converted from the
+# recurrence RR (that would need the untreated RF-RECURRENCE risk, not the model's B->C risk).
+# Four separate decisions:
+#   (1) effect      : M on treated A->B and B->C hazards only (C->D, D death, prior-A: 1)
+#   (2) benefit age : attained age <= sap_protection_age_max (39, i.e. < 40); independent of the
+#                     natural-history boundary nh_child_last_age (20)
+#   (3) eligibility : unchanged (block I): diagnosed A at age <= 20 and diagnosed B; no new age stop
+#                     for stage B BPG; existing initiation / retention / dropout and the A -> adult
+#                     prior-A rule apply; C/D ineligible. Stage B on BPG at age >= 40 stays on BPG and
+#                     is COSTED but receives no modelled progression benefit.
+#   (4) adherence   : unchanged: a = good + rel x partial; h_BPG = h_untreated x [1 - a x (1 - M)];
+#                     M is assumed FULL-adherence efficacy (the published RR does not establish it).
+#                     Reference adherence weight a = 0.70 -> effective multiplier 0.615.
+sap_progression_rrr          <- 0.55
+sap_progression_hazard_mult  <- 1 - sap_progression_rrr   # M = 0.45; ASSUMED full-adherence efficacy
+sap_protection_age_max       <- 39L                      # attained age <=39 (<40); independent of nh_child_last_age
+sap_effect_transitions       <- c("A_to_B", "B_to_C")     # same M on both transitions is an assumption
+# DOCUMENTED ALTERNATIVE (inactive; not a scenario switch): child HRs from the GOAL trial
+# (Uganda, children 5-17 with latent RHD, 24-month follow-up; control vs prophylaxis 2-year
+# risks): A->B 0.075 vs 0.003; B->C 0.119 vs 0.025 -> HR = log(1 - p_sap) / log(1 - p_ctrl)
+# (a hazard ratio; NOT annualised again). PROVISIONAL stage mapping (borderline ~ A, mild
+# definite ~ B); child (age <= 20) only, adult B->C HR 1.
+# goal_ctrl_A_to_B <- 0.075; goal_sap_A_to_B <- 0.003
+# goal_ctrl_B_to_C <- 0.119; goal_sap_B_to_C <- 0.025
+# hr_from_arm_risks <- function(p_sap, p_ctrl) log1p(-p_sap) / log1p(-p_ctrl)
+# sap_hr_A_to_B_child <- hr_from_arm_risks(goal_sap_A_to_B, goal_ctrl_A_to_B)   # ~0.03853835 (age <= 20)
+# sap_hr_B_to_C_child <- hr_from_arm_risks(goal_sap_B_to_C, goal_ctrl_B_to_C)   # ~0.19982855 (age <= 20)
+# sap_hr_B_to_C_adult <- 1              # age > 20: adult B on BPG has programme cost but NO quantified progression benefit
 sap_hr_prior_A_to_B_adult <- 1        # adult prior-A: not SAP-eligible
 sap_hr_C_to_D <- 1                    # C is not SAP-eligible in this simplified default
 sap_hr_D_to_rhd_death <- 1            # no direct SAP mortality benefit (03 enforces 1)

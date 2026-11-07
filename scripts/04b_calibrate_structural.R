@@ -732,14 +732,19 @@ fixed_tab <- data.table(
                 "late-entry D-death multiplier (removed)", "adult_prog_hazard_mult (adult > 20 B->C and C->D hazard multiplier)",
                 "residual_rhd_mortality_mult", "p_B_to_no_rhd_adult",
                 paste0("entry_mix_child[", names(NH0$entry_mix_child), "]"), paste0("entry_mix_adult[", names(NH0$entry_mix_adult), "]"),
-                "sap_hr_A_to_B_child", "sap_hr_B_to_C_child", "sap_hr_B_to_C_adult", "sap_hr_C_to_D", "sap_hr_D_to_rhd_death"),
+                "sap_progression_rrr", "sap_progression_hazard_mult (M)", "sap_protection_age_max (attained age)",
+                "sap_hr_prior_A_to_B_adult", "sap_hr_C_to_D", "sap_hr_D_to_rhd_death"),
   role = c("fixed", "fixed (structural zero)", "fixed (structural zeros)", "fixed", "fixed at 1", "fixed", "fixed", "fixed",
-           rep("fixed (new simplifying assumption)", 8), rep("fixed (applied in reference care)", 5)),
+           rep("fixed (new simplifying assumption)", 8), rep("fixed (applied in reference care)", 6)),
   value = c(NH0$child_last_age, 0, 0, nhe_best$pd, 1, NH0$adult_prog_hazard_mult, NH0$residual_rhd_mortality_mult, NH0$p_B_to_no_rhd_adult,
             NH0$entry_mix_child, NH0$entry_mix_adult,
-            eff_hr$sap_hr_A_to_B_child, eff_hr$sap_hr_B_to_C_child, eff_hr$sap_hr_B_to_C_adult, eff_hr$sap_hr_C_to_D,
-            eff_hr$sap_hr_D_to_rhd_death),
-  source = "00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated")
+            eff_hr$sap_progression_rrr, eff_hr$sap_progression_hazard_mult, eff_hr$sap_protection_age_max,
+            eff_hr$sap_hr_prior_A_to_B_adult, eff_hr$sap_hr_C_to_D, eff_hr$sap_hr_D_to_rhd_death),
+  source = c(rep("00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated", 16),
+             rep(paste0("00 block H: assumed 55% reduction in progression hazards (expert-informed scenario), informed by evidence on prevention of recurrent rheumatic fever ",
+                        "[ASSUMPTION; not estimated]: M on treated ", paste(eff_hr$sap_effect_transitions, collapse = " and "),
+                        " hazards (same M on both = assumption) at attained age <= sap_protection_age_max; Manyemba et al. RR 0.45 is for RF recurrence (not a HR, not valve progression)"), 3),
+             rep("00 block H: multiplier 1 (not SAP-eligible / no direct mortality effect)", 3)))
 par_tab <- rbind(par_tab, fixed_tab, fill = TRUE)
 # effective ADULT (> 20) annual probabilities the engine actually runs (derived, not fitted)
 par_tab <- rbind(par_tab, data.table(
@@ -1047,8 +1052,9 @@ calib$stage_calibration$spec <- list(engine_spec = ABCD_ENGINE_SPEC, mortality_s
                                      entry_mix_adult = NH0$entry_mix_adult,
                                      adult_prog_hazard_mult = NH0$adult_prog_hazard_mult,
                                      adult_progression = "adult (> child_last_age) B->C and C->D: p_adult = 1 - (1 - p_child)^adult_prog_hazard_mult",
-                                     sap_hr = unlist(eff_cal[c("sap_hr_A_to_B_child", "sap_hr_B_to_C_child", "sap_hr_B_to_C_adult",
-                                                               "sap_hr_C_to_D", "sap_hr_D_to_rhd_death")]),
+                                     sap_hr = eff_cal[c("sap_progression_rrr", "sap_progression_hazard_mult", "sap_protection_age_max",
+                                                        "sap_effect_transitions", "sap_hr_prior_A_to_B_adult",
+                                                        "sap_hr_C_to_D", "sap_hr_D_to_rhd_death")],   # typed named list (not unlist())
                                      sap_eligibility = eff_cal$sap_eligibility,
                                      prevalence_mapping = "classifiable RHD = undiagnosed + diagnosed (off / on BPG), stages A-D; adult prior-A and normalised history excluded",
                                      death_mapping = "RHD deaths from diagnosed + undiagnosed D only",
