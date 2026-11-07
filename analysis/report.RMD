@@ -149,8 +149,8 @@ stage_labels <- c(A = "A minimal/early", B = "B mild", C = "C advanced, no compl
 stage_cols   <- c(A = "#8CBFDA", B = "#4E97C7", C = "#E4A93C", D = "#B2182B")
 tr_names <- c("p_A_to_no_rhd", "p_A_to_B", "p_B_to_A", "p_B_to_C", "p_C_to_B", "p_C_to_D")
 tr_label <- c(p_A_to_no_rhd = "A → normalised (age ≤ 20)", p_A_to_B = "A → B (age ≤ 20) = adult prior-A → B",
-              p_B_to_A = "B → A (age ≤ 20)", p_B_to_C = "B → C (all ages)",
-              p_C_to_B = "C → B (age ≤ 20)", p_C_to_D = "C → D (all ages)")
+              p_B_to_A = "B → A (age ≤ 20)", p_B_to_C = "B → C (age ≤ 20; adult hazard × m)",
+              p_C_to_B = "C → B (age ≤ 20)", p_C_to_D = "C → D (age ≤ 20; adult hazard × m)")
 ```
 
 ```{r load-model-output, message=FALSE, warning=FALSE, echo=FALSE}
@@ -233,6 +233,11 @@ seed_tot <- sum(seed$A + seed$B + seed$C + seed$D)
 seed_share <- c(A = sum(seed$A), B = sum(seed$B), C = sum(seed$C), D = sum(seed$D)) / seed_tot
 CHILD_MAX <- as.integer(nh$child_last_age)            # modelling convention: child rules at age <= 20
 adequacy <- bstate$meta$calibration_adequacy
+# common adult progression HAZARD multiplier m (fixed): adult (> CHILD_MAX) B -> C and C -> D
+# p_adult = 1 - (1 - p_child)^m; effective adult values as run by 06 (natural_history$derived)
+m_ad    <- nh$adult_prog_hazard_mult
+p_BC_ad <- nh$derived$p_B_to_C_adult
+p_CD_ad <- nh$derived$p_C_to_D_adult
 ```
 
 ```{r load-stage-flow-tables, message=FALSE, warning=FALSE, echo=FALSE}
@@ -292,6 +297,14 @@ check(all(vapply(spec_set, function(s) identical(unname(unlist(s)), unname(unlis
 check(isTRUE(all.equal(unlist(tr), unlist(BP$transitions))) && isTRUE(all.equal(pdth, BP$p_rhd_death)) &&
         identical(bstate$meta$natural_history_fixed, BP$natural_history_fixed),
       "baseline transitions / D mortality / fixed inputs differ from the calibrated best parameters", c(f_cal, f_bs), rerun_05)
+# adult progression hazard multiplier: one value in the calibration, baseline and model run, and the
+# effective adult B -> C / C -> D the model ran equal 1 - (1 - p_child)^m
+check(length(m_ad) == 1L && is.finite(m_ad) && m_ad > 0 &&
+        identical(m_ad, BP$natural_history_fixed$adult_prog_hazard_mult) && identical(m_ad, SPEC$adult_prog_hazard_mult) &&
+        identical(m_ad, bstate$meta$model_assumptions$adult_prog_hazard_mult) &&
+        same(c(p_BC_ad, p_CD_ad), 1 - (1 - c(tr$p_B_to_C, tr$p_C_to_D))^m_ad, 1e-12),
+      "adult progression hazard multiplier missing / inconsistent, or effective adult B->C / C->D differ from 1 - (1 - p)^m",
+      c(f_cal, f_bs), "re-run 03 -> 08")
 ist <- BP$initial_state
 check(!is.null(ist$engine_state) && all(vapply(STAGES, function(s) same(seed[[s]], ist[[s]], 1e-6), logical(1))) &&
         same(seed_tot, sum(stg[scenario == "ref" & year == base_year, living_rhd_start]), 1e-4),
@@ -442,17 +455,26 @@ cat(sprintf("**PRELIMINARY RESULTS — CALIBRATION CHECKPOINT %s.** The %s basel
             if (fit_ok) "PASSED" else "FAILED", CTRY))
 cat(sprintf("**%s** in the saved baseline state. ", if (fit_ok) "within diagnostic tolerances" else "INADEQUATE (not a credible calibrated baseline)"))
 cat("Structural and numerical checks pass, but the epidemiological fit to GBD prevalence and RHD deaths is outside the operational tolerances, ",
-    "and the projections inherit that misfit. Scripts 05–08 were run **under an explicit user override** of the requirement that the fit pass ",
-    "first, to obtain a complete pipeline and preliminary outputs; calibration is to be improved later.\n\n", sep = "")
+    "and the projections inherit that misfit. Scripts 05–08 were run with the fit outside tolerance **by explicit user decision**, ",
+    "to obtain a complete pipeline and preliminary outputs; calibration is to be improved later.\n\n", sep = "")
+cat(sprintf(paste0("- **Model update (6 Nov 2026): common adult progression hazard multiplier m = %s.** At attained age > %d, B → C and ",
+                   "C → D use $p_{\\text{adult}} = 1-(1-p_{\\text{child}})^m$ (adult hazard = m × childhood hazard) for every disease and ",
+                   "diagnosis history; the six calibrated transitions are the childhood values and were refitted jointly with incidence. ",
+                   "Effective adult B → C %s (childhood %s) and C → D %s (childhood %s).\n"),
+            fmt_f(m_ad, 2), CHILD_MAX, fmt_sig(p_BC_ad, 3), fmt_sig(tr$p_B_to_C, 3), fmt_sig(p_CD_ad, 3), fmt_sig(tr$p_C_to_D, 3)))
 cat(sprintf("- Fit (scored %d–%d): %s.\n", match_from, cal_y1,
             paste(tol_sum[role == "checkpoint", sprintf("%s %s", quantity, mapply(fmt_rng, ratio_min, ratio_max))], collapse = "; ")))
 cat(sprintf("- Confirmatory echoes are **not costed** (no unit cost exists): %s incremental confirmations over %s are omitted from total cost.\n",
             fmt_n(conf_unc), proj_years))
-cat("- Key limiting mechanisms (see the checkpoint report `dev/checkpoint_first_diagnosis_2026-11-05.md`): ",
-    "one B → C and C → D rate shared by children and adults cannot reproduce childhood and adult RHD deaths together; ",
-    "reclassifying surviving A as adult prior-A at 21 removes it from prevalence and leaves a young-adult prevalence deficit; ",
-    "adult exits other than death are limited to a fixed 2% B normalisation; and GBD case fatality falls over ", match_from, "–", cal_y1,
-    " while the model's natural history is constant.\n\n", sep = "")
+cat("- Key limiting mechanisms (see `dev/checkpoint_first_diagnosis_2026-11-05.md`; for the adult multiplier, the Indonesia scratch test ",
+    "`dev/experiments/2026-11_adult_prog_mult_048_pipeline/REPORT.md`): the fixed adult multiplier reduces adult progression only ",
+    "relative to the childhood rates, and the joint refit can offset it by raising the childhood rates, so adult (20+) RHD deaths remain at ",
+    with(tol_sum[quantity == "RHD deaths, ages 20+"], paste0(fmt_rng(ratio_min, ratio_max), " × the GBD target (within tolerance in ",
+                                                             years_within, " of ", years_scored, " scored years)")),
+    if (length(SC$bounds$boundary_hits)) paste0(", with ", paste(SC$bounds$boundary_hits, collapse = " and "), " at a bound") else "",
+    "; reclassifying surviving A as adult prior-A at ", CHILD_MAX + 1, " removes it from prevalence and leaves a young-adult prevalence deficit; ",
+    "adult exits other than death are limited to a fixed ", fmt_pct(nh$p_B_to_no_rhd_adult, 0), " B normalisation; and GBD case fatality falls over ",
+    match_from, "–", cal_y1, " while the model's natural history is constant.\n\n", sep = "")
 cat("Numbers in this report describe what the saved model run produces; they are not validated estimates.\n\n</div>\n")
 ```
 
@@ -515,17 +537,26 @@ kbl_std(hl, caption = paste0("Table 2. Preliminary headline results (", CTRY, ";
 ```{r tbl-inputs, echo=FALSE}
 mix_txt <- function(m) paste(sprintf("%s %s", names(m), fmt_f(m, 2)), collapse = ", ")
 inp <- rbindlist(list(
-  data.table(Group = "Natural history (calibrated)", Parameter = tr_label[tr_names],
+  data.table(Group = "Natural history (calibrated; childhood values)", Parameter = tr_label[tr_names],
              Value = fmt_sig(unlist(tr[tr_names]), 4),
              Source = paste0("calibrated in 04b; PROVISIONAL centre ", fmt_f(ptab[match(tr_names, parameter), prior_center], 3),
                              ifelse(ptab[match(tr_names, parameter), at_lower | at_upper], " — AT BOUND", ""))),
+  data.table(Group = "Natural history (adult, derived from the calibrated childhood values)",
+             Parameter = c(paste0("B → C, age > ", CHILD_MAX, " (effective)"), paste0("C → D, age > ", CHILD_MAX, " (effective)"),
+                           paste0("Prior-A → B, age > ", CHILD_MAX)),
+             Value = c(fmt_sig(p_BC_ad, 4), fmt_sig(p_CD_ad, 4), fmt_sig(tr$p_A_to_B, 4)),
+             Source = c(paste0("1 − (1 − p_child)^", fmt_f(m_ad, 2), " (hazard × m)"), paste0("1 − (1 − p_child)^", fmt_f(m_ad, 2), " (hazard × m)"),
+                        "= calibrated A → B (not scaled; provisional extrapolation)")),
   data.table(Group = "Natural history (fixed)",
-             Parameter = c("Child-rule age (modelling convention)", "D → C", "Adult B → normalised (age > 20)",
+             Parameter = c("Child-rule age (modelling convention)", "D → C",
+                           paste0("Adult progression hazard multiplier m (B → C, C → D at age > ", CHILD_MAX, ")"),
+                           "Adult B → normalised (age > 20)",
                            "New disease entry mix, age ≤ 20", "New disease entry mix, age > 20",
                            "Stage-D RHD death probability (every history)", "RHD death in A, B, C"),
-             Value = c(paste0("≤ ", CHILD_MAX, " / > ", CHILD_MAX), "0", fmt_f(nh$p_B_to_no_rhd_adult, 3),
+             Value = c(paste0("≤ ", CHILD_MAX, " / > ", CHILD_MAX), "0", fmt_f(m_ad, 2), fmt_f(nh$p_B_to_no_rhd_adult, 3),
                        mix_txt(nh$entry_mix_child), mix_txt(nh$entry_mix_adult), fmt_f(nh$p_rhd_death_D, 4), "0 (exact)"),
              Source = c("declared modelling convention (separate from GBD 0–19 / 20+)", "structural zero",
+                        "PROVISIONAL reference value (adopted 6 Nov 2026; not fitted; same value both countries)",
                         "PROVISIONAL extrapolation", "new simplifying assumption", "new simplifying assumption",
                         "PROVISIONAL country input; late-entry multiplier removed", "D-only structure")),
   data.table(Group = "Screening and confirmation",
@@ -631,6 +662,7 @@ ggplot() +
                           "diagnosis (off BPG) <-> on BPG (A at age <= 20, B).\n",
                           "Screening + confirmation and clinical detection\n",
                           "diagnose each person once; BPG slows A -> B and B -> C.\n",
+                          "Adult (> ", CHILD_MAX, ") B -> C and C -> D hazards = ", fmt_f(m_ad, 2), " x child.\n",
                           "D -> C = 0. Background death competes in every state.")) +
   scale_fill_identity() + scale_colour_identity() +
   coord_cartesian(xlim = c(0, 15.6), ylim = c(0.3, 7.4)) +
@@ -657,6 +689,14 @@ diagnosis never returns a person to the undiagnosed pool.
   and adult rules above it — a declared modelling convention, separate from the GBD
   reporting split 0–19 / 20+ used in calibration (a 21+ diagnostic is reported).
   Hazards depend on attained age only, never on when diagnosis happened.
+- **Adult progression.** At attained age > `r CHILD_MAX`, B → C and C → D use one
+  common, fixed **adult progression hazard multiplier** $m = `r fmt_f(m_ad, 2)`$ on
+  the calibrated childhood probabilities, $p_{\text{adult}} = 1-(1-p_{\text{child}})^{m}$
+  (the adult hazard is $m$ times the childhood hazard; probabilities are never
+  multiplied directly). It applies to undiagnosed, diagnosed and on-BPG disease
+  regardless of age at onset or diagnosis; age `r CHILD_MAX` itself uses the
+  childhood values. Adult prior-A → B, adult B normalisation and D mortality are not
+  scaled. $m$ is a provisional reference value, not estimated (adopted 6 Nov 2026).
 - **Adult prior-A.** At the `r CHILD_MAX` → `r CHILD_MAX + 1` ageing step surviving
   A (undiagnosed, diagnosed or on BPG) becomes **adult prior-A lesion history**:
   people are conserved, BPG ends, and prior-A is **excluded from classifiable
@@ -702,10 +742,11 @@ rules <- data.table(
                  sprintf("→ B %s; → D %s", fmt_sig(tr$p_C_to_B, 3), fmt_sig(tr$p_C_to_D, 3)),
                  sprintf("→ RHD death %s", fmt_f(nh$p_rhd_death_D, 4)), "—"),
   `Age > 20` = c("— (becomes prior-A at 21)",
-                 sprintf("→ C %s; → normalised %s", fmt_sig(tr$p_B_to_C, 3), fmt_f(nh$p_B_to_no_rhd_adult, 3)),
-                 sprintf("→ D %s", fmt_sig(tr$p_C_to_D, 3)), sprintf("→ RHD death %s", fmt_f(nh$p_rhd_death_D, 4)),
+                 sprintf("→ C %s; → normalised %s", fmt_sig(p_BC_ad, 3), fmt_f(nh$p_B_to_no_rhd_adult, 3)),
+                 sprintf("→ D %s", fmt_sig(p_CD_ad, 3)), sprintf("→ RHD death %s", fmt_f(nh$p_rhd_death_D, 4)),
                  sprintf("→ B %s (re-entry)", fmt_sig(tr$p_A_to_B, 3))))
-kbl_std(rules, caption = paste0("Table 4. Annual event probabilities by attained age (calibrated values; D → C = 0; ",
+kbl_std(rules, caption = paste0("Table 4. Annual event probabilities by attained age (calibrated childhood values; adult B → C and ",
+                                "C → D = 1 − (1 − p_child)^", fmt_f(m_ad, 2), "; D → C = 0; ",
                                 "background mortality competes in every state; surgery lowers C → D and D death)."),
         align = c("l", "l", "l"))
 ```
@@ -737,7 +778,7 @@ C, D and adult prior-A have no SAP programme volume. Protection for a person on 
 multiplies the relevant progression hazard by
 
 $$
-m = 1 - a\,(1-\text{HR}),\qquad a = \text{good} + \rho\cdot\text{partial},
+f = 1 - a\,(1-\text{HR}),\qquad a = \text{good} + \rho\cdot\text{partial},
 $$
 
 with age-specific hazard ratios A → B (age ≤ 20) `r fmt_f(eff$sap_hr_A_to_B_child, 4)`,
@@ -766,8 +807,10 @@ the analysis seed (no reseeding of prevalence, stage mix or care to GBD).
 ## Calibration {#calibration}
 
 Layer 2 (`04b`) runs the production engine inside the objective and jointly
-estimates **six transition probabilities** (A → normalised, A → B, B → A, C → B at
-age ≤ 20; B → C and C → D shared by all ages) and **incidence multipliers per broad
+estimates **six childhood transition probabilities** (A → normalised, A → B, B → A,
+B → C, C → B and C → D at age ≤ 20; adult B → C and C → D follow from them through the
+fixed multiplier $m = `r fmt_f(m_ad, 2)`$, and A → B also drives adult prior-A → B;
+priors and bounds apply to the childhood values) and **incidence multipliers per broad
 age band × sex**, against GBD prevalence (total classifiable disease, diagnosed +
 undiagnosed; prior-A and normalised history excluded; observed as
 `r prev_obs_label`) and RHD deaths (from D only) on the target basis
@@ -785,8 +828,10 @@ with $w_P = `r w_struct[["W_PREV"]]`$, $w_D = `r w_struct[["W_DEATH"]]`$
 $s = `r w_struct[["death_child_share"]]`$ and incidence weight
 `r w_struct[["W_INC"]]` (incidence is an anchored input and a validation output).
 Each MSLE is a normalised mean over its own usable cells of
-$(\log(m+1) - \log(t+1))^2$. D mortality, entry mixes, adult normalisation and the
-SAP effects are **fixed**, not fitted. The optimiser is a bounded multi-start
+$(\log(\text{model}+1) - \log(\text{target}+1))^2$. D mortality, entry mixes, adult
+normalisation, the adult progression multiplier and the SAP effects are **fixed**,
+not fitted; burn-in, calibration window and bridge all run with the multiplier. The
+optimiser is a bounded multi-start
 L-BFGS-B (`r nrow(SC$convergence)` starts).
 
 ## Scenarios
@@ -897,6 +942,58 @@ kbl_std(fs_t, caption = paste0("Table 8. Fit by sex and age component in ", matc
         align = c("l", "l", "l", "r", rep("r", 5)))
 ```
 
+## GBD versus model counts by age and sex
+
+The bars compare the model with the calibration target (`r gbd_basis_label`) for
+**prevalent cases**, **RHD deaths** and **incident cases** by GBD age group and sex,
+first for `r cal_y1` and then as the **annual mean over the calibration window
+`r cal_y0`–`r cal_y1`** (only `r match_from`–`r cal_y1` are scored; incidence is a
+validation output, not a fit term). Model prevalence is observed as
+`r prev_obs_label`; model incidence is new modelled classifiable disease (first entry
+from the never-onset pool), not diagnoses. Panels have their own y scales.
+
+```{r calib-agesex-prep, echo=FALSE}
+# Model vs GBD target counts by GBD age group x sex from the saved 04b fit table
+# (cells without a GBD target are dropped from both bars).
+fgs <- as.data.table(SC$fit_by_group_year)[measure %in% c("Prevalence", "Deaths", "Incidence") & !is.na(target_used)]
+agesex_bars <- function(yrs) {
+  d <- fgs[year %in% yrs, .(Model = mean(model), GBD = mean(target_used)), by = .(measure, sex, age_group, year)]
+  d <- d[, .(Model = mean(Model), GBD = mean(GBD)), by = .(measure, sex, age_group)]   # annual mean over yrs
+  d <- melt(d, id.vars = c("measure", "sex", "age_group"), variable.name = "source", value.name = "n")
+  d[, `:=`(age_group = factor(grp_short[age_group], levels = grp_short),
+           measure = factor(measure, levels = c("Prevalence", "Deaths", "Incidence"),
+                            labels = c("Prevalent cases", "RHD deaths", "Incident cases")),
+           source = factor(as.character(source), levels = c("GBD", "Model")))]
+  d
+}
+agesex_plot <- function(d, ttl, sub) {
+  ggplot(d, aes(age_group, n, fill = source)) +
+    geom_col(position = position_dodge(width = 0.8), width = 0.75) +
+    facet_grid(measure ~ sex, scales = "free_y") +
+    scale_fill_manual(values = c(GBD = "#1B9E77", Model = "#2166ac"),
+                      labels = c(GBD = if (identical(gbd_basis, "number")) "GBD Number" else "GBD target (rate x WPP)",
+                                 Model = "Model"), name = NULL) +
+    scale_y_continuous(labels = comma) +
+    labs(title = ttl, subtitle = sub, x = "GBD age group (years)", y = "count per year") +
+    base_theme(11) + theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8))
+}
+tot_ratio <- function(d, m) d[measure == m, sum(n[source == "Model"]) / sum(n[source == "GBD"])]
+d_last <- agesex_bars(cal_y1); d_win <- agesex_bars(cal_y0:cal_y1)
+```
+
+```{r fig-agesex-last, echo=FALSE, fig.width=11, fig.height=8}
+agesex_plot(d_last, paste0(CTRY, ", ", cal_y1, ": GBD versus model by age and sex"),
+            paste0("All-age model / GBD: prevalence ", fmt_f(tot_ratio(d_last, "Prevalent cases")),
+                   ", deaths ", fmt_f(tot_ratio(d_last, "RHD deaths")), ", incidence ", fmt_f(tot_ratio(d_last, "Incident cases"))))
+```
+
+```{r fig-agesex-window, echo=FALSE, fig.width=11, fig.height=8}
+agesex_plot(d_win, paste0(CTRY, ", ", cal_y0, "-", cal_y1, " (annual mean): GBD versus model by age and sex"),
+            paste0("All-age model / GBD: prevalence ", fmt_f(tot_ratio(d_win, "Prevalent cases")),
+                   ", deaths ", fmt_f(tot_ratio(d_win, "RHD deaths")), ", incidence ", fmt_f(tot_ratio(d_win, "Incident cases")),
+                   "; scored years ", match_from, "-", cal_y1))
+```
+
 ## Target basis: GBD Number versus rate × WPP
 
 ```{r calib-recon, echo=FALSE}
@@ -960,7 +1057,8 @@ s1 <- ssy[year == cal_y1]
 cat(sprintf(paste0("Entering %d, stage D holds **%s** of classifiable RHD (GBD heart-failure proxy %s — a diagnostic, not a ",
                    "validated stage target). With D-only mortality, RHD deaths track the flow into D: %s people moved C → D in %d ",
                    "(%s of them at ages > %d) and realised D fatality was %s (input %s; competing background death and the ",
-                   "surgery service make it slightly lower). Adult deaths are therefore set by adult C → D inflow, not by the ",
+                   "surgery service make it slightly lower). Adult deaths are therefore set by adult C → D inflow (adult C → D ",
+                   "probability %s after the multiplier %s), not by the ",
                    "D mortality input, which is fixed. New disease in %d: %s; prior-A re-entry: %s; A → prior-A reclassification ",
                    "at %d: %s.\n\n"),
             cal_y1, fmt_pct(s1$share_D, 1),
@@ -968,6 +1066,7 @@ cat(sprintf(paste0("Entering %d, stage D holds **%s** of classifiable RHD (GBD h
               fmt_pct(SC$excess_death_attribution$d_share_proxy_gbd_hf, 1),
             fmt_n(s1$C_to_D), cal_y1, fmt_n(s1$C_to_D_adult), CHILD_MAX,
             fmt_f(dfat[ages == "all", realized_D_death_risk], 4), fmt_f(nh$p_rhd_death_D, 4),
+            fmt_sig(p_CD_ad, 3), fmt_f(m_ad, 2),
             cal_y1, fmt_n(s1$new_disease), fmt_n(s1$reentry_prior_A_to_B), CHILD_MAX, fmt_n(s1$reclass_A_to_prior_A)))
 ```
 
@@ -1264,10 +1363,23 @@ ggplot(bc_long, aes(year, value / 1e6, colour = stream)) +
   (Table 7): `r nopipe(SC$statuses$epidemiological_fit)`. Projections inherit the misfit
   (RHD deaths start at `r fmt_n(mod_d_first)` per year against a GBD `r cal_y1`
   target of `r fmt_n(gbd_d_last)`; D holds `r fmt_pct(d_share0, 1)` of classifiable
-  RHD). Results were produced under an explicit override and are preliminary.
-- **Structural limits identified at the checkpoint.** A single B → C and C → D
-  probability for all ages cannot fit childhood and adult deaths together; the
-  A → prior-A reclassification at `r CHILD_MAX + 1` leaves a young-adult
+  RHD). Results were produced with the fit outside tolerance, by explicit user
+  decision, and are preliminary.
+- **Adult progression multiplier.** The common adult hazard multiplier
+  $m = `r fmt_f(m_ad, 2)`$ on B → C and C → D is a fixed provisional reference value
+  (not estimated, no uncertainty range), applied identically to every adult and to
+  both countries. Because the six calibrated transitions are the childhood values,
+  the joint refit can offset part of the adult reduction by raising the childhood
+  rates (effective adult B → C `r fmt_sig(p_BC_ad, 3)` vs childhood
+  `r fmt_sig(tr$p_B_to_C, 3)`; adult C → D `r fmt_sig(p_CD_ad, 3)` vs childhood
+  `r fmt_sig(tr$p_C_to_D, 3)`). In the Indonesia scratch test it lowered the total
+  loss about 15% versus a shared rate but did not bring adult deaths within tolerance.
+- **Structural limits identified at the checkpoint.** Even with the adult multiplier,
+  childhood and adult deaths are not fitted together (adult 20+ deaths
+  `r with(tol_sum[quantity == "RHD deaths, ages 20+"], fmt_rng(ratio_min, ratio_max))` ×
+  GBD; childhood 0–19 deaths
+  `r with(tol_sum[quantity == "RHD deaths, ages 0-19"], fmt_rng(ratio_min, ratio_max))` ×
+  GBD); the A → prior-A reclassification at `r CHILD_MAX + 1` leaves a young-adult
   prevalence deficit; adult exits are limited to a fixed B normalisation; and GBD
   case fatality falls across the scored years while natural history is constant.
   `r if (length(SC$bounds$boundary_hits)) paste0("Parameters at a bound: ", paste(SC$bounds$boundary_hits, collapse = ", "), ".") else ""`
@@ -1304,10 +1416,12 @@ cat("Country/location:  ", CTRY, "/", paste(LOCS, collapse = ", "), "\n")
 cat("Engine:            ", meta$engine_spec, "\n")
 cat("Model horizon:     ", proj_years, "(seed entering", base_year, ")\n")
 cat("Specification:     ", "mortality =", SPEC$mortality_structure, "| SAP =", SPEC$sap_mechanism,
-    "| prevalence observation =", PREV_OBS, "| target basis =", gbd_basis, "\n")
+    "| prevalence observation =", PREV_OBS, "| target basis =", gbd_basis,
+    "| adult B->C / C->D hazard multiplier =", m_ad, "\n")
 cat("Calibration status:", SC$status, "\n")
 cat("Adequacy label:    ", substr(adequacy, 1, 60), "...\n")
 cat("Consistency checks: passed (location, scenarios, years, engine/specification, calibrated parameters and fixed inputs,",
+    "adult progression multiplier and effective adult transitions,",
     "analysis-start state, reference care, care trajectories, stock identities, D-only, SAP multipliers,",
     "care volumes and eligibility, screening definition, economics, uncosted confirmations, VSL-only valuation, 07 tables)\n")
 cat("Artifact modification times (", if (mtime_ordered) "in pipeline order" else "NOT in pipeline order -- content checks above are authoritative", "):\n", sep = "")

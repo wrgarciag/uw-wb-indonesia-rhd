@@ -17,15 +17,16 @@
 #   07 make outputs    -> output/tables/rhd_model_long.csv/.rds    (+ stage + flow tables)
 #   08 economics       -> output/tables/rhd_economic_summary.csv, rhd_budget_impact.csv
 #
-# DISEASE STRUCTURE (DEFAULT, engine "abcd_first_diagnosis_v1"): World Heart
+# DISEASE STRUCTURE (DEFAULT, engine "abcd_first_diagnosis_v1_adult_prog_mult"): World Heart
 #   Federation RHD stages A/B/C/D in a national population model that separates
 #   disease history from FIRST CONFIRMED DIAGNOSIS: undiagnosed and diagnosed (off /
 #   on BPG) stocks by stage, adult prior-A lesion history (excluded from classifiable
 #   prevalence), normalised history (no recurrence) and never-onset people, with
 #   screening history. Rules depend on ATTAINED AGE only (<= 20 / > 20). New modelled
 #   disease enters A (age <= 20) or B (age > 20); screening finds existing disease and
-#   never creates it. RHD death occurs only from D (A/B/C exact zeros); competing
-#   other-cause death from every living state. See R/abcd_engine.R.
+#   never creates it. Adult (> 20) B->C and C->D hazards = 0.48 x the childhood hazards
+#   (block G, adult_prog_hazard_mult). RHD death occurs only from D (A/B/C exact zeros);
+#   competing other-cause death from every living state. See R/abcd_engine.R.
 #   SURGERY is a clinical SERVICE flow (fraction of C/D receiving surgery each
 #   cycle), NOT a health state: it modifies C->D and D->RHD-death risk only.
 #   Secondary antibiotic prophylaxis (SAP) lowers PROGRESSION hazards only (block H)
@@ -263,9 +264,9 @@ p_A_to_no_rhd <- 0.311   # [PROVISIONAL] A -> normalised history, age <= 20 (adu
 p_A_to_B      <- 0.054   # [PROVISIONAL] A -> B, age <= 20; the SAME fitted value drives adult
                          #   prior-A -> B (provisional extrapolation)                                [calibrated]
 p_B_to_A      <- 0.177   # [PROVISIONAL] B -> A, age <= 20 (adult: structural zero)                [calibrated]
-p_B_to_C      <- 0.074   # [PROVISIONAL] B -> C, ONE shared parameter at every attained age        [calibrated]
+p_B_to_C      <- 0.074   # [PROVISIONAL] B -> C, age <= 20; adult (> 20) = hazard x adult_prog_hazard_mult [calibrated]
 p_C_to_B      <- 0.050   # [PROVISIONAL] C -> B, age <= 20 (adult: structural zero)                [calibrated]
-p_C_to_D      <- 0.112   # [PROVISIONAL] C -> D, ONE shared parameter at every attained age        [calibrated]
+p_C_to_D      <- 0.112   # [PROVISIONAL] C -> D, age <= 20; adult (> 20) = hazard x adult_prog_hazard_mult [calibrated]
 p_D_to_C      <- 0       # EXACT structural zero (D = clinical complications; no valve-regression rate)
 
 # Fixed inputs (not calibrated):
@@ -288,8 +289,22 @@ p_rhd_death_D <- switch(COUNTRY,
                         Indonesia = 0.119,   # [PROVISIONAL reference input; dev/TP Stage D to death_RHDparameters.xlsx col K]
                         Uganda    = 0.0597)  # [PROVISIONAL] Uganda-specific input (not replaced by Indonesia's value)
 residual_rhd_mortality_mult <- 1     # fixed; no second mortality scale
-# Removed (effective value 1): late-onset 0.48 progression multiplier and any adult
-# progression reduction. Realised annual D fatality can be smaller than the input
+# COMMON ADULT PROGRESSION HAZARD MULTIPLIER (fixed; not fitted). At attained age > 20
+# (nh_child_last_age; age 20 itself uses the childhood probabilities) adult B->C and C->D
+# use p_adult = 1 - (1 - p_child)^m, i.e. the adult HAZARD is m x the childhood hazard
+# (never p x m). Applies to undiagnosed, diagnosed and on-BPG disease regardless of age at
+# onset or diagnosis, in calibration (04b: burn-in, window, bridge) and projection (06).
+# The calibrated (and prior-centred / bounded) parameters remain the CHILDHOOD values;
+# adult prior-A -> B (= p_A_to_B), adult B normalisation and D mortality are NOT scaled.
+# Adopted 6 Nov 2026 as the production reference for both countries after the Indonesia
+# scratch test dev/experiments/2026-11_adult_prog_mult_048_pipeline (REPORT.md): total
+# loss -15% vs m = 1, but adult RHD deaths remain ~3-4x GBD (a partial improvement).
+adult_prog_hazard_mult <- switch(COUNTRY,
+                                 Indonesia = 0.48,   # [PROVISIONAL] reference value (formerly the late-onset 0.48 progression multiplier)
+                                 Uganda    = 0.48)   # [PROVISIONAL] same reference value; [TODO: confirm for Uganda]
+stopifnot("adult_prog_hazard_mult must be one value > 0" =
+            is.numeric(adult_prog_hazard_mult) && length(adult_prog_hazard_mult) == 1L && adult_prog_hazard_mult > 0)
+# Realised annual D fatality can be smaller than the input
 # because of competing other-cause mortality and the reference surgery service.
 # For Uganda every shared input above except p_rhd_death_D is an EXTRAPOLATION of the
 # illustrative reference values, not a Uganda-specific estimate.
@@ -304,8 +319,8 @@ d_share_proxy_gbd_hf <- switch(COUNTRY, Indonesia = 0.0321, Uganda = 0.00863)
 #     and jointly estimates the band x sex incidence multipliers and the six non-zero
 #     transition probabilities against GBD RHD prevalence (TOTAL classifiable disease,
 #     diagnosed + undiagnosed; prior-A and normalised history excluded) + RHD deaths
-#     (diagnosed + undiagnosed D). Entry mixes, adult normalisation and D mortality
-#     are FIXED (block G).
+#     (diagnosed + undiagnosed D). Entry mixes, adult normalisation, the adult
+#     progression hazard multiplier and D mortality are FIXED (block G).
 #===============================================================================
 run_structural_calibration <- switch(COUNTRY, Indonesia = TRUE, Uganda = TRUE)
 STRUCT_MATCH_FROM  <- 2010L          # first GBD year SCORED (2000-2009 = initialisation / validation years)

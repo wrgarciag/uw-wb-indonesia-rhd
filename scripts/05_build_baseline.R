@@ -2,7 +2,7 @@
 # RHD secondary-prevention investment case: INITIAL-STATE ASSEMBLER (A/B/C/D)
 # scripts/05_build_baseline.R
 #
-# Default natural history (engine abcd_first_diagnosis_v1, R/abcd_engine.R): WHF
+# Default natural history (engine abcd_first_diagnosis_v1_adult_prog_mult, R/abcd_engine.R): WHF
 # stages A/B/C/D held as undiagnosed / confirmed-diagnosis (off / on BPG) stocks,
 # adult prior-A and normalised history, attained-age rules (<= 20 / > 20) and
 # D-only mortality. Surgery is a SERVICE, not a state.
@@ -115,6 +115,12 @@ if (!identical(bp$engine_spec, ABCD_ENGINE_SPEC) || !identical(dmi$meta$engine_s
        "'. A calibration from another structure is never consumed: re-run 03 -> 04 -> 04b.", call. = FALSE)
 if (!identical(bp$natural_history_fixed, dmi$meta$natural_history_fixed))
   stop("Fixed natural-history inputs changed since the calibration (00 block G); re-run 03 -> 04 -> 04b.", call. = FALSE)
+# the natural history 06 will actually run must carry the same fixed inputs (incl. the adult
+# progression hazard multiplier) and 00's current multiplier
+if (!identical(abcd_nh_fixed(bp$natural_history), dmi$meta$natural_history_fixed) ||
+    (exists("adult_prog_hazard_mult") && !identical(bp$natural_history$adult_prog_hazard_mult, adult_prog_hazard_mult)))
+  stop("Calibrated natural history (adult_prog_hazard_mult = ", format(bp$natural_history$adult_prog_hazard_mult),
+       ") differs from the disease inputs / 00 block G; re-run 03 -> 04 -> 04b.", call. = FALSE)
 if (!identical(bp$mortality_structure, dmi$meta$mortality_structure) || !identical(bp$sap_mechanism, dmi$effects$sap_mechanism))
   stop("Calibrated bundle spec (", bp$mortality_structure, "/", bp$sap_mechanism, ") differs from the disease inputs (",
        dmi$meta$mortality_structure, "/", dmi$effects$sap_mechanism, "); recalibrate under one spec.", call. = FALSE)
@@ -330,6 +336,9 @@ baseline_state <- list(
       child_last_age = dmi$natural_history$child_last_age, entry_mix_child = dmi$natural_history$entry_mix_child,
       entry_mix_adult = dmi$natural_history$entry_mix_adult, p_B_to_no_rhd_adult = dmi$natural_history$p_B_to_no_rhd_adult,
       p_rhd_death_D = dmi$natural_history$p_rhd_death_D, recurrence = dmi$natural_history$recurrence_after_normalisation,
+      adult_prog_hazard_mult = dmi$natural_history$adult_prog_hazard_mult,
+      adult_progression = dmi$natural_history$adult_progression,
+      effective_adult_transitions = unlist(bp$natural_history$derived[c("p_B_to_C_adult", "p_C_to_D_adult", "p_prior_A_to_B_adult")]),
       sap_eligibility = dmi$effects$sap_eligibility, sap_effect_sources = dmi$effects$sap_effect_sources,
       dx_mix_benchmark = dmi$dx_mix_benchmark, screen_specificity = cov$screen_specificity),
     observation_definitions = list(
@@ -372,7 +381,7 @@ baseline_state <- list(
     incidence_trend_anchor_year = s1$ir_anchor_year,
     incidence_source = s1$incidence_source,
     seed_source = s1$seed_source,
-    transitions_note = "$states[[loc]]$transitions are the calibrated annual probabilities (B->C, C->D at all ages; A->B also drives adult prior-A -> B); 06 runs the full $natural_history through abcd_nh_build",
+    transitions_note = "$states[[loc]]$transitions are the calibrated CHILDHOOD (age <= 20) annual probabilities; adult (> 20) B->C and C->D = 1 - (1 - p)^adult_prog_hazard_mult (effective values in $natural_history$derived); A->B also drives adult prior-A -> B unscaled; 06 runs the full $natural_history through abcd_nh_build",
     population_backbone_approximation = paste(
       "Population is EXOGENOUS (WPP2024 by age x sex x year); every stock ages by cohort; each cycle the No-RHD",
       "population (population - classifiable RHD - prior-A) is reconciled with the carried never-onset + normalised",

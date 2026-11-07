@@ -2,7 +2,7 @@
 # RHD secondary-prevention investment case: MODEL RUNNER (A/B/C/D)
 # scripts/06_run_prevention_model.R
 #
-# Default natural history (engine abcd_first_diagnosis_v1, R/abcd_engine.R): WHF
+# Default natural history (engine abcd_first_diagnosis_v1_adult_prog_mult, R/abcd_engine.R): WHF
 # stages A/B/C/D held as undiagnosed / confirmed-diagnosis (off / on BPG) stocks,
 # adult prior-A and normalised history (no recurrence), attained-age rules, D-only
 # RHD mortality. Intervention package: one echo screen across ages 5-39 among people

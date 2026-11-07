@@ -1,28 +1,28 @@
 parameter,role,value
-p_A_to_no_rhd,calibrated,0.242276802691272
+p_A_to_no_rhd,calibrated,0.260506364359882
 p_A_to_B,calibrated,0.25
-p_B_to_A,calibrated,0.0534588178162674
-p_B_to_C,calibrated,0.0358042182533566
-p_C_to_B,calibrated,0.0251033248342501
+p_B_to_A,calibrated,0.0771858521355082
+p_B_to_C,calibrated,0.0683179788397592
+p_C_to_B,calibrated,0.0316330468925
 p_C_to_D,calibrated,0.3
-alpha[0-14|Female],calibrated,1.36098749358808
-alpha[15-24|Female],calibrated,1.03927857323873
-alpha[25-44|Female],calibrated,0.884908503221882
-alpha[45-64|Female],calibrated,0.837263231070422
-alpha[65-79|Female],calibrated,0.834405945372805
-alpha[80+|Female],calibrated,0.845697740320426
-alpha[0-14|Male],calibrated,1.23343924226688
-alpha[15-24|Male],calibrated,0.955561143138261
-alpha[25-44|Male],calibrated,0.830882461699052
-alpha[45-64|Male],calibrated,0.806136095536971
-alpha[65-79|Male],calibrated,0.823322003516132
-alpha[80+|Male],calibrated,0.854398081749923
+alpha[0-14|Female],calibrated,1.27683823936196
+alpha[15-24|Female],calibrated,0.973443666100085
+alpha[25-44|Female],calibrated,0.825793389292989
+alpha[45-64|Female],calibrated,0.790955634966027
+alpha[65-79|Female],calibrated,0.80356156105814
+alpha[80+|Female],calibrated,0.831559842723269
+alpha[0-14|Male],calibrated,1.15721319197136
+alpha[15-24|Male],calibrated,0.899886208109662
+alpha[25-44|Male],calibrated,0.782141850731935
+alpha[45-64|Male],calibrated,0.767912991009089
+alpha[65-79|Male],calibrated,0.798055788425827
+alpha[80+|Male],calibrated,0.843700985483846
 child_last_age (modelling convention),fixed,20
 p_D_to_C,fixed (structural zero),0
 p_rhd_death_A/B/C,fixed (structural zeros),0
 p_rhd_death_D (all histories),fixed,0.119
 late-entry D-death multiplier (removed),fixed at 1,1
-late-onset / adult progression multiplier (removed),fixed at 1,1
+adult_prog_hazard_mult (adult > 20 B->C and C->D hazard multiplier),fixed,0.48
 residual_rhd_mortality_mult,fixed,1
 p_B_to_no_rhd_adult,fixed,0.02
 entry_mix_child[A],fixed (new simplifying assumption),1
@@ -38,3 +38,6 @@ sap_hr_B_to_C_child,fixed (applied in reference care),0.19982854753518
 sap_hr_B_to_C_adult,fixed (applied in reference care),1
 sap_hr_C_to_D,fixed (applied in reference care),1
 sap_hr_D_to_rhd_death,fixed (applied in reference care),1
+"p_B_to_C_adult (effective, age > 20)",derived,0.0333961888436802
+"p_C_to_D_adult (effective, age > 20)",derived,0.157350321917925
+"p_prior_A_to_B_adult (effective, age > 20)",derived,0.25

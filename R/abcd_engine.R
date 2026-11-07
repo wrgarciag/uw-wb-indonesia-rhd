@@ -6,7 +6,7 @@
 # calibration (04b: burn-in, scored window, bridge), so there is exactly one
 # implementation of the stage dynamics, care update, ageing and observation.
 #
-# DEFAULT SPECIFICATION (ABCD_ENGINE_SPEC = "abcd_first_diagnosis_v1")
+# DEFAULT SPECIFICATION (ABCD_ENGINE_SPEC = "abcd_first_diagnosis_v1_adult_prog_mult")
 #   National population model that separates DISEASE HISTORY from FIRST CONFIRMED
 #   DIAGNOSIS. Per [age x sex] cell the state holds (all counts of persons):
 #     N_ns, N_sc       never-onset (no prior modelled disease), never / ever screened
@@ -24,11 +24,15 @@
 #
 #   NATURAL HISTORY (attained age; boundary = child_last_age, default 20):
 #     age <= 20 : A->normalised, A->B, B->A, B->C, C->B, C->D, D->RHD death
-#     age  > 20 : prior-A->B (re-entry, shared A->B parameter), B->C, B->normalised
-#                 (fixed), C->D, D->RHD death; no adult A, B->A = C->B = 0
+#     age  > 20 : prior-A->B (re-entry, shared A->B parameter, not scaled), B->C,
+#                 B->normalised (fixed), C->D, D->RHD death; no adult A, B->A = C->B = 0
+#     ADULT PROGRESSION: one common adult HAZARD multiplier m (nh$adult_prog_hazard_mult,
+#     00 block G) on B->C and C->D at age > 20: p_adult = 1 - (1 - p_child)^m, applied to
+#     undiagnosed, diagnosed and on-BPG disease regardless of onset / diagnosis age (age
+#     20 itself uses the childhood probabilities; m = 1 reproduces the shared value).
 #     D->C = 0 exactly; RHD death ONLY from D (A/B/C exact zeros), one base D input for
-#     every disease / diagnosis history (no late-entry multiplier, no adult progression
-#     multiplier). Hazards depend on attained age only, never on when diagnosis occurred.
+#     every disease / diagnosis history (no late-entry multiplier). Hazards depend on
+#     attained age only, never on when diagnosis occurred.
 #   NEW MODELLED DISEASE (first classifiable entry) from the never-onset pool enters the
 #     stage given by the age-specific ENTRY MIX (00: child A = 1, adult B = 1) at year
 #     end (undiagnosed, carrying its screening history); it first faces stage hazards in
@@ -67,7 +71,10 @@
 #   C->D and D->death on the probability scale; traced, never removes stock.
 # ==============================================================================
 
-ABCD_ENGINE_SPEC <- "abcd_first_diagnosis_v1"
+# "_adult_prog_mult" (6 Nov 2026): v1 + the common adult B->C / C->D hazard multiplier. A
+# different label so bundles / baselines built without the multiplier are refused (05/06);
+# the multiplier VALUE is also part of abcd_nh_fixed() (03 -> 04b -> 05 consistency check).
+ABCD_ENGINE_SPEC <- "abcd_first_diagnosis_v1_adult_prog_mult"
 ABCD_BURNIN_RECONCILIATION_MODES <- c("per_capita", "no_rhd_only")
 ABCD_STAGES             <- c("A", "B", "C", "D")
 ABCD_UNDX_NS            <- paste0("U_", ABCD_STAGES, "_ns")
@@ -130,33 +137,42 @@ abcd_nh_build <- function(nh, ages, sexes) {
   for (v in c(nh$p_B_to_no_rhd_adult, nh$p_rhd_death_D))
     if (length(v) != 1L || !is.finite(v) || v < 0 || v >= 1) stop("abcd_nh_build: invalid fixed probability input.", call. = FALSE)
   if (!(nh$p_rhd_death_D > 0)) stop("abcd_nh_build: D_only requires p_rhd_death_D > 0.", call. = FALSE)
+  # common adult progression HAZARD multiplier (required input; no hidden default)
+  m_ad <- nh$adult_prog_hazard_mult
+  if (is.null(m_ad) || length(m_ad) != 1L || !is.finite(m_ad) || m_ad <= 0)
+    stop("abcd_nh_build: nh$adult_prog_hazard_mult must be one finite value > 0 (00 block G).", call. = FALSE)
+  # hazard scaling of an annual probability: h_adult = m x h_child <=> p_adult = 1 - (1 - p_child)^m
+  # (never p x m); m == 1 returns p unchanged (bit-identical to the shared-parameter engine)
+  adult_p <- function(p) if (m_ad == 1) p else 1 - (1 - p)^m_ad
+  p_BC_adult <- adult_p(tr$p_B_to_C); p_CD_adult <- adult_p(tr$p_C_to_D)
 
   child <- ages <= b; adult <- !child
   M  <- function(v) matrix(v, n_age, n_sex, dimnames = list(ages, sexes))
   ch <- M(as.numeric(child)); ad <- M(as.numeric(adult))
   p <- list(A_to_R = ch * tr$p_A_to_no_rhd,                # childhood resolution to normalised history
             A_to_B = ch * tr$p_A_to_B,
-            P_to_B = ad * tr$p_A_to_B,                     # adult prior-A -> B (shared parameter; extrapolation)
+            P_to_B = ad * tr$p_A_to_B,                     # adult prior-A -> B (shared parameter; extrapolation; not scaled)
             B_to_A = ch * tr$p_B_to_A,
-            B_to_C = M(tr$p_B_to_C),                       # one shared parameter at every attained age
+            B_to_C = ch * tr$p_B_to_C + ad * p_BC_adult,   # calibrated value at <= 20; hazard x m at > 20
             B_to_R = ad * nh$p_B_to_no_rhd_adult,           # fixed adult normalisation
             C_to_B = ch * tr$p_C_to_B,
-            C_to_D = M(tr$p_C_to_D))                       # one shared parameter at every attained age
+            C_to_D = ch * tr$p_C_to_D + ad * p_CD_adult)   # calibrated value at <= 20; hazard x m at > 20
   pd <- nh$p_rhd_death_D * nh$residual_rhd_mortality_mult
   entry <- lapply(setNames(ABCD_STAGES, ABCD_STAGES), function(s) ch * mC[[s]] + ad * mA[[s]])
   list(nh = nh, ages = ages, sexes = sexes, boundary_age = b, boundary_row = b_row,
        child = child, child_m = ch, adult_m = ad,
        p = p, h = lapply(p, abcd_p2h_v), pd = pd, entry = entry,
        mix_child = mC, mix_adult = mA,
-       derived = list(p_prior_A_to_B_adult = tr$p_A_to_B, p_B_to_C_adult = tr$p_B_to_C,
-                      p_C_to_D_adult = tr$p_C_to_D, p_rhd_death_D = pd))
+       derived = list(p_prior_A_to_B_adult = tr$p_A_to_B, p_B_to_C_adult = p_BC_adult,
+                      p_C_to_D_adult = p_CD_adult, p_rhd_death_D = pd,
+                      adult_prog_hazard_mult = m_ad))
 }
 
 # record of the FIXED natural-history inputs (stale-bundle / spec-consistency check
 # 03 -> 04b -> 05: a calibration is consumed only under identical fixed inputs)
 abcd_nh_fixed <- function(nh)
   c(nh[c("child_last_age", "p_B_to_no_rhd_adult", "p_rhd_death_D", "residual_rhd_mortality_mult",
-         "entry_mix_child", "entry_mix_adult")],
+         "entry_mix_child", "entry_mix_adult", "adult_prog_hazard_mult")],
     list(p_D_to_C = nh$tr$p_D_to_C, engine_spec = ABCD_ENGINE_SPEC))
 
 # SAP hazard ratios as [age x sex] matrices (validated): A->B child; B->C child / adult.

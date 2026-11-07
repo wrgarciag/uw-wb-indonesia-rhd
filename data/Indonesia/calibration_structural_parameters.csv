@@ -1,28 +1,28 @@
 parameter,role,theta,lower,upper,at_lower,at_upper,value,prior_center,bound_lo,bound_hi,source
-p_A_to_no_rhd,calibrated,-1.14023725862018,-5.29330482472449,0.405465108108164,FALSE,FALSE,0.242276802691272,0.311,0.005,0.6,age <= 20 annual probability [PROVISIONAL centre 00 block G]; bounds TRANS_BOUNDS
+p_A_to_no_rhd,calibrated,-1.04333838359352,-5.29330482472449,0.405465108108164,FALSE,FALSE,0.260506364359882,0.311,0.005,0.6,age <= 20 annual probability [PROVISIONAL centre 00 block G]; bounds TRANS_BOUNDS
 p_A_to_B,calibrated,-1.09861228866811,-6.90675477864855,-1.09861228866811,FALSE,TRUE,0.25,0.054,0.001,0.25,age <= 20 A->B and adult prior-A->B (shared; adult use = provisional extrapolation) [PROVISIONAL centre]
-p_B_to_A,calibrated,-2.87390288262914,-6.21260609575152,-0.405465108108164,FALSE,FALSE,0.0534588178162674,0.177,0.002,0.4,age <= 20 annual probability (adult structural zero) [PROVISIONAL centre]
-p_B_to_C,calibrated,-3.29322865231662,-6.90675477864855,-1.38629436111989,FALSE,FALSE,0.0358042182533566,0.074,0.001,0.2,B->C at every attained age (one shared parameter; no adult multiplier) [PROVISIONAL centre]
-p_C_to_B,calibrated,-3.65933119031205,-6.90675477864855,-1.73460105538811,FALSE,FALSE,0.0251033248342501,0.05,0.001,0.15,age <= 20 annual probability (adult structural zero) [PROVISIONAL centre]
-p_C_to_D,calibrated,-0.847297860387204,-6.90675477864855,-0.847297860387204,FALSE,TRUE,0.3,0.112,0.001,0.3,C->D at every attained age (one shared parameter; no adult multiplier) [PROVISIONAL centre]
-alpha[0-14|Female],calibrated,0.308210534492709,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.36098749358808,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[15-24|Female],calibrated,0.0385267928681338,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.03927857323873,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[25-44|Female],calibrated,-0.122271025508893,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.884908503221882,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[45-64|Female],calibrated,-0.177616764422332,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.837263231070422,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[65-79|Female],calibrated,-0.181035249994011,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.834405945372805,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[80+|Female],calibrated,-0.16759326416108,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.845697740320426,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[0-14|Male],calibrated,0.209806399403548,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.23343924226688,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[15-24|Male],calibrated,-0.0454565266235806,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.955561143138261,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[25-44|Male],calibrated,-0.185266936129285,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.830882461699052,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[45-64|Male],calibrated,-0.215502697706039,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.806136095536971,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[65-79|Male],calibrated,-0.194407899034487,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.823322003516132,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
-alpha[80+|Male],calibrated,-0.157358055921607,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.854398081749923,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+p_B_to_A,calibrated,-2.48121167989202,-6.21260609575152,-0.405465108108164,FALSE,FALSE,0.0771858521355082,0.177,0.002,0.4,age <= 20 annual probability (adult structural zero) [PROVISIONAL centre]
+p_B_to_C,calibrated,-2.61281861214264,-6.90675477864855,-1.38629436111989,FALSE,FALSE,0.0683179788397592,0.074,0.001,0.2,B->C at age <= 20; adult (> 20) = 1 - (1 - p)^adult_prog_hazard_mult (fixed multiplier) [PROVISIONAL centre]
+p_C_to_B,calibrated,-3.42140873735605,-6.90675477864855,-1.73460105538811,FALSE,FALSE,0.0316330468925,0.05,0.001,0.15,age <= 20 annual probability (adult structural zero) [PROVISIONAL centre]
+p_C_to_D,calibrated,-0.847297860387204,-6.90675477864855,-0.847297860387204,FALSE,TRUE,0.3,0.112,0.001,0.3,C->D at age <= 20; adult (> 20) = 1 - (1 - p)^adult_prog_hazard_mult (fixed multiplier) [PROVISIONAL centre]
+alpha[0-14|Female],calibrated,0.244386896639903,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.27683823936196,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[15-24|Female],calibrated,-0.0269153232298986,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.973443666100085,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[25-44|Female],calibrated,-0.191410670777751,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.825793389292989,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[45-64|Female],calibrated,-0.234513400061735,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.790955634966027,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[65-79|Female],calibrated,-0.218701480612316,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.80356156105814,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[80+|Female],calibrated,-0.184452013337797,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.831559842723269,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[0-14|Male],calibrated,0.146014693960982,-1.6094379124341,1.6094379124341,FALSE,FALSE,1.15721319197136,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[15-24|Male],calibrated,-0.105486959085168,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.899886208109662,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[25-44|Male],calibrated,-0.245719160089003,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.782141850731935,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[45-64|Male],calibrated,-0.264078845209512,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.767912991009089,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[65-79|Male],calibrated,-0.225576773667886,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.798055788425827,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
+alpha[80+|Male],calibrated,-0.169957129761165,-1.6094379124341,1.6094379124341,FALSE,FALSE,0.843700985483846,1,0.2,5,weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only
 child_last_age (modelling convention),fixed,,,,,,20,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
 p_D_to_C,fixed (structural zero),,,,,,0,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
 p_rhd_death_A/B/C,fixed (structural zeros),,,,,,0,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
 p_rhd_death_D (all histories),fixed,,,,,,0.119,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
 late-entry D-death multiplier (removed),fixed at 1,,,,,,1,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
-late-onset / adult progression multiplier (removed),fixed at 1,,,,,,1,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
+adult_prog_hazard_mult (adult > 20 B->C and C->D hazard multiplier),fixed,,,,,,0.48,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
 residual_rhd_mortality_mult,fixed,,,,,,1,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
 p_B_to_no_rhd_adult,fixed,,,,,,0.02,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
 entry_mix_child[A],fixed (new simplifying assumption),,,,,,1,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
@@ -38,3 +38,6 @@ sap_hr_B_to_C_child,fixed (applied in reference care),,,,,,0.19982854753518,,,,0
 sap_hr_B_to_C_adult,fixed (applied in reference care),,,,,,1,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
 sap_hr_C_to_D,fixed (applied in reference care),,,,,,1,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
 sap_hr_D_to_rhd_death,fixed (applied in reference care),,,,,,1,,,,00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated
+"p_B_to_C_adult (effective, age > 20)",derived,,,,,,0.0333961888436802,,,,1 - (1 - p_child)^0.48 for B->C and C->D (adult_prog_hazard_mult); prior-A -> B = p_A_to_B (not scaled)
+"p_C_to_D_adult (effective, age > 20)",derived,,,,,,0.157350321917925,,,,1 - (1 - p_child)^0.48 for B->C and C->D (adult_prog_hazard_mult); prior-A -> B = p_A_to_B (not scaled)
+"p_prior_A_to_B_adult (effective, age > 20)",derived,,,,,,0.25,,,,1 - (1 - p_child)^0.48 for B->C and C->D (adult_prog_hazard_mult); prior-A -> B = p_A_to_B (not scaled)

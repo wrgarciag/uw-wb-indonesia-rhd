@@ -129,9 +129,9 @@ transitions <- list(                               # annual probabilities; 04b c
   p_A_to_no_rhd = req("p_A_to_no_rhd"),          # [PROVISIONAL] age <= 20 A -> normalised history (calibrated)
   p_A_to_B      = req("p_A_to_B"),               # [PROVISIONAL] age <= 20 A -> B; adult prior-A -> B uses the same value (calibrated)
   p_B_to_A      = req("p_B_to_A"),               # [PROVISIONAL] age <= 20 B -> A (calibrated)
-  p_B_to_C      = req("p_B_to_C"),               # [PROVISIONAL] B -> C, one shared value at all ages (calibrated)
+  p_B_to_C      = req("p_B_to_C"),               # [PROVISIONAL] B -> C at age <= 20 (calibrated); adult = hazard x adult_prog_hazard_mult
   p_C_to_B      = req("p_C_to_B"),               # [PROVISIONAL] age <= 20 C -> B (calibrated)
-  p_C_to_D      = req("p_C_to_D"),               # [PROVISIONAL] C -> D, one shared value at all ages (calibrated)
+  p_C_to_D      = req("p_C_to_D"),               # [PROVISIONAL] C -> D at age <= 20 (calibrated); adult = hazard x adult_prog_hazard_mult
   p_D_to_C      = req("p_D_to_C")                # EXACT structural zero
 )
 natural_history <- list(
@@ -142,11 +142,13 @@ natural_history <- list(
   residual_rhd_mortality_mult = req("residual_rhd_mortality_mult"),
   entry_mix_child = req("entry_mix_child"),
   entry_mix_adult = req("entry_mix_adult"),
+  adult_prog_hazard_mult = req("adult_prog_hazard_mult"),   # fixed: adult (> 20) B->C / C->D hazard = m x childhood hazard
   recurrence_after_normalisation = "none (simplified default: normalised people cannot have another modelled onset)",
   calibrated = c("p_A_to_no_rhd", "p_A_to_B", "p_B_to_A", "p_B_to_C", "p_C_to_B", "p_C_to_D"),
   fixed = c("child_last_age", "p_D_to_C", "p_B_to_no_rhd_adult", "p_rhd_death_D",
-            "residual_rhd_mortality_mult", "entry_mix_child", "entry_mix_adult"),
-  removed_multipliers = "late-entry D-death hazard multiplier and late-onset / adult progression multipliers have effective value 1 (removed)",
+            "residual_rhd_mortality_mult", "entry_mix_child", "entry_mix_adult", "adult_prog_hazard_mult"),
+  removed_multipliers = "late-entry D-death hazard multiplier removed (effective value 1)",
+  adult_progression = "adult (> 20) B->C and C->D: p_adult = 1 - (1 - p_child)^adult_prog_hazard_mult (hazard scale), every disease / diagnosis history; prior-A -> B, adult B normalisation and D mortality not scaled",
   provenance = paste("Explicit provisional reference inputs set in 00 block G (not validated untreated WHF-stage",
                      "transition estimates). Entry mixes are simplifying modelling assumptions, not estimates of",
                      "biological onset age; for Uganda every shared input is an extrapolation."))
@@ -499,9 +501,10 @@ saveRDS(disease_model_inputs, file = OUT_FILE)
 message(sprintf(
   "03_build_disease_model.R complete | wrote %s\n  arrays [age=%d x sex=%d x year=%d]; engine %s",
   basename(OUT_FILE), n_age, length(SEXES), n_years, ABCD_ENGINE_SPEC))
-message(sprintf("  transition centres: %s | adult B->normalised %.3f (fixed)",
+message(sprintf("  transition centres: %s | adult B->normalised %.3f (fixed) | adult B->C / C->D hazard multiplier %.2f (fixed; centres -> adult %.4f / %.4f)",
                 paste(sprintf("%s=%.3f", names(transitions), unlist(transitions)), collapse = ", "),
-                natural_history$p_B_to_no_rhd_adult))
+                natural_history$p_B_to_no_rhd_adult, natural_history$adult_prog_hazard_mult,
+                nhe0$derived$p_B_to_C_adult, nhe0$derived$p_C_to_D_adult))
 message(sprintf("  D_only: D death %.4f (fixed, all histories) | entry mix child %s | adult %s | child rules at age <= %d",
                 nhe0$pd, paste(natural_history$entry_mix_child, collapse = "/"), paste(natural_history$entry_mix_adult, collapse = "/"),
                 natural_history$child_last_age))
