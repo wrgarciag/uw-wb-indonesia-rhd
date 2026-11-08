@@ -57,7 +57,7 @@ suppressPackageStartupMessages({
 #    COUNTRY-scoped so runs never overwrite each other; data-raw/ is SHARED (the
 #    raw GBD/WPP CSVs contain every country and 01 filters to COUNTRY).
 #===============================================================================
-COUNTRY <- "Indonesia"           # <<< the ONE line to change to run another country
+COUNTRY <- "Uganda"           # <<< the ONE line to change to run another country
 ISO3    <- switch(COUNTRY,
                   Indonesia = "IDN",
                   Uganda    = "UGA",
@@ -269,19 +269,40 @@ nh_child_last_age <- 20L          # [MODELLING CONVENTION] child rules at attain
 # p_C_to_D      <- 0.112   # [PROVISIONAL] C -> D, age <= 20; adult (> 20) = hazard x adult_prog_hazard_mult [calibrated]
 # p_D_to_C      <- 0       # EXACT structural zero (D = clinical complications; no valve-regression rate)
 
-p_A_to_no_rhd <- 0.125   # [PROVISIONAL] A -> normalised history, age <= 20 (adult: 0)             [calibrated]
-p_A_to_B      <- 0.054   # [PROVISIONAL] A -> B, age <= 20; the SAME fitted value drives adult
-#   prior-A -> B (provisional extrapolation)                                [calibrated]
-p_B_to_A      <- 0.177   # [PROVISIONAL] B -> A, age <= 20 (adult: structural zero)                [calibrated]
-p_B_to_C      <- 0.074   # [PROVISIONAL] B -> C, age <= 20; adult (> 20) = hazard x adult_prog_hazard_mult [calibrated]
-p_C_to_B      <- 0.050   # [PROVISIONAL] C -> B, age <= 20 (adult: structural zero)                [calibrated]
-p_C_to_D      <- 0.112   # [PROVISIONAL] C -> D, age <= 20; adult (> 20) = hazard x adult_prog_hazard_mult [calibrated]
+# COUNTRY-SPECIFIC starting values / prior centres (edit the row for the country
+# you are tuning — the other country is untouched).
+#   p_A_to_no_rhd : A -> normalised history, age <= 20 (adult: 0)
+#   p_A_to_B      : A -> B, age <= 20; the SAME fitted value drives adult prior-A -> B
+#                   (provisional extrapolation)
+#   p_B_to_A      : B -> A, age <= 20 (adult: structural zero)
+#   p_B_to_C      : B -> C, age <= 20; adult (> 20) = hazard x adult_prog_hazard_mult
+#   p_C_to_B      : C -> B, age <= 20 (adult: structural zero)
+#   p_C_to_D      : C -> D, age <= 20; adult (> 20) = hazard x adult_prog_hazard_mult
+# All six are [PROVISIONAL] and [calibrated] within TRANS_BOUNDS (block G2).
+TP_START_BY_COUNTRY <- list(
+  Indonesia = c(p_A_to_no_rhd = 0.125, p_A_to_B = 0.054, p_B_to_A = 0.177,
+                p_B_to_C      = 0.074, p_C_to_B = 0.050, p_C_to_D = 0.112),
+  Uganda    = c(p_A_to_no_rhd = 0.020, p_A_to_B = 0.060, p_B_to_A = 0.020,
+                p_B_to_C      = 0.120, p_C_to_B = 0.025, p_C_to_D = 0.150)
+)
+if (is.null(TP_START_BY_COUNTRY[[COUNTRY]]))
+  stop("No transition-probability starting values for COUNTRY '", COUNTRY, "' in TP_START_BY_COUNTRY.")
+p_A_to_no_rhd <- TP_START_BY_COUNTRY[[COUNTRY]][["p_A_to_no_rhd"]]
+p_A_to_B      <- TP_START_BY_COUNTRY[[COUNTRY]][["p_A_to_B"]]
+p_B_to_A      <- TP_START_BY_COUNTRY[[COUNTRY]][["p_B_to_A"]]
+p_B_to_C      <- TP_START_BY_COUNTRY[[COUNTRY]][["p_B_to_C"]]
+p_C_to_B      <- TP_START_BY_COUNTRY[[COUNTRY]][["p_C_to_B"]]
+p_C_to_D      <- TP_START_BY_COUNTRY[[COUNTRY]][["p_C_to_D"]]
 p_D_to_C      <- 0       # EXACT structural zero (D = clinical complications; no valve-regression rate)
 
 # Fixed inputs (not calibrated):
 p_B_to_no_rhd_adult <- 0.02   # [PROVISIONAL extrapolation] adult (> 20) B -> normalised history (child: 0)
 # New modelled CLASSIFIABLE disease (first entry from the never-onset pool) enters:
-entry_mix_child <- c(A = 1, B = 0, C = 0, D = 0)   # [NEW SIMPLIFYING ASSUMPTION] age <= 20 (fixed)
+entry_mix_child <- switch(COUNTRY,                 # [NEW SIMPLIFYING ASSUMPTION] age <= 20 (fixed)
+                          Indonesia = c(A = 1,    B = 0,    C = 0, D = 0),
+                          Uganda    = c(A = 0.75, B = 0.25, C = 0, D = 0),
+                          stop("No entry_mix_child for COUNTRY '", COUNTRY, "'."))
+stopifnot("entry_mix_child must sum to 1" = isTRUE(all.equal(sum(entry_mix_child), 1)))
 entry_mix_adult <- c(A = 0, B = 1, C = 0, D = 0)   # [NEW SIMPLIFYING ASSUMPTION] age  > 20 (fixed; no adult A)
 #   Not estimates of biological onset age. Advanced first diagnoses arise from the
 #   progression of previously undiagnosed disease, not from direct C/D entry.
@@ -310,7 +331,7 @@ residual_rhd_mortality_mult <- 1     # fixed; no second mortality scale
 # loss -15% vs m = 1, but adult RHD deaths remain ~3-4x GBD (a partial improvement).
 adult_prog_hazard_mult <- switch(COUNTRY,
                                  Indonesia = 0.48,   # 0.4 [PROVISIONAL] reference value (formerly the late-onset 0.48 progression multiplier)
-                                 Uganda    = 0.48)   # [PROVISIONAL] same reference value; [TODO: confirm for Uganda]
+                                 Uganda    = 1)      # [PROVISIONAL] Uganda test value (no adult scaling); [TODO: confirm for Uganda]
 stopifnot("adult_prog_hazard_mult must be one value > 0" =
             is.numeric(adult_prog_hazard_mult) && length(adult_prog_hazard_mult) == 1L && adult_prog_hazard_mult > 0)
 # Realised annual D fatality can be smaller than the input
@@ -421,15 +442,37 @@ STRUCT_DEATH_TARGET_AGE_MIN <- 0L
 
 # Published annual transition probabilities vary 7‐ to 108‐fold across studies
 # Table 2 of the collaborators’ September 2026 worksheet, annualised
-TRANS_BOUNDS <- list(
-  p_A_to_no_rhd = c(0.0074, 0.2490),
-  p_A_to_B      = c(0.0015, 0.0723),
-  p_B_to_A      = c(0.0042, 0.2025),
-  p_B_to_C      = c(0.0012, 0.1253),
-  p_C_to_B      = c(0.0119, 0.0810),
-  p_C_to_D      = c(0.0057, 0.2497),
-  p_D_to_C      = c(0, 0)
+# Set per COUNTRY (Uganda uses narrowed bounds under test).
+TRANS_BOUNDS_BY_COUNTRY <- list(
+  Indonesia = list(
+    p_A_to_no_rhd = c(0.0074, 0.2490),
+    p_A_to_B      = c(0.0015, 0.0723),
+    p_B_to_A      = c(0.0042, 0.2025),
+    p_B_to_C      = c(0.0012, 0.1253),
+    p_C_to_B      = c(0.0119, 0.0810),
+    p_C_to_D      = c(0.0057, 0.2497),
+    p_D_to_C      = c(0, 0)),
+  Uganda = list(
+    p_A_to_no_rhd = c(0.0074, 0.10),
+    p_A_to_B      = c(0.03,   0.0723),
+    p_B_to_A      = c(0.0042, 0.08),
+    p_B_to_C      = c(0.08,   0.1253),
+    p_C_to_B      = c(0.0119, 0.025),
+    p_C_to_D      = c(0.08,   0.2497),
+    p_D_to_C      = c(0, 0))
 )
+TRANS_BOUNDS <- TRANS_BOUNDS_BY_COUNTRY[[COUNTRY]]
+if (is.null(TRANS_BOUNDS))
+  stop("No TRANS_BOUNDS for COUNTRY '", COUNTRY, "' in TRANS_BOUNDS_BY_COUNTRY.")
+# Guard: every starting value (block G) must sit inside its country's bounds.
+local({
+  for (nm in names(TP_START_BY_COUNTRY[[COUNTRY]])) {
+    v <- TP_START_BY_COUNTRY[[COUNTRY]][[nm]]; b <- TRANS_BOUNDS[[nm]]
+    if (v < b[1] || v > b[2])
+      stop(sprintf("%s: starting value %.4f for %s is outside TRANS_BOUNDS [%.4f, %.4f].",
+                   COUNTRY, v, nm, b[1], b[2]))
+  }
+})
 
 STRUCT_N_STARTS      <- 2L           # reproducible random starts (+ prior-centre, Layer-1 and prevalence-first starts)
 STRUCT_PARALLEL_STARTS <- TRUE       # compute only: run the independent starts on parallel workers (<= MAX_CORES; identical results)
@@ -737,7 +780,7 @@ vsl_floor_enabled         <- TRUE
 # capita growth ASSUMPTIONS, used as a PROXY for real GNI-per-capita growth (not an
 # official GNI forecast). Name retained for report compatibility.
 gdp_growth <- switch(COUNTRY,
-                     Indonesia = 0.03,      # [ASSUMPTION] constant real per-capita growth (proxy for real GNI pc growth)
+                     Indonesia = 0.028,      # [ASSUMPTION] constant real per-capita growth (proxy for real GNI pc growth)
                      Uganda    = 0.032)     # [ASSUMPTION] constant real per-capita growth (proxy for real GNI pc growth)
 income_growth_interpretation <- "Constant real GDP-per-capita growth assumption used as a proxy for real GNI-per-capita growth; not an official GNI forecast"
 

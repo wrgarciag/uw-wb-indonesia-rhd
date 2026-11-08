@@ -3,7 +3,7 @@ title: "`r params$country` Rheumatic Heart Disease Secondary-Prevention Investme
 date: "`r Sys.Date()`"
 author: "University of Washington · World Bank `r params$country` RHD Model"
 params:
-  country: "Indonesia"    # "Indonesia" | "Uganda" — pass via rmarkdown::render(params = list(country = ...))
+  country: "Uganda"    # "Indonesia" | "Uganda" — pass via rmarkdown::render(params = list(country = ...))
 output:
   html_document:
     toc: true
@@ -50,7 +50,7 @@ find_repo_root <- function() {
   d <- tryCatch(dirname(knitr::current_input(dir = TRUE)), error = function(e) getwd())
   d <- normalizePath(d, winslash = "/", mustWork = FALSE)
   repeat {
-    if (file.exists(file.path(d, "scripts", "00_run_all.R")) &&
+    if (file.exists(file.path(d, "scripts", "00_run_all_uganda.R")) &&
         file.exists(file.path(d, "R", "abcd_engine.R"))) return(d)
     up <- dirname(d)
     if (identical(up, d)) break

@@ -233,9 +233,14 @@ run_location <- function(loc, baseline_state) {
   # attained-age structure
   fail(stg_all[age > y_last, any(A != 0 | A_to_no_rhd != 0 | B_to_A != 0 | C_to_B != 0 | n_on_bpg_A != 0 | new_rhd_A != 0)],
        "classifiable A, A on BPG, new A or childhood regression flows at adult ages.")
-  fail(stg_all[age <= y_last, any(prior_A_end != 0 | reentry_prior_A_to_B != 0 | B_to_no_rhd != 0 | new_rhd_B != 0)],
-       "prior-A, prior-A re-entry, B normalisation or new B entry at child ages.")
-  fail(stg_all[, any(new_rhd_C != 0 | new_rhd_D != 0)], "new disease entered C/D (excluded by the entry mixes).")
+  # entry-stage checks follow the configured entry mixes (00 block G) instead of hard-coding child A = 1 / adult B = 1
+  emc <- st$natural_history$entry_mix_child; ema <- st$natural_history$entry_mix_adult
+  fail(stg_all[age <= y_last, any(prior_A_end != 0 | reentry_prior_A_to_B != 0 | B_to_no_rhd != 0 |
+                                  (emc[["B"]] == 0 & new_rhd_B != 0))],
+       "prior-A, prior-A re-entry, B normalisation or (excluded) new B entry at child ages.")
+  fail(stg_all[age <= y_last, any((emc[["C"]] == 0 & new_rhd_C != 0) | (emc[["D"]] == 0 & new_rhd_D != 0))] ||
+       stg_all[age >  y_last, any((ema[["C"]] == 0 & new_rhd_C != 0) | (ema[["D"]] == 0 & new_rhd_D != 0))],
+       "new disease entered C/D although the entry mixes exclude it.")
   fail(stg_all[age != y_last, any(reclass_A_to_prior_A != 0)], "A -> prior-A reclassification outside the boundary age.")
   fail(stg_all[, any(B_to_no_rhd > B_start * p_Bn * (1 + 1e-9) + 1e-9)], "realised adult B normalisation exceeds its isolated input risk.")
   # D-only + entry timing: deaths in D never exceed the D START stock x the D input risk

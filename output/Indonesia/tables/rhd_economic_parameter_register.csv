@@ -16,11 +16,11 @@ vsl_income_elasticity,1.5,1.5,-,cross-country income elasticity,"Robinson LA, Ha
 vsl_time_elasticity,1.5,1.5,-,elasticity on real income growth over time,"Robinson LA, Hammitt JK, O'Keeffe L (2019) Reference Case Guidelines for Benefit-Cost Analysis in Global Health and Development, Ch. 3 (US VSL $9.4m and income $57,900, 2015); ratio ~160 is rounded and not imposed",,TRUE
 vsl_floor_mult,20,20,x GNI per capita,VSL floor (every year),"Robinson LA, Hammitt JK, O'Keeffe L (2019) Reference Case Guidelines for Benefit-Cost Analysis in Global Health and Development, Ch. 3 (US VSL $9.4m and income $57,900, 2015); ratio ~160 is rounded and not imposed",,TRUE
 vsl_floor_enabled,TRUE,,-,floor switch,00 block J,,TRUE
-gdp_growth,0.03,0.03,per year (real),Constant real GDP-per-capita growth assumption used as a proxy for real GNI-per-capita growth; not an official GNI forecast,00 block J [ASSUMPTION],,TRUE
+gdp_growth,0.028,0.028,per year (real),Constant real GDP-per-capita growth assumption used as a proxy for real GNI-per-capita growth; not an official GNI forecast,00 block J [ASSUMPTION],,TRUE
 reference_price_factor,1.07864414788813,1.07864414788813,CPI-U ratio,US CPI-U Y / ref year (US reference values only),BLS CPI-U,2019,FALSE
 raw_vsl_anchor_intY,813729.581718141,813729.581718141,int$ of 2019,unfloored VSL at the anchor (derived),08,,FALSE
-vsl_first_year_usd2025,380211.905372069,380211.90537207,constant 2025 US$,VSL in the first analysis year (derived),08,2026,FALSE
-vsl_last_year_usd2025,10114808.2438668,10114808.2438668,constant 2025 US$,VSL in the last analysis year (derived),08,2100,FALSE
+vsl_first_year_usd2025,372531.118273547,372531.118273547,constant 2025 US$,VSL in the first analysis year (derived),08,2026,FALSE
+vsl_last_year_usd2025,7987268.48801656,7987268.48801656,constant 2025 US$,VSL in the last analysis year (derived),08,2100,FALSE
 ECON_COMPARISON_CURRENCY,INT$,,-,secondary comparison unit (final results only),00 block J,,FALSE
 ECON_COMPARISON_PPP_SERIES,PA.NUS.PPP,,-,2025 PPP conversion factor series,00 block J,2025,FALSE
 ECON_COMPARISON_PPP_ALT_SOURCE,none,,-,fallback if 2025 PPP missing,00 block J,,FALSE
