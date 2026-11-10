@@ -331,7 +331,7 @@ residual_rhd_mortality_mult <- 1     # fixed; no second mortality scale
 # loss -15% vs m = 1, but adult RHD deaths remain ~3-4x GBD (a partial improvement).
 adult_prog_hazard_mult <- switch(COUNTRY,
                                  Indonesia = 0.48,   # 0.4 [PROVISIONAL] reference value (formerly the late-onset 0.48 progression multiplier)
-                                 Uganda    = 1)      # [PROVISIONAL] Uganda test value (no adult scaling); [TODO: confirm for Uganda]
+                                 Uganda    = 0.5)      # [PROVISIONAL] Uganda test value (no adult scaling); [TODO: confirm for Uganda]
 stopifnot("adult_prog_hazard_mult must be one value > 0" =
             is.numeric(adult_prog_hazard_mult) && length(adult_prog_hazard_mult) == 1L && adult_prog_hazard_mult > 0)
 # Realised annual D fatality can be smaller than the input
@@ -453,7 +453,7 @@ TRANS_BOUNDS_BY_COUNTRY <- list(
     p_C_to_D      = c(0.0057, 0.2497),
     p_D_to_C      = c(0, 0)),
   Uganda = list(
-    p_A_to_no_rhd = c(0.0074, 0.10),
+    p_A_to_no_rhd = c(0.0074, 0.08),
     p_A_to_B      = c(0.03,   0.0723),
     p_B_to_A      = c(0.0042, 0.08),
     p_B_to_C      = c(0.08,   0.1253),
