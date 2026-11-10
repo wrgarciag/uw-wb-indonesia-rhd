@@ -319,9 +319,7 @@ check(identical(D$Indonesia$out$meta$engine_spec, D$Uganda$out$meta$engine_spec)
         identical(D$Indonesia$out$meta$years, D$Uganda$out$meta$years) &&
         identical(D$Indonesia$econ$discount_base_year, D$Uganda$econ$discount_base_year) &&
         identical(D$Indonesia$econ$params$disc_rate, D$Uganda$econ$params$disc_rate) &&
-        identical(D$Indonesia$bs$states[[1]]$effects[SAP_F], D$Uganda$bs$states[[1]]$effects[SAP_F]) &&
-        identical(D$Indonesia$bs$states[[1]]$natural_history$adult_prog_hazard_mult,
-                  D$Uganda$bs$states[[1]]$natural_history$adult_prog_hazard_mult),
+        identical(D$Indonesia$bs$states[[1]]$effects[SAP_F], D$Uganda$bs$states[[1]]$effects[SAP_F]),
       "Indonesia and Uganda were run under different engines, years, discounting or SAP specifications",
       "re-run both countries under one specification")
 LB_KEYS <- c("currency_label", "discounting_label", "vsl_method_label", "analysis_period_label", "sensitivity_status")
@@ -385,7 +383,8 @@ summarise_country <- function(ct) {
        gni = d$econ$vsl_derivation$anchor$income_target_Y, gni_y = d$econ$vsl_derivation$anchor$income_anchor_year,
        vsl_ratio = d$econ$vsl_derivation$anchor$raw_vsl_anchor_intY / d$econ$vsl_derivation$anchor$income_target_Y,
        pfac = d$econ$price_adjustment$adjustment_factor[1],
-       bc_ad = nh$derived$p_B_to_C_adult, cd_ad = nh$derived$p_C_to_D_adult, pD = nh$p_rhd_death_D,
+       bc_ad = nh$derived$p_B_to_C_adult, cd_ad = nh$derived$p_C_to_D_adult,
+       pD_ch = nh$p_rhd_death_D_child, pD_ad = nh$p_rhd_death_D_adult, d_age = nh$d_death_adult_age_min,   # fixed D death by attained age
        budget = bi[year <= Y_END], conf_unc = bi[year <= Y_END, sum(confirmations_incremental_uncosted)],
        inc_end = bi[year == Y_END, incremental])
 }
@@ -394,6 +393,9 @@ I <- R$Indonesia; U <- R$Uganda
 Y0 <- I$y0; BAGE <- I$b; AMAX <- I$amax; CY <- I$cy; CY0 <- I$cy0
 check(identical(c(U$b, U$amax, U$cy), c(BAGE, AMAX, CY)), "countries differ in age conventions or calibration years")
 RRR <- I$ef$sap_progression_rrr; M_SAP <- I$ef$sap_progression_hazard_mult; M_AD <- I$nh$adult_prog_hazard_mult
+# adult progression hazard multiplier is set per country (00 block G): one value if equal, else both
+M_AD_TXT <- if (isTRUE(all.equal(I$nh$adult_prog_hazard_mult, U$nh$adult_prog_hazard_mult))) fmt_f(M_AD) else
+  paste0(fmt_f(I$nh$adult_prog_hazard_mult), " (Indonesia) and ", fmt_f(U$nh$adult_prog_hazard_mult), " (Uganda)")
 SCR_LO <- I$cv$constants$screen_age_lo; SCR_HI <- I$cv$constants$screen_age_hi
 TOT_PREV <- I$gbd_prev + U$gbd_prev
 adh <- function(r, a) r$cv[[a]]$adherence_factor
@@ -412,9 +414,15 @@ NB_TXT <- if (identical(fmt_pct(NBSH(I)), fmt_pct(NBSH(U)))) paste0("in both cou
 claim(I$bcr > 1 && U$bcr < 1, "Scaling up ... repays its cost by 2050 in Indonesia, but not in Uganda")
 claim(I$gap > 0.5 && U$gap > 0.5, "... most of them undiagnosed")
 claim(all(abs(c(I$ann$da, U$ann$da)) >= 0) && I$red_end > 0 && U$red_end > 0, "Scale-up averts ... RHD deaths by 2050")
-claim(all(SAPSH > SCRSH) && all(SAPSH > 0.5), "Prophylaxis-years make up most of the added cost")
-claim(I$fit[["death"]] > 1 && I$fit[["death"]] > U$fit[["death"]], "Modelled RHD deaths exceed GBD, most in Indonesia")
-claim(I$bc_ad > U$bc_ad && I$pD > U$pD, "RHD progresses faster and kills more often in the Indonesian model")
+# cost slide: title prints the shares; the note names the largest component per country from the data
+SAP_NOTE <- if (all(SAPSH > SCRSH)) "prophylaxis is the largest part of the bill" else
+  paste0("prophylaxis is the largest part of the bill in ", paste(COUNTRIES[SAPSH > SCRSH], collapse = " and "),
+         ", while screening is larger in ", paste(COUNTRIES[SAPSH <= SCRSH], collapse = " and "))
+# objection slide: the title follows which country's modelled deaths exceed GBD more
+DEATH_TTL <- if (I$fit[["death"]] > U$fit[["death"]]) "Modelled deaths exceed GBD, so Indonesia's return is probably overstated" else
+  "Modelled deaths exceed GBD in both countries, most in Uganda, so both returns are probably overstated"
+claim(I$fit[["death"]] > 1 && U$fit[["death"]] > 1, "Modelled RHD deaths exceed GBD in both countries")
+claim(I$bc_ad > U$bc_ad && I$pD_ch > U$pD_ch && I$pD_ad >= U$pD_ad, "RHD progresses faster and kills more often in the Indonesian model")
 claim(I$tr$p_B_to_C > U$tr$p_B_to_C && I$tr$p_C_to_D > U$tr$p_C_to_D && I$tr$p_A_to_B >= U$tr$p_A_to_B,
       "Backup: calibrated childhood progression is faster in Indonesia")
 claim(all(c(I$fit[["prev"]], U$fit[["prev"]]) < 1) && all(c(I$fit[["death_ad"]], U$fit[["death_ad"]]) > 1),
@@ -422,8 +430,12 @@ claim(all(c(I$fit[["prev"]], U$fit[["prev"]]) < 1) && all(c(I$fit[["death_ad"]],
 claim(all(vapply(list(I, U), function(r) all(diff(r$budget[year %in% c(2030, 2040, Y_END)][order(year), incremental]) > 0), NA)),
       "Backup: annual incremental cost rises through the ramp")
 TOP_BAND <- function(r) as.character(r$dab[which.max(av), band])
-claim(identical(TOP_BAND(I), TOP_BAND(U)) && all(vapply(list(I, U), function(r) max(r$dab$av) / sum(r$dab$av) > 0.5, NA)),
-      "Backup: most deaths averted fall in one age band in both countries")
+TOP_SH   <- function(r) max(r$dab$av) / sum(r$dab$av)
+# backup age slide: title derived from the data (same top band in both countries or not; majority or largest share)
+AGE_TTL <- if (identical(TOP_BAND(I), TOP_BAND(U))) {
+  if (min(TOP_SH(I), TOP_SH(U)) > 0.5) paste0("Most RHD deaths averted by ", Y_END, " are among people aged ", TOP_BAND(I)) else
+    paste0("The largest share of RHD deaths averted by ", Y_END, " is among people aged ", TOP_BAND(I))
+} else paste0("RHD deaths averted by ", Y_END, " peak at ages ", TOP_BAND(I), " in Indonesia and ", TOP_BAND(U), " in Uganda")
 claim(all(vapply(list(I, U), function(r) isTRUE(all.equal(r$cv$ref$clinical_detection, r$cv$sap$clinical_detection)) &&
                    isTRUE(all.equal(r$cv$ref$surgery, r$cv$sap$surgery)), NA)),
       "Backup: both arms share clinical detection and surgery")
@@ -518,7 +530,7 @@ Modelled share undiagnosed in `r Y0`: `r fmt_pct(I$gap)` in Indonesia, `r fmt_pc
 
 \sourceline{Stages follow the WHF 2023 classification. Clinical detection also leads to diagnosis. Surgery is a service, equal in both arms. Other-cause death applies to every state.}
 
-<!-- NOTES slide 4 (1.5 min, cumulative 4.0): Read left to right. People develop RHD at stage A in childhood or stage B in adulthood, and can progress through C to D; only stage D carries RHD mortality, so every death the programme prevents must come from slowing progression upstream. Underneath, each person is undiagnosed until a screen plus a confirmatory echo, or clinical detection, gives a first confirmed diagnosis; diagnosed people in stage A up to age `r BAGE` or stage B are eligible for BPG. Screening finds existing disease; it never creates or cures it. The childhood transition rates and age-specific incidence are calibrated jointly to GBD prevalence and deaths over `r CY0`-`r CY`; adult progression from B to C and C to D runs at `r fmt_f(M_AD)` times the childhood hazard. WHF guidance also recommends prophylaxis for stages C and D; the model does not give it there. Transition: the two scenarios. -->
+<!-- NOTES slide 4 (1.5 min, cumulative 4.0): Read left to right. People develop RHD at stage A in childhood or stage B in adulthood, and can progress through C to D; only stage D carries RHD mortality, so every death the programme prevents must come from slowing progression upstream. Underneath, each person is undiagnosed until a screen plus a confirmatory echo, or clinical detection, gives a first confirmed diagnosis; diagnosed people in stage A up to age `r BAGE` or stage B are eligible for BPG. Screening finds existing disease; it never creates or cures it. The childhood transition rates and age-specific incidence are calibrated jointly to GBD prevalence and deaths over `r CY0`-`r CY`; adult progression from B to C and C to D runs at `r M_AD_TXT` times the childhood hazard, and stage-D death is a fixed probability that is higher below age `r I$d_age` than from `r I$d_age`. WHF guidance also recommends prophylaxis for stages C and D; the model does not give it there. Transition: the two scenarios. -->
 
 ## Scale-up raises one-time screening to `r fmt_cov(pick_end(I, "screen_window_prob"))` and BPG initiation to `r fmt_cov(pick_end(I, "bpg_initiation"))` by `r Y_END`
 
@@ -627,7 +639,7 @@ ggplot(cdt, aes(share, country, fill = comp)) +
 
 \sourceline{Incremental programme cost, scale-up minus reference, `r Y0`--`r Y_END`, discounted at `r fmt_pct(I$ep$disc_rate)` to `r I$dby`, `r CUR`. Dark: screening. Surgery: `r fmt_pct(SURSH[1])` and `r fmt_pct(SURSH[2])``r if (all(SURSH < 0)) " (fewer stage C/D operations)" else ""`. Confirmatory echoes are not priced.}
 
-<!-- NOTES slide 9 (1.5 min, cumulative 11.0): Screening is cheap per encounter (`r fmt_usd(I$ep$cost_screen_per_person, 2)` in Indonesia, `r fmt_usd(U$ep$cost_screen_per_person, 2)` in Uganda); a year on BPG costs `r fmt_usd(I$ep$cost_sap_per_year)` and `r fmt_usd(U$ep$cost_sap_per_year)`. Because every confirmed case can stay on BPG for many years, prophylaxis dominates the bill. Surgery barely moves because coverage is the same in both arms. The `r fmt_n(I$conf_unc, -3)` and `r fmt_n(U$conf_unc, -3)` incremental confirmatory echoes to `r Y_END` carry no unit cost in the inputs, so these totals understate the programme cost. Annual incremental spending reaches `r fmt_m(I$inc_end, 1)` and `r fmt_m(U$inc_end, 1)` in `r Y_END`, undiscounted. Transition: costs against benefits. -->
+<!-- NOTES slide 9 (1.5 min, cumulative 11.0): Screening is cheap per encounter (`r fmt_usd(I$ep$cost_screen_per_person, 2)` in Indonesia, `r fmt_usd(U$ep$cost_screen_per_person, 2)` in Uganda); a year on BPG costs `r fmt_usd(I$ep$cost_sap_per_year)` and `r fmt_usd(U$ep$cost_sap_per_year)`. Every confirmed case can stay on BPG for many years; `r SAP_NOTE`. Surgery barely moves because coverage is the same in both arms. The `r fmt_n(I$conf_unc, -3)` and `r fmt_n(U$conf_unc, -3)` incremental confirmatory echoes to `r Y_END` carry no unit cost in the inputs, so these totals understate the programme cost. Annual incremental spending reaches `r fmt_m(I$inc_end, 1)` and `r fmt_m(U$inc_end, 1)` in `r Y_END`, undiscounted. Transition: costs against benefits. -->
 
 ## Through `r Y_END`, monetised benefits are `r fmt_r(I$bcr)` times costs in Indonesia but `r fmt_r(U$bcr)` times in Uganda
 
@@ -655,7 +667,7 @@ ggplot(eb, aes(v, item, fill = key)) +
 
 <!-- NOTES slide 10 (1.5 min, cumulative 12.5): This is a benefit-cost ratio, not an incremental cost-effectiveness ratio, and the benefits are monetised health gains, not cash savings to the health budget. Two things separate the countries. Per discounted million dollars, scale-up averts about `r fmt_n(DPM(I))` deaths in Indonesia but `r fmt_n(DPM(U), 1)` in Uganda. And each death averted is valued at `r fmt_usd(I$vsl0, -3)` in Indonesia against `r fmt_usd(U$vsl0, -3)` in Uganda in `r Y0`, because the VSL follows income: it scales with purchasing-power income per capita at an elasticity of `r fmt_f(EL, 1)`, then grows with real income, reaching `r fmt_usd(I$vsl_end, -3)` and `r fmt_usd(U$vsl_end, -3)` by `r Y_END`. All values are `r CUR`. For context, Coates and colleagues reported a ratio of 4.7 to 2030 for secondary prevention with secondary and tertiary care across the African Union, with a different model and valuation. Transition: the obvious objection. -->
 
-## Modelled deaths exceed GBD, so Indonesia's return is probably overstated
+## `r DEATH_TTL`
 
 ```{r tab-objection}
 ob_tab <- data.frame(
@@ -669,7 +681,7 @@ kb(ob_tab, "lrrr", widths = c("2.4cm", "3.6cm", "2.4cm", "3.2cm")) |> column_spe
 
 \sourceline{All-age RHD deaths in the last calibration year. Last column: benefit--cost ratio divided by that excess, an illustrative rescaling that assumes the relative death reduction is unchanged; not a model run.}
 
-<!-- NOTES slide 11 (1.0 min, cumulative 13.5): The strongest objection is that the model's baseline kills too many people. Calibrated jointly to prevalence and deaths, it reproduces childhood prevalence closely but produces `r fmt_f(I$fit[["death_ad"]], 1)` times GBD's adult RHD deaths in Indonesia and `r fmt_f(U$fit[["death_ad"]], 1)` times in Uganda in `r CY`. Benefits scale with the deaths available to avert, so Indonesia's ratio is likely overstated; if deaths matched GBD and the relative reduction held, it would be near `r fmt_r(RESC(I))`, still above one, while Uganda's would fall further. The model also under-counts prevalence, `r fmt_f(I$fit[["prev"]], 2)` and `r fmt_f(U$fit[["prev"]], 2)` times GBD, which understates programme volumes and costs. The country contrast survives; the size of Indonesia's return does not. Transition: what follows for programmes. -->
+<!-- NOTES slide 11 (1.0 min, cumulative 13.5): The strongest objection is that the model's baseline kills too many people. Calibrated jointly to prevalence and deaths, it reproduces childhood prevalence closely but produces `r fmt_f(I$fit[["death_ad"]], 1)` times GBD's adult RHD deaths in Indonesia and `r fmt_f(U$fit[["death_ad"]], 1)` times in Uganda in `r CY`. Benefits scale with the deaths available to avert, so `r if (I$fit[["death"]] > U$fit[["death"]]) "Indonesia's ratio is" else "both ratios are"` likely overstated; if deaths matched GBD and the relative reduction held, Indonesia's would be near `r fmt_r(RESC(I))`, `r if (RESC(I) > 1) "still above one" else "below one"`, while Uganda's would fall to about `r fmt_r(RESC(U))`. The model also under-counts prevalence, `r fmt_f(I$fit[["prev"]], 2)` and `r fmt_f(U$fit[["prev"]], 2)` times GBD, which understates programme volumes and costs. The country contrast survives; the size of Indonesia's return does not. Transition: what follows for programmes. -->
 
 ## Returns hinge on progression speed, who gets BPG, and confirmation costs
 
@@ -677,7 +689,7 @@ kb(ob_tab, "lrrr", widths = c("2.4cm", "3.6cm", "2.4cm", "3.2cm")) |> column_spe
 - **Targeting:** `r NB_TXT` go to stage B over age `r AMAX`, without modelled benefit
 - **Confirmation:** about `r fmt_n(I$conf_unc + U$conf_unc, -3)` added confirmatory echoes to `r Y_END` are unpriced
 
-<!-- NOTES slide 12 (1.0 min, cumulative 14.5): Three implications. First, the deaths a programme can avert depend on how fast untreated disease progresses and how often stage D kills (annual stage-D death probability `r fmt_f(I$pD, 3)` in Indonesia, `r fmt_f(U$pD, 3)` in Uganda): local cohort data on progression and case fatality are worth collecting before committing to scale. Second, under the assumed age limit of protection, more than half of BPG person-years in `r Y_END` buy no modelled benefit; age-targeted prophylaxis policies could change the economics, and better evidence on adult benefit could change the assumption. Third, programme budgets must include confirmatory echocardiography, which our costs leave out. Transition: the one sentence. -->
+<!-- NOTES slide 12 (1.0 min, cumulative 14.5): Three implications. First, the deaths a programme can avert depend on how fast untreated disease progresses and how often stage D kills (annual stage-D death probability `r fmt_f(I$pD_ch, 2)` below age `r I$d_age` and `r fmt_f(I$pD_ad, 2)` from `r I$d_age` in Indonesia, `r fmt_f(U$pD_ch, 2)` and `r fmt_f(U$pD_ad, 2)` in Uganda): local cohort data on progression and case fatality are worth collecting before committing to scale. Second, under the assumed age limit of protection, more than half of BPG person-years in `r Y_END` buy no modelled benefit; age-targeted prophylaxis policies could change the economics, and better evidence on adult benefit could change the assumption. Third, programme budgets must include confirmatory echocardiography, which our costs leave out. Transition: the one sentence. -->
 
 ## {.standout}
 
@@ -699,20 +711,21 @@ kb(ft, "lrr", widths = c("6.6cm", "2.8cm", "2.8cm"))
 
 \sourceline{Both sexes; GBD target = GBD rate $\times$ UN WPP population. Calibration fits incidence and six childhood transitions to GBD prevalence and deaths, `r CY0`--`r CY` (scored from `r I$sc$objective_components$match_from`).}
 
-## Calibrated childhood progression is faster in Indonesia; adults progress at `r fmt_f(M_AD)` times the childhood hazard
+## Calibrated childhood progression is faster in Indonesia; adults progress at `r M_AD_TXT` times the childhood hazard
 
 ```{r tab-nh}
 pr <- function(r) c(fmt_f(r$tr$p_A_to_B, 3), fmt_f(r$tr$p_B_to_C, 3), fmt_f(r$bc_ad, 3), fmt_f(r$tr$p_C_to_D, 3),
-                    fmt_f(r$cd_ad, 3), fmt_f(r$pD, 3))
+                    fmt_f(r$cd_ad, 3), paste0(fmt_f(r$pD_ch, 3), " / ", fmt_f(r$pD_ad, 3)))
 nh_tab <- data.frame(
   q = c("A $\\rightarrow$ B (childhood)", "B $\\rightarrow$ C, childhood", "B $\\rightarrow$ C, adult",
-        "C $\\rightarrow$ D, childhood", "C $\\rightarrow$ D, adult", "D $\\rightarrow$ RHD death (fixed input)"),
+        "C $\\rightarrow$ D, childhood", "C $\\rightarrow$ D, adult",
+        paste0("D $\\rightarrow$ RHD death, age $<$", I$d_age, " / ", I$d_age, "+ (fixed input)")),
   i = pr(I), u = pr(U))
 names(nh_tab) <- c("Annual probability, untreated", "Indonesia", "Uganda")
 kb(nh_tab, "lrr", widths = c("6.6cm", "2.8cm", "2.8cm"))
 ```
 
-\sourceline{Childhood = attained age $\leq `r BAGE`$; adult $= 1-(1-p_{\text{child}})^{`r fmt_f(M_AD)`}$. Regression C$\rightarrow$B, B$\rightarrow$A and normalisation of A are also calibrated; D$\rightarrow$C is zero.}
+\sourceline{Childhood = attained age $\leq `r BAGE`$; adult $= 1-(1-p_{\text{child}})^{m}$, $m$ = `r M_AD_TXT`. D death depends only on attained age (age `r I$d_age` takes the adult value). Regression C$\rightarrow$B, B$\rightarrow$A and normalisation of A are also calibrated; D$\rightarrow$C is zero.}
 
 ## Both arms share population, clinical detection and surgery; only screening and BPG care differ
 
@@ -772,7 +785,7 @@ kb(bud, "lrrrrrr") |> add_header_above(setNames(c(1, 3, 3), c(" ", paste0("Indon
 
 \sourceline{Undiscounted annual programme cost (screening + BPG + surgery) by arm, `r CUR`; m = million. Confirmatory echoes are not priced.}
 
-## Most RHD deaths averted by `r Y_END` are among people aged `r TOP_BAND(I)`
+## `r AGE_TTL`
 
 ```{r tab-age}
 ab <- merge(I$dab[, .(band, i = av)], U$dab[, .(band, u = av)], by = "band", sort = FALSE)

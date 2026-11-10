@@ -42,7 +42,9 @@
 #                       plus prev_seed [age x sex] (legacy comparison only);
 #       transitions   : Y-pathway child annual transition probabilities (04b centres);
 #       natural_history : full default natural history (fixed / calibrated / derived);
-#       p_rhd_death(_pathway) : D-only mortality inputs (legacy c(A,B,C,D) + per pathway);
+#       p_rhd_death   : legacy c(A,B,C) exact zeros (D-only); the FIXED age-specific D
+#                       input is natural_history$p_rhd_death_D_child / _adult +
+#                       d_death_adult_age_min, as an [age x sex] matrix in p_rhd_death_D_by_age;
 #       effects       : SAP progression HRs + surgery RRRs;
 #       surgery       : surgery-need fractions + coverage (ref/scale-up) [service];
 #       coverage      : pooled care-cascade STRUCTURE (per-arm baseline/target,
@@ -134,28 +136,36 @@ transitions <- list(                               # annual probabilities; 04b c
   p_C_to_D      = req("p_C_to_D"),               # [PROVISIONAL] C -> D at age <= 20 (calibrated); adult = hazard x adult_prog_hazard_mult
   p_D_to_C      = req("p_D_to_C")                # EXACT structural zero
 )
+if (exists("p_rhd_death_D", inherits = TRUE))
+  stop("03: the single all-age p_rhd_death_D is superseded; set p_rhd_death_D_child, p_rhd_death_D_adult and ",
+       "d_death_adult_age_min in 00 block G (and remove p_rhd_death_D).", call. = FALSE)
 natural_history <- list(
   child_last_age      = as.integer(req("nh_child_last_age")),
   tr                  = transitions,
   p_B_to_no_rhd_adult = req("p_B_to_no_rhd_adult"),
-  p_rhd_death_D       = req("p_rhd_death_D"),
+  p_rhd_death_D_child = req("p_rhd_death_D_child"),                  # FIXED base D death probability, attained age < d_death_adult_age_min
+  p_rhd_death_D_adult = req("p_rhd_death_D_adult"),                  # FIXED base D death probability, attained age >= d_death_adult_age_min
+  d_death_adult_age_min = as.integer(req("d_death_adult_age_min")),  # MORTALITY boundary (age 20 = adult); separate from child_last_age
   residual_rhd_mortality_mult = req("residual_rhd_mortality_mult"),
   entry_mix_child = req("entry_mix_child"),
   entry_mix_adult = req("entry_mix_adult"),
   adult_prog_hazard_mult = req("adult_prog_hazard_mult"),   # fixed: adult (> 20) B->C / C->D hazard = m x childhood hazard
   recurrence_after_normalisation = "none (simplified default: normalised people cannot have another modelled onset)",
   calibrated = c("p_A_to_no_rhd", "p_A_to_B", "p_B_to_A", "p_B_to_C", "p_C_to_B", "p_C_to_D"),
-  fixed = c("child_last_age", "p_D_to_C", "p_B_to_no_rhd_adult", "p_rhd_death_D",
-            "residual_rhd_mortality_mult", "entry_mix_child", "entry_mix_adult", "adult_prog_hazard_mult"),
+  fixed = c("child_last_age", "p_D_to_C", "p_B_to_no_rhd_adult", "p_rhd_death_D_child", "p_rhd_death_D_adult",
+            "d_death_adult_age_min", "residual_rhd_mortality_mult", "entry_mix_child", "entry_mix_adult", "adult_prog_hazard_mult"),
   removed_multipliers = "late-entry D-death hazard multiplier removed (effective value 1)",
+  d_mortality = "fixed base annual D -> RHD-death probability by CURRENT attained age (child value at age < d_death_adult_age_min, adult value at >= it), every D history; applied before the surgery service and competing other-cause death; never fitted",
   adult_progression = "adult (> 20) B->C and C->D: p_adult = 1 - (1 - p_child)^adult_prog_hazard_mult (hazard scale), every disease / diagnosis history; prior-A -> B, adult B normalisation and D mortality not scaled",
   provenance = paste("Explicit provisional reference inputs set in 00 block G (not validated untreated WHF-stage",
                      "transition estimates). Entry mixes are simplifying modelling assumptions, not estimates of",
                      "biological onset age; for Uganda every shared input is an extrapolation."))
 nhe0 <- abcd_nh_build(natural_history, AGES, SEXES)       # validates every input (stops on error)
 natural_history$derived <- nhe0$derived
-# legacy per-stage contract c(A,B,C,D): exact zeros + the single D input
-p_rhd_death <- c(A = 0, B = 0, C = 0, D = nhe0$pd)
+# legacy per-stage contract: A/B/C exact zeros only (no scalar D element: D mortality is
+# age-specific, natural_history$p_rhd_death_D_child / _adult; [age x sex] in p_rhd_death_D_by_age)
+p_rhd_death <- c(A = 0, B = 0, C = 0)
+p_rhd_death_D_by_age <- nhe0$pd
 dx_mix_benchmark <- list(child = req("dx_mix_benchmark_child"), adult = req("dx_mix_benchmark_adult"),
                          role = "PROVISIONAL diagnosis-composition benchmark (stage at first confirmed diagnosis); diagnostic comparison only, not a fit term or a national stage target")
 for (m in dx_mix_benchmark[c("child", "adult")])
@@ -412,8 +422,15 @@ prob_params <- c(unlist(effects[c("eff_surgery_C_to_D", "eff_surgery_D_to_rhd_de
                  unlist(coverage$init[c("diagnosed_share", "on_bpg_share", "ever_screened_share")]))
 if (any(!is.finite(prob_params)) || any(prob_params < 0 | prob_params > 1))
   stop("An effect/surgery/care parameter is outside [0,1].", call. = FALSE)
-if (any(p_rhd_death[c("A", "B", "C")] != 0) || p_rhd_death[["D"]] <= 0)
-  stop("D_only requires p_rhd_death A/B/C == 0 exactly and D > 0.", call. = FALSE)
+if (!identical(names(p_rhd_death), c("A", "B", "C")) || any(p_rhd_death != 0) || any(p_rhd_death_D_by_age <= 0))
+  stop("D_only requires p_rhd_death A/B/C == 0 exactly and the D input > 0 at every age.", call. = FALSE)
+# age alignment of the fixed D input (rows = attained ages): child value strictly below the
+# mortality boundary, adult value at and above it (age 20 = adult), identical across sexes
+d_rows_child <- AGES < natural_history$d_death_adult_age_min
+if (!identical(dim(p_rhd_death_D_by_age), c(n_age, length(SEXES))) ||
+    any(p_rhd_death_D_by_age[d_rows_child, ] != natural_history$p_rhd_death_D_child) ||
+    any(p_rhd_death_D_by_age[!d_rows_child, ] != natural_history$p_rhd_death_D_adult))
+  stop("03: the [age x sex] D mortality input does not match p_rhd_death_D_child / _adult by attained age.", call. = FALSE)
 for (arm in c("ref", "up"))
   if (any(coverage$care_inputs$adherence_good[[arm]] + coverage$care_inputs$adherence_partial[[arm]] > 1 + 1e-12))
     stop("good + partial adherence shares exceed 1 (", arm, " arm).", call. = FALSE)
@@ -467,7 +484,8 @@ disease_model_inputs <- list(
   ),
   transitions = transitions,  # annual transition probabilities (04b centres; B->C, C->D and A->B shared with adults)
   natural_history = natural_history,          # full default natural history (fixed + calibrated + derived)
-  p_rhd_death = p_rhd_death,   # legacy c(A,B,C,D): exact zeros + the single D input (all histories)
+  p_rhd_death = p_rhd_death,   # legacy c(A,B,C): exact zeros (D-only); no scalar D element
+  p_rhd_death_D_by_age = p_rhd_death_D_by_age,   # [age x sex] FIXED base D death probability by attained age (record)
   dx_mix_benchmark = dx_mix_benchmark,        # provisional stage-at-first-diagnosis benchmark (diagnostic only)
   effects     = effects,       # SAP assumed progression-hazard multiplier + protection age + surgery RRRs + eligibility
   surgery     = surgery,       # surgery-service fractions + coverage (ref/scale-up)
@@ -484,9 +502,17 @@ disease_model_inputs <- list(
     # fitted under another engine / fixed-input set (stale-bundle protection)
     engine_spec = ABCD_ENGINE_SPEC,
     mortality_structure = mortality_structure,
-    p_rhd_death_D_prior_source = "PROVISIONAL reference-model input, fixed, applied to every disease / diagnosis history (no late-entry multiplier); Indonesia 0.119 / Uganda 0.0597 (country-specific; dev/TP Stage D to death_RHDparameters.xlsx)",
+    p_rhd_death_D_source = sprintf(paste(
+      "FIXED age-specific assumption (00 block G, 9 Nov 2026; PROVISIONAL): %s annual D -> RHD-death probability %.4f at attained",
+      "age < %d and %.4f at age >= %d, every disease / diagnosis history (no late-entry multiplier); supersedes the single",
+      "all-age value (Indonesia 0.06, earlier 0.119; Uganda 0.0597)"), LOCATION,
+      natural_history$p_rhd_death_D_child, natural_history$d_death_adult_age_min,
+      natural_history$p_rhd_death_D_adult, natural_history$d_death_adult_age_min),
     age_convention = sprintf("modelling convention: child rules at attained age <= %d, adult rules at > %d (separate from the GBD reporting split 0-19 / 20+)",
                              natural_history$child_last_age, natural_history$child_last_age),
+    d_mortality_age_convention = sprintf("stage-D RHD death: child value at attained age < %d, adult value at >= %d (mortality boundary, separate from the child_last_age = %d rule boundary)",
+                                         natural_history$d_death_adult_age_min, natural_history$d_death_adult_age_min,
+                                         natural_history$child_last_age),
     d_share_proxy_gbd_hf = getp("d_share_proxy_gbd_hf", NA_real_),
     sap_mechanism = effects$sap_mechanism,
     baseline_care_interpretation = getp("baseline_care_interpretation",
@@ -511,8 +537,10 @@ message(sprintf("  transition centres: %s | adult B->normalised %.3f (fixed) | a
                 paste(sprintf("%s=%.3f", names(transitions), unlist(transitions)), collapse = ", "),
                 natural_history$p_B_to_no_rhd_adult, natural_history$adult_prog_hazard_mult,
                 nhe0$derived$p_B_to_C_adult, nhe0$derived$p_C_to_D_adult))
-message(sprintf("  D_only: D death %.4f (fixed, all histories) | entry mix child %s | adult %s | child rules at age <= %d",
-                nhe0$pd, paste(natural_history$entry_mix_child, collapse = "/"), paste(natural_history$entry_mix_adult, collapse = "/"),
+message(sprintf("  D_only: D death %.4f at age < %d / %.4f at age >= %d (fixed, all histories) | entry mix child %s | adult %s | child rules at age <= %d",
+                natural_history$p_rhd_death_D_child, natural_history$d_death_adult_age_min,
+                natural_history$p_rhd_death_D_adult, natural_history$d_death_adult_age_min,
+                paste(natural_history$entry_mix_child, collapse = "/"), paste(natural_history$entry_mix_adult, collapse = "/"),
                 natural_history$child_last_age))
 message(sprintf("  SAP: ASSUMED progression-hazard multiplier M %.2f (RRR %.2f; expert-informed scenario, not the published recurrence RR) on %s at attained age <= %d; C->D %.2f, D death %.0f | eligibility %s | screening ages %d-%d (W = %d), sens %.2f, confirm %.2f x %.2f",
                 effects$sap_progression_hazard_mult, effects$sap_progression_rrr, paste(effects$sap_effect_transitions, collapse = "/"),

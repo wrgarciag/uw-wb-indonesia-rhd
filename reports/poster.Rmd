@@ -448,6 +448,13 @@ MAD_TXT <- if (M_AD_SAME)
          fmt_f(M_AD[["Uganda"]], 2), " in the LIC, ", fmt_f(M_AD[["Indonesia"]], 2), " in the UMIC.")
 MAD_FIG <- if (M_AD_SAME) paste0("= ", fmt_f(M_AD[[1]], 2), " x childhood hazards.") else
   paste0("= childhood x ", fmt_f(M_AD[["Uganda"]], 2), " (LIC)\nor x ", fmt_f(M_AD[["Indonesia"]], 2), " (UMIC).")
+# fixed stage-D RHD death probability by attained age (00 block G; age D_AGE takes the adult value)
+D_AGE <- I$nh$d_death_adult_age_min
+check(identical(D_AGE, U$nh$d_death_adult_age_min), "settings use different stage-D mortality age boundaries", "re-run both countries")
+PD_TXT <- paste0("The annual stage-D RHD death probability is fixed by attained age: ",
+                 fmt_f(U$nh$p_rhd_death_D_child, 2), " below age ", D_AGE, " and ", fmt_f(U$nh$p_rhd_death_D_adult, 2),
+                 " from age ", D_AGE, " in the LIC; ", fmt_f(I$nh$p_rhd_death_D_child, 2), " and ",
+                 fmt_f(I$nh$p_rhd_death_D_adult, 2), " in the UMIC.")
 SCR_LO <- I$cv$constants$screen_age_lo; SCR_HI <- I$cv$constants$screen_age_hi
 RAMP0 <- D$Indonesia$out$meta$ramp_start; RAMP1 <- D$Indonesia$out$meta$ramp_end
 DISC <- I$ep$disc_rate; DBY <- I$dby; PRICE_YEAR <- as.integer(I$lb$price_year)
@@ -565,7 +572,7 @@ To build a tool for RHD investment cases and use it to estimate the RHD deaths a
 
 ::: {.card}
 ### Methods
-- **Model (Fig. 1).** A population-level state-transition model by single year of age and sex, with annual cycles and the WHF stages A–D [@Rwebembera2023]. Within each stage, people are undiagnosed, diagnosed off BPG, or on BPG. RHD deaths occur only from stage D; other-cause mortality applies in every state.
+- **Model (Fig. 1).** A population-level state-transition model by single year of age and sex, with annual cycles and the WHF stages A–D [@Rwebembera2023]. Within each stage, people are undiagnosed, diagnosed off BPG, or on BPG. RHD deaths occur only from stage D; other-cause mortality applies in every state. `r PD_TXT`
 - **Data and calibration.** For each setting, national RHD incidence, prevalence and deaths from GBD, and population from UN World Population Prospects 2024, with setting-specific unit costs and VSL; results are national estimates for each setting, not averages for its income group. Age–sex incidence multipliers and six childhood transition probabilities were calibrated separately for each setting to GBD prevalence and RHD deaths (`r CY0`–`r CY1`, scored from `r MFROM`). `r MAD_TXT`
 - **Scenarios.** Reference care held constant, against a scale-up that ramps linearly from `r RAMP0` to `r RAMP1`. By `r Y_END` the scale-up reaches (reference levels in brackets): one echo screen between ages `r SCR_LO` and `r SCR_HI` for `r cov_txt("screen_window_prob", " of people")`; BPG initiation among eligible diagnosed people `r cov_txt("bpg_initiation")` per year; annual BPG retention `r cov_txt("bpg_retention")`; and good adherence `r cov_txt("adherence_good")`.
 - **Prophylaxis effect.** BPG lowers A→B and B→C hazards by an assumed `r fmt_cov(RRR)` at full adherence (scaled by adherence) up to age `r AMAX`, with no direct effect on C→D or on mortality. This is an expert-informed scenario, informed by evidence on prevention of recurrent rheumatic fever [@Manyemba2002].

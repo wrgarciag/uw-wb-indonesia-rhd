@@ -1,4 +1,31 @@
 
+##########################333333
+
+Write a prompt to ask claude to
+
+Goal: adjust the model for more realistic history and capture in a better way and approximate better to GBD
+the number of deaths above 20 which is currently overestimated,adjust RHD mortality over 20 wich is undertestimated.
+
+
+Task:  it seems that a lower adult death probability only in stage D highiger in ages <20 than adults 20+ probability might improve the results.
+
+priors/starting values Indonesia child 0.16 adults 0.03
+
+Uganda child 0.06 adults 0.03
+
+Those values are fixed in calibration
+
+write a prompt asking Claude Code to modify  the codebase scripts/00*.R-08*.R Also modify R/abcd_engine.R only if needed modify only these files whiout creating new ones
+other existing ones or touching
+
+all new parameterization and priors in scripts/00.*R
+
+Plan test with Indonesisa /00-04*.R before running whole calibration and continue the 05-08 and running real calibrations to Indonesia and Uganda
+
+Avoid code refator, just modifyn lines related to this task
+
+export the prompt as a MD file
+
 
 
 ##########################333333

@@ -3,7 +3,7 @@ title: "`r params$country` Rheumatic Heart Disease Secondary-Prevention Investme
 date: "`r Sys.Date()`"
 author: "University of Washington · World Bank `r params$country` RHD Model"
 params:
-  country: "Uganda"    # "Indonesia" | "Uganda" — pass via rmarkdown::render(params = list(country = ...))
+  country: "Indonesia"    # "Indonesia" | "Uganda" — pass via rmarkdown::render(params = list(country = ...))
 output:
   html_document:
     toc: true
@@ -222,8 +222,8 @@ bstate  <- readRDS(bs_path)
 loc1    <- bstate$locations[1]
 bst     <- bstate$states[[loc1]]
 tr      <- bst$transitions        # calibrated annual probabilities (incl. p_D_to_C = 0)
-pdth    <- bst$p_rhd_death        # c(A,B,C,D): exact zeros + the single D input
-nh      <- bst$natural_history    # child_last_age, entry mixes, adult normalisation, D input, ...
+pdth    <- bst$p_rhd_death        # c(A,B,C): exact zeros (D-only; D mortality is age-specific, in nh)
+nh      <- bst$natural_history    # child_last_age, entry mixes, adult normalisation, D inputs by age, ...
 eff     <- bst$effects            # assumed SAP progression-hazard multiplier + protection age, eligibility, surgery effects
 srg     <- bst$surgery
 cov     <- bst$coverage           # realised per-arm care trajectories ($ref, $sap) + $constants + $init
@@ -232,6 +232,8 @@ seed    <- bst$seed               # aggregate classifiable stocks ENTERING the f
 seed_tot <- sum(seed$A + seed$B + seed$C + seed$D)
 seed_share <- c(A = sum(seed$A), B = sum(seed$B), C = sum(seed$C), D = sum(seed$D)) / seed_tot
 CHILD_MAX <- as.integer(nh$child_last_age)            # modelling convention: child rules at age <= 20
+D_AGE    <- as.integer(nh$d_death_adult_age_min)       # stage-D mortality boundary: child value at age < D_AGE, adult at >= D_AGE
+PD_CH    <- nh$p_rhd_death_D_child; PD_AD <- nh$p_rhd_death_D_adult
 # SAP default: assumed full-adherence progression-hazard multiplier M on A->B and B->C at attained age <= SAP_AMAX
 SAP_M    <- eff$sap_progression_hazard_mult; SAP_RRR <- eff$sap_progression_rrr
 SAP_AMAX <- as.integer(eff$sap_protection_age_max)
@@ -490,6 +492,11 @@ cat(sprintf(paste0("- **Model update (6 Nov 2026): common adult progression haza
                    "diagnosis history; the six calibrated transitions are the childhood values and were refitted jointly with incidence. ",
                    "Effective adult B → C %s (childhood %s) and C → D %s (childhood %s).\n"),
             fmt_f(m_ad, 2), CHILD_MAX, fmt_sig(p_BC_ad, 3), fmt_sig(tr$p_B_to_C, 3), fmt_sig(p_CD_ad, 3), fmt_sig(tr$p_C_to_D, 3)))
+cat(sprintf(paste0("- **Model update (9 Nov 2026): fixed age-specific stage-D mortality.** The annual D → RHD death probability is ",
+                   "%s at attained age < %d and %s at age ≥ %d (one value at every age before), for every disease and diagnosis ",
+                   "history; it is a fixed input, not fitted. The open 100+ population group now keeps the WPP count (no longer ",
+                   "smoothed). Both countries were recalibrated and re-run.\n"),
+            fmt_f(PD_CH, 3), D_AGE, fmt_f(PD_AD, 3), D_AGE))
 cat(sprintf("- Fit (scored %d–%d): %s.\n", match_from, cal_y1,
             paste(tol_sum[role == "checkpoint", sprintf("%s %s", quantity, mapply(fmt_rng, ratio_min, ratio_max))], collapse = "; ")))
 cat(sprintf("- Confirmatory echoes are **not costed** (no unit cost exists): %s incremental confirmations over %s are omitted from total cost.\n",
@@ -582,13 +589,14 @@ inp <- rbindlist(list(
                            paste0("Adult progression hazard multiplier m (B → C, C → D at age > ", CHILD_MAX, ")"),
                            "Adult B → normalised (age > 20)",
                            "New disease entry mix, age ≤ 20", "New disease entry mix, age > 20",
-                           "Stage-D RHD death probability (every history)", "RHD death in A, B, C"),
+                           paste0("Stage-D RHD death probability, age < ", D_AGE, " / ≥ ", D_AGE, " (every history)"), "RHD death in A, B, C"),
              Value = c(paste0("≤ ", CHILD_MAX, " / > ", CHILD_MAX), "0", fmt_f(m_ad, 2), fmt_f(nh$p_B_to_no_rhd_adult, 3),
-                       mix_txt(nh$entry_mix_child), mix_txt(nh$entry_mix_adult), fmt_f(nh$p_rhd_death_D, 4), "0 (exact)"),
+                       mix_txt(nh$entry_mix_child), mix_txt(nh$entry_mix_adult), paste0(fmt_f(PD_CH, 4), " / ", fmt_f(PD_AD, 4)), "0 (exact)"),
              Source = c("declared modelling convention (separate from GBD 0–19 / 20+)", "structural zero",
                         "PROVISIONAL reference value (adopted 6 Nov 2026; not fitted; same value both countries)",
                         "PROVISIONAL extrapolation", "new simplifying assumption", "new simplifying assumption",
-                        "PROVISIONAL country input; late-entry multiplier removed", "D-only structure")),
+                        paste0("PROVISIONAL fixed country inputs by attained age (9 Nov 2026; age ", D_AGE, " takes the adult value); not fitted; late-entry multiplier removed"),
+                        "D-only structure")),
   data.table(Group = "Screening and confirmation",
              Parameter = c("Screening window (ages)", "One-screen window coverage, reference / scale-up target",
                            "Screening sensitivity", "Confirmatory echo completion", "Confirmation sensitivity",
@@ -751,8 +759,11 @@ diagnosis never returns a person to the undiagnosed pool.
   face background mortality only and have no modelled recurrence (a simplification,
   not proof of anatomical healing).
 - **Mortality.** `r if (D_ONLY) "RHD death occurs **only from stage D**" else "RHD death occurs from every stage"`,
-  with one fixed annual probability (`r fmt_f(nh$p_rhd_death_D, 4)`) for every
-  disease and diagnosis history; the former late-entry multiplier is removed.
+  with a fixed annual probability that depends only on current attained age:
+  `r fmt_f(PD_CH, 4)` below age `r D_AGE` and `r fmt_f(PD_AD, 4)` from age `r D_AGE`
+  (so age `r D_AGE` follows the child progression rules but the adult D mortality),
+  for every disease and diagnosis history; it is not fitted, and the former
+  late-entry multiplier is removed.
   Competing background (non-RHD) mortality applies in every state.
 - **Surgery** is a population-average **service**, not a state: a share of C and D
   receives surgery each year, reducing C → D and D → death; it is equal in both arms.
@@ -782,13 +793,14 @@ rules <- data.table(
   `Age ≤ 20` = c(sprintf("→ normalised %s; → B %s", fmt_sig(tr$p_A_to_no_rhd, 3), fmt_sig(tr$p_A_to_B, 3)),
                  sprintf("→ A %s; → C %s", fmt_sig(tr$p_B_to_A, 3), fmt_sig(tr$p_B_to_C, 3)),
                  sprintf("→ B %s; → D %s", fmt_sig(tr$p_C_to_B, 3), fmt_sig(tr$p_C_to_D, 3)),
-                 sprintf("→ RHD death %s", fmt_f(nh$p_rhd_death_D, 4)), "—"),
+                 sprintf("→ RHD death %s (age %d: %s)", fmt_f(PD_CH, 4), D_AGE, fmt_f(PD_AD, 4)), "—"),
   `Age > 20` = c("— (becomes prior-A at 21)",
                  sprintf("→ C %s; → normalised %s", fmt_sig(p_BC_ad, 3), fmt_f(nh$p_B_to_no_rhd_adult, 3)),
-                 sprintf("→ D %s", fmt_sig(p_CD_ad, 3)), sprintf("→ RHD death %s", fmt_f(nh$p_rhd_death_D, 4)),
+                 sprintf("→ D %s", fmt_sig(p_CD_ad, 3)), sprintf("→ RHD death %s", fmt_f(PD_AD, 4)),
                  sprintf("→ B %s (re-entry)", fmt_sig(tr$p_A_to_B, 3))))
 kbl_std(rules, caption = paste0("Table 4. Annual event probabilities by attained age (calibrated childhood values; adult B → C and ",
-                                "C → D = 1 − (1 − p_child)^", fmt_f(m_ad, 2), "; D → C = 0; ",
+                                "C → D = 1 − (1 − p_child)^", fmt_f(m_ad, 2), "; D → RHD death by attained age, < ", D_AGE,
+                                " / ≥ ", D_AGE, "; D → C = 0; ",
                                 "background mortality competes in every state; surgery lowers C → D and D death)."),
         align = c("l", "l", "l"))
 ```
@@ -1123,15 +1135,17 @@ s1 <- ssy[year == cal_y1]
 cat(sprintf(paste0("Entering %d, stage D holds **%s** of classifiable RHD (GBD heart-failure proxy %s — a diagnostic, not a ",
                    "validated stage target). With D-only mortality, RHD deaths track the flow into D: %s people moved C → D in %d ",
                    "(%s of them at ages > %d) and realised D fatality was %s (input %s; competing background death and the ",
-                   "surgery service make it slightly lower). Adult deaths are therefore set by adult C → D inflow (adult C → D ",
-                   "probability %s after the multiplier %s), not by the ",
-                   "D mortality input, which is fixed. New disease in %d: %s; prior-A re-entry: %s; A → prior-A reclassification ",
+                   "surgery service make it slightly lower). With the D mortality inputs fixed, the calibration moves adult deaths only ",
+                   "through adult C → D inflow (adult C → D probability %s after the multiplier %s). ",
+                   "New disease in %d: %s; prior-A re-entry: %s; A → prior-A reclassification ",
                    "at %d: %s.\n\n"),
             cal_y1, fmt_pct(s1$share_D, 1),
             if (is.null(SC$excess_death_attribution$d_share_proxy_gbd_hf) || is.na(SC$excess_death_attribution$d_share_proxy_gbd_hf)) "n/a" else
               fmt_pct(SC$excess_death_attribution$d_share_proxy_gbd_hf, 1),
             fmt_n(s1$C_to_D), cal_y1, fmt_n(s1$C_to_D_adult), CHILD_MAX,
-            fmt_f(dfat[ages == "all", realized_D_death_risk], 4), fmt_f(nh$p_rhd_death_D, 4),
+            paste0(fmt_f(dfat[ages == sprintf("0-%d", D_AGE - 1L), realized_D_death_risk], 4), " at ages < ", D_AGE, " and ",
+                   fmt_f(dfat[ages == sprintf("%d+", D_AGE), realized_D_death_risk], 4), " at ", D_AGE, "+"),
+            paste0(fmt_f(PD_CH, 4), " / ", fmt_f(PD_AD, 4)),
             fmt_sig(p_CD_ad, 3), fmt_f(m_ad, 2),
             cal_y1, fmt_n(s1$new_disease), fmt_n(s1$reentry_prior_A_to_B), CHILD_MAX, fmt_n(s1$reclass_A_to_prior_A)))
 ```

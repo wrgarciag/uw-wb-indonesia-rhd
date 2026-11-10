@@ -121,6 +121,15 @@ if (!identical(abcd_nh_fixed(bp$natural_history), dmi$meta$natural_history_fixed
     (exists("adult_prog_hazard_mult") && !identical(bp$natural_history$adult_prog_hazard_mult, adult_prog_hazard_mult)))
   stop("Calibrated natural history (adult_prog_hazard_mult = ", format(bp$natural_history$adult_prog_hazard_mult),
        ") differs from the disease inputs / 00 block G; re-run 03 -> 04 -> 04b.", call. = FALSE)
+# fixed AGE-SPECIFIC stage-D mortality: the calibrated natural history must carry 00's current
+# child / adult probabilities and mortality boundary (no single all-age value is accepted)
+D_MORT_FIELDS <- c("p_rhd_death_D_child", "p_rhd_death_D_adult", "d_death_adult_age_min")
+d_mort_bad <- !is.null(bp$natural_history$p_rhd_death_D) ||
+  any(vapply(D_MORT_FIELDS, function(nm) is.null(bp$natural_history[[nm]]) ||
+               (exists(nm) && !identical(as.numeric(bp$natural_history[[nm]]), as.numeric(get(nm)))), logical(1)))
+if (d_mort_bad)
+  stop("Calibrated stage-D mortality (", paste(sprintf("%s = %s", D_MORT_FIELDS, vapply(D_MORT_FIELDS, function(nm) { v <- bp$natural_history[[nm]]; if (is.null(v)) "missing" else format(v) }, "")), collapse = ", "),
+       ") is missing, a legacy single value, or differs from 00 block G; re-run 03 -> 04 -> 04b.", call. = FALSE)
 if (!identical(bp$mortality_structure, dmi$meta$mortality_structure) || !identical(bp$sap_mechanism, dmi$effects$sap_mechanism))
   stop("Calibrated bundle spec (", bp$mortality_structure, "/", bp$sap_mechanism, ") differs from the disease inputs (",
        dmi$meta$mortality_structure, "/", dmi$effects$sap_mechanism, "); recalibrate under one spec.", call. = FALSE)
@@ -142,10 +151,11 @@ if (length(sap_missing))
 if (!identical(sc$spec$sap_eligibility, dmi$effects$sap_eligibility) ||
     !identical(sc$spec$sap_hr[SAP_SPEC_FIELDS], dmi$effects[SAP_SPEC_FIELDS]))
   stop("SAP eligibility / progression-multiplier specification used as reference care in 04b differs from the disease inputs; re-run 04b.", call. = FALSE)
-message(sprintf("  natural history: CALIBRATED by 04b (status %s; engine %s; burn-in %s) | transitions %s | D death %.4f (all histories)",
+message(sprintf("  natural history: CALIBRATED by 04b (status %s; engine %s; burn-in %s) | transitions %s | D death %.4f at age < %d / %.4f at age >= %d (fixed, all histories)",
                 sc$status, bp$engine_spec, bp$initialisation$burnin_reconciliation,
                 paste(sprintf("%s=%.4f", names(bp$transitions), unlist(bp$transitions)), collapse = ", "),
-                bp$p_rhd_death[["D"]]))
+                bp$natural_history$p_rhd_death_D_child, bp$natural_history$d_death_adult_age_min,
+                bp$natural_history$p_rhd_death_D_adult, bp$natural_history$d_death_adult_age_min))
 if (!isTRUE(sc$statuses$fit_within_tolerance))
   message("  NOTE: the calibration is OUTSIDE its diagnostic fit tolerances (", sc$statuses$epidemiological_fit,
           ") -- results are a numerically complete run, not a credible calibrated baseline.")
@@ -342,7 +352,9 @@ baseline_state <- list(
     model_assumptions = list(
       child_last_age = dmi$natural_history$child_last_age, entry_mix_child = dmi$natural_history$entry_mix_child,
       entry_mix_adult = dmi$natural_history$entry_mix_adult, p_B_to_no_rhd_adult = dmi$natural_history$p_B_to_no_rhd_adult,
-      p_rhd_death_D = dmi$natural_history$p_rhd_death_D, recurrence = dmi$natural_history$recurrence_after_normalisation,
+      p_rhd_death_D_child = dmi$natural_history$p_rhd_death_D_child, p_rhd_death_D_adult = dmi$natural_history$p_rhd_death_D_adult,
+      d_death_adult_age_min = dmi$natural_history$d_death_adult_age_min, d_mortality = dmi$natural_history$d_mortality,
+      recurrence = dmi$natural_history$recurrence_after_normalisation,
       adult_prog_hazard_mult = dmi$natural_history$adult_prog_hazard_mult,
       adult_progression = dmi$natural_history$adult_progression,
       effective_adult_transitions = unlist(bp$natural_history$derived[c("p_B_to_C_adult", "p_C_to_D_adult", "p_prior_A_to_B_adult")]),

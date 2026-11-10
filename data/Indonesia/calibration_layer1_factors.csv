@@ -1,13 +1,13 @@
 location,sex,cause,band,band_lo,alpha,beta
-Indonesia,Female,Rheumatic heart disease,0-14,0,0.978757232844435,0.996255368930604
-Indonesia,Female,Rheumatic heart disease,15-24,15,0.979833822510276,0.996604864543713
-Indonesia,Female,Rheumatic heart disease,25-44,25,0.983749520117606,0.995733274208523
-Indonesia,Female,Rheumatic heart disease,45-64,45,0.993131115879691,0.99478699785575
-Indonesia,Female,Rheumatic heart disease,65-79,65,0.998836822368356,0.993789263584966
-Indonesia,Female,Rheumatic heart disease,80+,80,1.00164294233754,0.991641986970758
-Indonesia,Male,Rheumatic heart disease,0-14,0,0.974815084763821,0.996796013384315
-Indonesia,Male,Rheumatic heart disease,15-24,15,0.97246769133965,0.995549232037101
-Indonesia,Male,Rheumatic heart disease,25-44,25,0.97700434298669,0.992911381796362
-Indonesia,Male,Rheumatic heart disease,45-64,45,0.990295624035657,0.992011037568885
-Indonesia,Male,Rheumatic heart disease,65-79,65,0.99836708719649,0.993139538026441
-Indonesia,Male,Rheumatic heart disease,80+,80,1.00234599248281,0.990604920568066
+Indonesia,Female,Rheumatic heart disease,0-14,0,0.978757318605382,0.996255366223264
+Indonesia,Female,Rheumatic heart disease,15-24,15,0.979833899180411,0.996604927482557
+Indonesia,Female,Rheumatic heart disease,25-44,25,0.983749582423006,0.995733442396205
+Indonesia,Female,Rheumatic heart disease,45-64,45,0.993131143502308,0.994787126924732
+Indonesia,Female,Rheumatic heart disease,65-79,65,0.998836827096713,0.993788344439193
+Indonesia,Female,Rheumatic heart disease,80+,80,1.00164293660773,0.991637648978172
+Indonesia,Male,Rheumatic heart disease,0-14,0,0.974815110467794,0.9967960069361
+Indonesia,Male,Rheumatic heart disease,15-24,15,0.97246771249226,0.99554927954729
+Indonesia,Male,Rheumatic heart disease,25-44,25,0.977004360728541,0.99291151767774
+Indonesia,Male,Rheumatic heart disease,45-64,45,0.990295632251483,0.992011140412316
+Indonesia,Male,Rheumatic heart disease,65-79,65,0.998367088964799,0.993138777196564
+Indonesia,Male,Rheumatic heart disease,80+,80,1.00234599065892,0.990601341031177

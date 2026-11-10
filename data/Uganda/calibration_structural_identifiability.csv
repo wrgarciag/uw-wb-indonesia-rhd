@@ -1,5 +1,5 @@
 parameter,flatness,status,note
-p_A_to_no_rhd,0.909090909090909,prior-dominated,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
+p_A_to_no_rhd,0.818181818181818,prior-dominated,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
 p_A_to_B,0.727272727272727,prior-dominated,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
 p_B_to_A,0.545454545454545,prior-dominated,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification
 p_B_to_C,0.272727272727273,data-identified,one-at-a-time profile flatness of the PENALISED objective (others at optimum); not joint identification

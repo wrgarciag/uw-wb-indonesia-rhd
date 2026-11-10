@@ -57,7 +57,7 @@ suppressPackageStartupMessages({
 #    COUNTRY-scoped so runs never overwrite each other; data-raw/ is SHARED (the
 #    raw GBD/WPP CSVs contain every country and 01 filters to COUNTRY).
 #===============================================================================
-COUNTRY <- "Uganda"           # <<< the ONE line to change to run another country
+COUNTRY <- "Indonesia"           # <<< the ONE line to change to run another country
 ISO3    <- switch(COUNTRY,
                   Indonesia = "IDN",
                   Uganda    = "UGA",
@@ -299,7 +299,7 @@ p_D_to_C      <- 0       # EXACT structural zero (D = clinical complications; no
 p_B_to_no_rhd_adult <- 0.02   # [PROVISIONAL extrapolation] adult (> 20) B -> normalised history (child: 0)
 # New modelled CLASSIFIABLE disease (first entry from the never-onset pool) enters:
 entry_mix_child <- switch(COUNTRY,                 # [NEW SIMPLIFYING ASSUMPTION] age <= 20 (fixed)
-                          Indonesia = c(A = 1,    B = 0,    C = 0, D = 0),
+                          Indonesia = c(A = 0.75, B = 0.25,    C = 0, D = 0),
                           Uganda    = c(A = 0.75, B = 0.25, C = 0, D = 0),
                           stop("No entry_mix_child for COUNTRY '", COUNTRY, "'."))
 stopifnot("entry_mix_child must sum to 1" = isTRUE(all.equal(sum(entry_mix_child), 1)))
@@ -312,12 +312,30 @@ entry_mix_adult <- c(A = 0, B = 1, C = 0, D = 0)   # [NEW SIMPLIFYING ASSUMPTION
 dx_mix_benchmark_child <- c(A = 0.50, B = 0.30, C = 0.15, D = 0.05)   # age <= 20 at first diagnosis
 dx_mix_benchmark_adult <- c(A = 0,    B = 0.60, C = 0.30, D = 0.10)   # age  > 20 at first diagnosis
 
-# Stage-D annual RHD-death probability (FIXED; applied to EVERY disease / diagnosis
-# history — the former late-entry D-death hazard multiplier of 2 is removed, i.e.
-# effective value 1; not fitted and never lowered to manufacture fit).
-p_rhd_death_D <- switch(COUNTRY,
-                        Indonesia = 0.06,   # 0.119 [PROVISIONAL reference input; dev/TP Stage D to death_RHDparameters.xlsx col K]
-                        Uganda    = 0.0597)  # [PROVISIONAL] Uganda-specific input (not replaced by Indonesia's value)
+# Stage-D annual RHD-death probability by ATTAINED AGE (9 Nov 2026; replaces the single
+# all-age value). FIXED annual PROBABILITIES — not hazard multipliers, priors or calibration
+# parameters: never fitted, sampled, penalised or optimised (04 / 04b) and never lowered to
+# manufacture fit. Selected by CURRENT attained age only (not age at onset, first diagnosis,
+# screening or treatment history) and applied to EVERY stage-D history (undiagnosed,
+# diagnosed); the former late-entry D-death hazard multiplier stays removed (effective 1).
+# These are BASE probabilities before the surgery service and competing other-cause death,
+# so realised annual D fatality can be lower.
+# MORTALITY age boundary, declared separately from nh_child_last_age (= 20, unchanged for
+# progression, entry, remission and every other rule): attained age < d_death_adult_age_min
+# -> child value; age >= d_death_adult_age_min (age 20 itself included) -> adult value.
+d_death_adult_age_min <- 20L
+p_rhd_death_D_child <- switch(COUNTRY,             # attained age < d_death_adult_age_min (0-19)
+                              Indonesia = 0.17,    # [ASSUMPTION, PROVISIONAL] fixed test value
+                              Uganda    = 0.06,    # [ASSUMPTION, PROVISIONAL] fixed test value
+                              stop("No p_rhd_death_D_child for COUNTRY '", COUNTRY, "'."))
+p_rhd_death_D_adult <- switch(COUNTRY,             # attained age >= d_death_adult_age_min (20+)
+                              Indonesia = 0.05,    # [ASSUMPTION, PROVISIONAL] fixed test value
+                              Uganda    = 0.03,    # [ASSUMPTION, PROVISIONAL] fixed test value
+                              stop("No p_rhd_death_D_adult for COUNTRY '", COUNTRY, "'."))
+# SUPERSEDED single all-age value (kept for reference; 03 and the engine now REJECT it):
+# p_rhd_death_D <- switch(COUNTRY,
+#                         Indonesia = 0.06,   # 0.119 [PROVISIONAL reference input; dev/TP Stage D to death_RHDparameters.xlsx col K]
+#                         Uganda    = 0.0597)  # [PROVISIONAL] Uganda-specific input (not replaced by Indonesia's value)
 residual_rhd_mortality_mult <- 1     # fixed; no second mortality scale
 # COMMON ADULT PROGRESSION HAZARD MULTIPLIER (fixed; not fitted). At attained age > 20
 # (nh_child_last_age; age 20 itself uses the childhood probabilities) adult B->C and C->D
@@ -330,13 +348,13 @@ residual_rhd_mortality_mult <- 1     # fixed; no second mortality scale
 # scratch test dev/experiments/2026-11_adult_prog_mult_048_pipeline (REPORT.md): total
 # loss -15% vs m = 1, but adult RHD deaths remain ~3-4x GBD (a partial improvement).
 adult_prog_hazard_mult <- switch(COUNTRY,
-                                 Indonesia = 0.48,   # 0.4 [PROVISIONAL] reference value (formerly the late-onset 0.48 progression multiplier)
+                                 Indonesia = 0.1,   # 0.48 [PROVISIONAL] reference value (formerly the late-onset 0.48 progression multiplier)
                                  Uganda    = 0.5)      # [PROVISIONAL] Uganda test value (no adult scaling); [TODO: confirm for Uganda]
 stopifnot("adult_prog_hazard_mult must be one value > 0" =
             is.numeric(adult_prog_hazard_mult) && length(adult_prog_hazard_mult) == 1L && adult_prog_hazard_mult > 0)
 # Realised annual D fatality can be smaller than the input
 # because of competing other-cause mortality and the reference surgery service.
-# For Uganda every shared input above except p_rhd_death_D is an EXTRAPOLATION of the
+# For Uganda every shared input above except the stage-D death probabilities is an EXTRAPOLATION of the
 # illustrative reference values, not a Uganda-specific estimate.
 
 # Diagnostic only: GBD "HF due to RHD" proxy D share (not a validated stage target).

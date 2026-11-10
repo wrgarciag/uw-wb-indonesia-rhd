@@ -30,9 +30,11 @@
 #     00 block G) on B->C and C->D at age > 20: p_adult = 1 - (1 - p_child)^m, applied to
 #     undiagnosed, diagnosed and on-BPG disease regardless of onset / diagnosis age (age
 #     20 itself uses the childhood probabilities; m = 1 reproduces the shared value).
-#     D->C = 0 exactly; RHD death ONLY from D (A/B/C exact zeros), one base D input for
-#     every disease / diagnosis history (no late-entry multiplier). Hazards depend on
-#     attained age only, never on when diagnosis occurred.
+#     D->C = 0 exactly; RHD death ONLY from D (A/B/C exact zeros). Base D death input by
+#     CURRENT ATTAINED AGE (nhe$pd, [age x sex]): p_rhd_death_D_child at age <
+#     d_death_adult_age_min, p_rhd_death_D_adult at age >= it (MORTALITY boundary, separate
+#     from child_last_age), the same for every disease / diagnosis history (no late-entry
+#     multiplier). Hazards depend on attained age only, never on when diagnosis occurred.
 #   NEW MODELLED DISEASE (first classifiable entry) from the never-onset pool enters the
 #     stage given by the age-specific ENTRY MIX (00: child A = 1, adult B = 1) at year
 #     end (undiagnosed, carrying its screening history); it first faces stage hazards in
@@ -82,7 +84,10 @@
 # "_sap55" (6 Nov 2026): SAP default = assumed 55% progression-hazard reduction (M = 0.45) on
 # A->B and B->C at attained age <= 39, replacing the GOAL-derived child HRs; bundles built
 # under the GOAL default are refused.
-ABCD_ENGINE_SPEC <- "abcd_first_diagnosis_v1_adult_prog_mult_sap55"
+# "_dmort_age" (9 Nov 2026): fixed AGE-SPECIFIC stage-D death probability (child value at
+# attained age < d_death_adult_age_min, adult value at >= it) replaces the single all-age
+# input; bundles / baselines built with one D probability for every age are refused.
+ABCD_ENGINE_SPEC <- "abcd_first_diagnosis_v1_adult_prog_mult_sap55_dmort_age"
 ABCD_BURNIN_RECONCILIATION_MODES <- c("per_capita", "no_rhd_only")
 ABCD_STAGES             <- c("A", "B", "C", "D")
 ABCD_UNDX_NS            <- paste0("U_", ABCD_STAGES, "_ns")
@@ -120,8 +125,9 @@ abcd_screen_annual_prob <- function(c, window_years) 1 - (1 - c)^(1 / window_yea
 # ------------------------------------------------------------------------------
 # NATURAL HISTORY -> engine-ready [age x sex] matrices (built once per parameter set)
 #   nh: list(child_last_age, tr = list(p_A_to_no_rhd, p_A_to_B, p_B_to_A, p_B_to_C,
-#            p_C_to_B, p_C_to_D, p_D_to_C), p_B_to_no_rhd_adult, p_rhd_death_D,
-#            residual_rhd_mortality_mult, entry_mix_child, entry_mix_adult)
+#            p_C_to_B, p_C_to_D, p_D_to_C), p_B_to_no_rhd_adult, p_rhd_death_D_child,
+#            p_rhd_death_D_adult, d_death_adult_age_min, residual_rhd_mortality_mult,
+#            entry_mix_child, entry_mix_adult)
 # ------------------------------------------------------------------------------
 abcd_nh_build <- function(nh, ages, sexes) {
   n_age <- length(ages); n_sex <- length(sexes)
@@ -142,9 +148,22 @@ abcd_nh_build <- function(nh, ages, sexes) {
   if (mA[["A"]] != 0) stop("abcd_nh_build: no adult A state (entry_mix_adult['A'] must be 0; adult A is prior-A history).", call. = FALSE)
   if (!isTRUE(all.equal(nh$residual_rhd_mortality_mult, 1)))
     stop("abcd_nh_build: residual RHD mortality multiplier is fixed at 1 in the default.", call. = FALSE)
-  for (v in c(nh$p_B_to_no_rhd_adult, nh$p_rhd_death_D))
-    if (length(v) != 1L || !is.finite(v) || v < 0 || v >= 1) stop("abcd_nh_build: invalid fixed probability input.", call. = FALSE)
-  if (!(nh$p_rhd_death_D > 0)) stop("abcd_nh_build: D_only requires p_rhd_death_D > 0.", call. = FALSE)
+  # the former single all-age D input is never accepted (it would apply one probability to every age)
+  if (!is.null(nh$p_rhd_death_D))
+    stop("abcd_nh_build: the single all-age p_rhd_death_D is superseded; supply p_rhd_death_D_child, ",
+         "p_rhd_death_D_adult and d_death_adult_age_min (00 block G) and re-run 03.", call. = FALSE)
+  for (nm in c("p_B_to_no_rhd_adult", "p_rhd_death_D_child", "p_rhd_death_D_adult")) {
+    v <- nh[[nm]]
+    if (is.null(v) || length(v) != 1L || !is.numeric(v) || !is.finite(v) || v < 0 || v >= 1)
+      stop("abcd_nh_build: invalid fixed probability input '", nm, "'.", call. = FALSE)
+  }
+  if (!(nh$p_rhd_death_D_child > 0 && nh$p_rhd_death_D_adult > 0))
+    stop("abcd_nh_build: D_only requires p_rhd_death_D_child > 0 and p_rhd_death_D_adult > 0.", call. = FALSE)
+  # MORTALITY age boundary (attained age >= d_age uses the adult D value; separate from child_last_age)
+  d_age <- nh$d_death_adult_age_min
+  if (is.null(d_age) || length(d_age) != 1L || !is.numeric(d_age) || !is.finite(d_age) || d_age != round(d_age) ||
+      d_age <= min(ages) || d_age > max(ages))
+    stop("abcd_nh_build: d_death_adult_age_min must be one integer-valued attained age with model ages on both sides (00 block G).", call. = FALSE)
   # common adult progression HAZARD multiplier (required input; no hidden default)
   m_ad <- nh$adult_prog_hazard_mult
   if (is.null(m_ad) || length(m_ad) != 1L || !is.finite(m_ad) || m_ad <= 0)
@@ -165,21 +184,29 @@ abcd_nh_build <- function(nh, ages, sexes) {
             B_to_R = ad * nh$p_B_to_no_rhd_adult,           # fixed adult normalisation
             C_to_B = ch * tr$p_C_to_B,
             C_to_D = ch * tr$p_C_to_D + ad * p_CD_adult)   # calibrated value at <= 20; hazard x m at > 20
-  pd <- nh$p_rhd_death_D * nh$residual_rhd_mortality_mult
+  # base D -> RHD-death probability by CURRENT attained age, [age x sex] (one value per age row,
+  # replicated over sexes; length(pd_age) == n_age, no recycling); before surgery / competing risks
+  pd_age <- ifelse(ages >= d_age, nh$p_rhd_death_D_adult, nh$p_rhd_death_D_child)
+  if (length(pd_age) != n_age) stop("abcd_nh_build: D mortality vector does not match the model ages.", call. = FALSE)
+  pd <- M(pd_age) * nh$residual_rhd_mortality_mult
   entry <- lapply(setNames(ABCD_STAGES, ABCD_STAGES), function(s) ch * mC[[s]] + ad * mA[[s]])
   list(nh = nh, ages = ages, sexes = sexes, boundary_age = b, boundary_row = b_row,
        child = child, child_m = ch, adult_m = ad,
-       p = p, h = lapply(p, abcd_p2h_v), pd = pd, entry = entry,
+       p = p, h = lapply(p, abcd_p2h_v), pd = pd, d_death_adult_age_min = as.integer(d_age), entry = entry,
        mix_child = mC, mix_adult = mA,
        derived = list(p_prior_A_to_B_adult = tr$p_A_to_B, p_B_to_C_adult = p_BC_adult,
-                      p_C_to_D_adult = p_CD_adult, p_rhd_death_D = pd,
+                      p_C_to_D_adult = p_CD_adult,
+                      p_rhd_death_D_child = nh$p_rhd_death_D_child * nh$residual_rhd_mortality_mult,
+                      p_rhd_death_D_adult = nh$p_rhd_death_D_adult * nh$residual_rhd_mortality_mult,
+                      d_death_adult_age_min = as.integer(d_age),
                       adult_prog_hazard_mult = m_ad))
 }
 
 # record of the FIXED natural-history inputs (stale-bundle / spec-consistency check
 # 03 -> 04b -> 05: a calibration is consumed only under identical fixed inputs)
 abcd_nh_fixed <- function(nh)
-  c(nh[c("child_last_age", "p_B_to_no_rhd_adult", "p_rhd_death_D", "residual_rhd_mortality_mult",
+  c(nh[c("child_last_age", "p_B_to_no_rhd_adult", "p_rhd_death_D_child", "p_rhd_death_D_adult",
+         "d_death_adult_age_min", "residual_rhd_mortality_mult",
          "entry_mix_child", "entry_mix_adult", "adult_prog_hazard_mult")],
     list(p_D_to_C = nh$tr$p_D_to_C, engine_spec = ABCD_ENGINE_SPEC))
 
@@ -439,7 +466,7 @@ abcd_one_cycle <- function(state, popm, irm, oth, nhe, eff, surg, care, light = 
   # --- 4. stage dynamics (untreated / on-BPG splits; attained-age rules) ---------
   h <- nhe$h
   hCD <- abcd_p2h_v(nhe$p$C_to_D * eff_C_to_D_surg)
-  hD  <- abcd_p2h_v(nhe$pd * eff_D_death_surg)
+  hD  <- abcd_p2h_v(nhe$pd * eff_D_death_surg)          # nhe$pd: [age x sex] base D input by attained age
   sA  <- abcd_split_h(list(toR = h$A_to_R, toB = h$A_to_B, oth = h_oth))
   sAt <- abcd_split_h(list(toR = h$A_to_R, toB = h$A_to_B * mAB, oth = h_oth))
   sB  <- abcd_split_h(list(toA = h$B_to_A, toC = h$B_to_C, toR = h$B_to_R, oth = h_oth))

@@ -106,7 +106,7 @@ find_repo_root <- function() {
 }
 ROOT      <- find_repo_root()
 COUNTRIES <- c("Indonesia", "Uganda")
-ENGINE    <- "abcd_first_diagnosis_v1_adult_prog_mult_sap55"   # the engine this deck is written for (v1 + adult progression hazard multiplier + assumed 55% SAP progression-hazard reduction, 6 Nov 2026)
+ENGINE    <- "abcd_first_diagnosis_v1_adult_prog_mult_sap55_dmort_age"   # the engine this deck is written for (v1 + adult progression hazard multiplier + assumed 55% SAP progression-hazard reduction, 6 Nov 2026; + fixed age-specific stage-D mortality, 9 Nov 2026)
 
 # ---- Saved artifacts only: the deck never runs or modifies the pipeline -------
 artifact <- function(script, ...) {
@@ -313,11 +313,11 @@ CUR <- tex_lab(LB$currency_label)                                 # constant 202
 VA  <- D$Indonesia$econ$vsl_derivation$anchor
 EL  <- VA$income_elasticity; FL <- VA$floor_mult
 SPEC <- D$Indonesia$cal$stage_calibration$spec
-check(identical(SPEC[c("engine_spec", "mortality_structure", "sap_mechanism", "child_last_age", "entry_mix_child",
-                       "entry_mix_adult", "adult_prog_hazard_mult", "sap_eligibility", "sap_hr")],
+# child entry mix and adult progression multiplier are set per country (00 block G) and shown per country
+check(identical(SPEC[c("engine_spec", "mortality_structure", "sap_mechanism", "child_last_age",
+                       "entry_mix_adult", "sap_eligibility", "sap_hr")],
                 D$Uganda$cal$stage_calibration$spec[c("engine_spec", "mortality_structure", "sap_mechanism", "child_last_age",
-                                                      "entry_mix_child", "entry_mix_adult", "adult_prog_hazard_mult",
-                                                      "sap_eligibility", "sap_hr")]),
+                                                      "entry_mix_adult", "sap_eligibility", "sap_hr")]),
       "the countries were calibrated under different specifications; the deck compares them under one",
       "re-run both countries under one specification")
 
@@ -516,11 +516,17 @@ MALE_WORSE <- all(vapply(list(I, U), function(r) sexr(r, "Male") > sexr(r, "Fema
 n_opt <- function(r) uniqueN(round(as.data.table(r$sc$convergence)$objective, 3))
 dom_term <- function(r) { t <- r$oc$loss_decomposition[c("prevalence_0_19_weighted", "prevalence_20plus_weighted", "deaths_0_19_weighted", "deaths_20plus_weighted")]
   names(which.max(t)) }
-ENTRY_CH <- paste(names(I$nh$entry_mix_child)[I$nh$entry_mix_child > 0], collapse = "/")
+mix_lab <- function(m) { k <- m > 0; if (sum(k) == 1L) names(m)[k] else paste(paste0(names(m)[k], " ", round(100 * m[k]), "\\%"), collapse = "/") }
+ENTRY_CH <- if (identical(I$nh$entry_mix_child, U$nh$entry_mix_child)) mix_lab(I$nh$entry_mix_child) else
+  paste0(mix_lab(I$nh$entry_mix_child), " (Indonesia), ", mix_lab(U$nh$entry_mix_child), " (Uganda)")
+CH_A_ONLY <- all(c(I$nh$entry_mix_child[["A"]], U$nh$entry_mix_child[["A"]]) == 1)   # every child entry is stage A
 ENTRY_AD <- paste(names(I$nh$entry_mix_adult)[I$nh$entry_mix_adult > 0], collapse = "/")
 W_SCR <- I$cv$constants$screen_window_years
 q_of <- function(c) 1 - (1 - c)^(1 / W_SCR)
-M_AD <- I$m_ad                                   # common adult progression hazard multiplier (checked equal across countries)
+M_AD <- I$m_ad                                   # adult progression hazard multiplier (set per country in 00 block G)
+M_AD_SH <- if (isTRUE(all.equal(I$m_ad, U$m_ad))) fmt_f(M_AD) else paste0(fmt_f(I$m_ad), " (IDN) / ", fmt_f(U$m_ad), " (UGA)")
+D_AGE <- I$nh$d_death_adult_age_min              # stage-D mortality boundary: child value at age < D_AGE, adult at >= D_AGE
+pd_txt <- function(r, d = 3) paste0(fmt_f(r$nh$p_rhd_death_D_child, d), " / ", fmt_f(r$nh$p_rhd_death_D_adult, d))   # child / adult D death
 ALL_TOL_ANY <- function(r) any(r$tol[role == "checkpoint", years_within == years_scored])
 d20 <- function(r) r$tol[quantity == "RHD deaths, ages 20+"]
 peak_grp <- function(r) { x <- r$fl[year == r$cy & measure == "Deaths" & glo >= 20,
@@ -542,10 +548,10 @@ names(stat_tab) <- c("Checkpoint", "Indonesia", "Uganda")
 kb(stat_tab, "lll", widths = c("6.2cm", "3.3cm", "3.3cm"), font = 9)
 ```
 
-\srcline Statuses read from the saved calibration and model outputs. Model update (6 Nov 2026): adult B$\rightarrow$C and C$\rightarrow$D hazards fixed at \prov{`r fmt_f(M_AD)`$\times$} the childhood hazards; SAP: assumed `r fmt_pct(RRR_SAP)` progression-hazard reduction (\prov{$M$ = `r fmt_f(M_SAP, 2)`}, ages $\leq `r AMAX`$) replaces the GOAL child HRs; both countries recalibrated and re-run. 05--08 were run with the fit outside tolerance by explicit user decision. Confirmatory echo is \prov{not costed}. Tolerances: |log ratio| $<$ `r fmt_f(I$sc$spec$fit_tolerances[["prevalence"]])` (prevalence), `r fmt_f(I$sc$spec$fit_tolerances[["deaths"]])` (deaths).
+\srcline Statuses read from the saved calibration and model outputs. Model update (6 Nov 2026): adult B$\rightarrow$C and C$\rightarrow$D hazards fixed at \prov{`r M_AD_SH`$\times$} the childhood hazards; SAP: assumed `r fmt_pct(RRR_SAP)` progression-hazard reduction (\prov{$M$ = `r fmt_f(M_SAP, 2)`}, ages $\leq `r AMAX`$) replaces the GOAL child HRs; 9 Nov: fixed D death by age (\prov{$<`r D_AGE`$ / $\geq`r D_AGE`$}); both countries recalibrated and re-run. 05--08 were run with the fit outside tolerance by explicit user decision. Confirmatory echo is \prov{not costed}. Tolerances: |log ratio| $<$ `r fmt_f(I$sc$spec$fit_tolerances[["prevalence"]])` (prevalence), `r fmt_f(I$sc$spec$fit_tolerances[["deaths"]])` (deaths).
 
 ::: notes
-Time: 1.5 min (cumulative 1.5). Say this first: everything that follows is a numerically complete run of a model whose calibration does not yet reproduce GBD. Deaths are `r fmt_f(I$deaths_y0 / I$gbd_deaths, 1)` times GBD in Indonesia and `r fmt_f(U$deaths_y0 / U$gbd_deaths, 1)` times in Uganda at the start of the projection. This version adds one fixed common adult progression hazard multiplier of `r fmt_f(M_AD)` on B to C and C to D; it narrows the adult death excess but does not close it. The SAP effect is now an assumed `r fmt_pct(RRR_SAP)` reduction in A to B and B to C hazards on BPG up to age `r AMAX`, an expert-informed scenario rather than an estimate. The user chose to complete the pipeline anyway to see preliminary outputs; calibration improvement comes next. Transition: the question the model is built to answer.
+Time: 1.5 min (cumulative 1.5). Say this first: everything that follows is a numerically complete run of a model whose calibration does not yet reproduce GBD. Deaths are `r fmt_f(I$deaths_y0 / I$gbd_deaths, 1)` times GBD in Indonesia and `r fmt_f(U$deaths_y0 / U$gbd_deaths, 1)` times in Uganda at the start of the projection. This version keeps a fixed adult progression hazard multiplier (`r M_AD_SH`) on B to C and C to D; it narrows the adult death excess but does not close it. Stage-D death is now a fixed probability by attained age (`r pd_txt(I)` in Indonesia, `r pd_txt(U)` in Uganda, below / from age `r D_AGE`), which lowers adult deaths further but still leaves them above GBD. The SAP effect is now an assumed `r fmt_pct(RRR_SAP)` reduction in A to B and B to C hazards on BPG up to age `r AMAX`, an expert-informed scenario rather than an estimate. The user chose to complete the pipeline anyway to see preliminary outputs; calibration improvement comes next. Transition: the question the model is built to answer.
 :::
 
 ## We ask what scaling up echo screening and prophylaxis would buy, and at what cost
@@ -639,7 +645,7 @@ Time: 1.0 min (cumulative 4.25). @Coates2021 report the 4.7 ratio (UI 2.9–6.3)
 Time: 1.25 min (cumulative 5.5). Layer 1 is an aggregate proxy whose incidence multipliers only start the Layer-2 search. Layer 2 fits incidence corrections and six transitions with the production engine; stage-D mortality is fixed, not fitted. The calibrated `r CY` state, including diagnosis, BPG and screening histories, is carried through the bridge to `r Y0` without reseeding. The arms differ only in care. Transition: the state map.
 :::
 
-## New disease enters A before age `r BAGE + 1` and B after; screening finds it, and only stage D dies of RHD
+## New disease enters `r if (CH_A_ONLY) "A" else "mainly A"` before age `r BAGE + 1` and B after; screening finds it, and only stage D dies of RHD
 
 ```{r state-diagram, results = "asis"}
 # Drawn from the saved specification (entry mixes, age convention, D-only, D->C = 0).
@@ -667,10 +673,10 @@ tk <- c("\\begin{center}\\begin{tikzpicture}",
 cat(tk, sep = "\n")
 ```
 
-\srcline Drawn from the saved specification: new disease enters `r ENTRY_CH` at ages $\leq `r BAGE`$ and `r ENTRY_AD` above. Ages are attained ages; the boundary is a modelling convention, not a WHF rule. Surgery is a service on C$\rightarrow$D and D death, not a state.
+\srcline New disease enters `r ENTRY_CH` at attained ages $\leq `r BAGE`$ and `r ENTRY_AD` above; the boundary is a modelling convention, not a WHF rule. Surgery is a service on C$\rightarrow$D and D death, not a state.
 
 ::: notes
-Time: 1.5 min (cumulative 7.0). New modelled disease enters A at ages up to `r BAGE` and B above `r BAGE`; these entry mixes are simplifying assumptions, not estimates of onset age. At the `r BAGE`-to-`r BAGE + 1` ageing step surviving A becomes adult prior-A: lesion history excluded from classifiable prevalence and from SAP, which can re-enter B. Normalised people keep a history stock with no recurrence. Rules depend on attained age only, never on when diagnosis happened. Transition: the care split inside each stage.
+Time: 1.5 min (cumulative 7.0). New modelled disease enters `r ENTRY_CH` at ages up to `r BAGE` and B above `r BAGE`; these entry mixes are simplifying assumptions, not estimates of onset age. At the `r BAGE`-to-`r BAGE + 1` ageing step surviving A becomes adult prior-A: lesion history excluded from classifiable prevalence and from SAP, which can re-enter B. Normalised people keep a history stock with no recurrence. Rules depend on attained age only, never on when diagnosis happened. Transition: the care split inside each stage.
 :::
 
 ## Every stage is split by care status, and only some stocks count as prevalence or receive SAP
@@ -693,7 +699,7 @@ kb(cs_tab, "lllll", widths = c("4.4cm", "1.6cm", "1.5cm", "2.4cm", "2.1cm"), fon
 Time: 1.0 min (cumulative 8.0). Screening finds existing disease; it never creates disease. Confirmation failure leaves disease undiagnosed. C and D have no SAP programme volume in this simplified default. Prior-A previously diagnosed re-enters the diagnosed cohort, so no repeat first diagnosis is counted. Transition: the transition rules by age.
 :::
 
-## Six childhood transitions are calibrated; adult B$\rightarrow$C and C$\rightarrow$D run at `r fmt_f(M_AD)` times the childhood hazard
+## Six childhood transitions are calibrated; adult B$\rightarrow$C and C$\rightarrow$D run at `r M_AD_SH` times the childhood hazard
 
 ```{r tab-age-rules}
 v <- function(r, p) fmt_f(r$tr[[p]], 3)
@@ -701,21 +707,22 @@ va <- function(r, p, a) paste0(fmt_f(r$tr[[p]], 3), " / ", fmt_f(a, 3))   # chil
 ar_tab <- data.frame(
   T = c("A $\\rightarrow$ normalised", "A $\\rightarrow$ B (adult: prior-A $\\rightarrow$ B)", "B $\\rightarrow$ A",
         "B $\\rightarrow$ C (child / adult)", "C $\\rightarrow$ B", "C $\\rightarrow$ D (child / adult)",
-        "Adult progression hazard multiplier $m$", "B $\\rightarrow$ normalised", "D $\\rightarrow$ RHD death"),
+        "Adult progression hazard multiplier $m$", "B $\\rightarrow$ normalised",
+        paste0("D $\\rightarrow$ RHD death (age $<$", D_AGE, " / $\\geq$", D_AGE, ")")),
   ch = c("calibrated", "calibrated", "calibrated", "calibrated", "calibrated", "calibrated", "--", "0", "\\prov{fixed}"),
   ad = c("0", "same value", "0", "hazard $\\times\\,m$", "0", "hazard $\\times\\,m$", "\\prov{fixed}", "\\prov{fixed}", "\\prov{fixed}"),
   i = c(v(I, "p_A_to_no_rhd"), v(I, "p_A_to_B"), v(I, "p_B_to_A"), va(I, "p_B_to_C", I$bc_ad), v(I, "p_C_to_B"),
-        va(I, "p_C_to_D", I$cd_ad), fmt_f(I$m_ad, 2), fmt_f(I$nh$p_B_to_no_rhd_adult, 3), fmt_f(I$nh$p_rhd_death_D, 3)),
+        va(I, "p_C_to_D", I$cd_ad), fmt_f(I$m_ad, 2), fmt_f(I$nh$p_B_to_no_rhd_adult, 3), pd_txt(I)),
   u = c(v(U, "p_A_to_no_rhd"), v(U, "p_A_to_B"), v(U, "p_B_to_A"), va(U, "p_B_to_C", U$bc_ad), v(U, "p_C_to_B"),
-        va(U, "p_C_to_D", U$cd_ad), fmt_f(U$m_ad, 2), fmt_f(U$nh$p_B_to_no_rhd_adult, 3), fmt_f(U$nh$p_rhd_death_D, 3)))
+        va(U, "p_C_to_D", U$cd_ad), fmt_f(U$m_ad, 2), fmt_f(U$nh$p_B_to_no_rhd_adult, 3), pd_txt(U)))
 names(ar_tab) <- c("Annual probability", paste0("Age $\\leq$", BAGE), paste0("Age $>$", BAGE), "Indonesia", "Uganda")
 kb(ar_tab, "lllrr", widths = c("4.3cm", "1.6cm", "1.8cm", "1.9cm", "1.9cm"), font = 9)
 ```
 
-\srcline Values in force (calibrated or fixed). Adult B$\rightarrow$C and C$\rightarrow$D: $p_{\text{adult}} = 1-(1-p_{\text{child}})^m$, every disease and diagnosis history; age `r BAGE` uses the childhood values. Annual probabilities are converted once to hazards. A$\rightarrow$C, A/B/C RHD death and D$\rightarrow$C are exact zeros. The late-entry D-death multiplier is removed (value 1).
+\srcline Values in force (calibrated or fixed). Adult B$\rightarrow$C and C$\rightarrow$D: $p_{\text{adult}} = 1-(1-p_{\text{child}})^m$, every disease and diagnosis history; age `r BAGE` uses the childhood values. Annual probabilities are converted once to hazards. A$\rightarrow$C, A/B/C RHD death and D$\rightarrow$C are exact zeros. D death depends only on attained age (age `r D_AGE` takes the adult value); the late-entry D-death multiplier is removed (value 1).
 
 ::: notes
-Time: 1.25 min (cumulative 9.25). Stage-D mortality is a fixed country input (`r fmt_f(I$nh$p_rhd_death_D, 3)` Indonesia, `r fmt_f(U$nh$p_rhd_death_D, 3)` Uganda), not fitted. Adult B normalisation `r fmt_f(I$nh$p_B_to_no_rhd_adult, 2)` is a fixed provisional extrapolation. The adult multiplier `r fmt_f(M_AD)` is a fixed provisional reference value, not estimated, and the same in both countries; it scales hazards, never probabilities directly. Because the calibrated values are the childhood ones, the refit can raise the childhood rates and offset part of the adult reduction. Transition: how the boundary at age `r BAGE + 1` works.
+Time: 1.25 min (cumulative 9.25). Stage-D mortality is a fixed country input by attained age (`r pd_txt(I)` Indonesia, `r pd_txt(U)` Uganda, below / from age `r D_AGE`), not fitted. Adult B normalisation `r fmt_f(I$nh$p_B_to_no_rhd_adult, 2)` is a fixed provisional extrapolation. The adult multiplier `r M_AD_SH` is a fixed provisional reference value, not estimated, set per country; it scales hazards, never probabilities directly. Because the calibrated values are the childhood ones, the refit can raise the childhood rates and offset part of the adult reduction. Transition: how the boundary at age `r BAGE + 1` works.
 :::
 
 ## At age `r BAGE + 1`, surviving A becomes prior-A: about `r fmt_h(I$ycut("ref", Y0)$reclass)` people a year in Indonesia, `r fmt_h(U$ycut("ref", Y0)$reclass)` in Uganda
@@ -816,7 +823,7 @@ in1 <- data.frame(
             "Entry mixes, adult normalisation", "Initial diagnosed / on-BPG share", "Incidence trend"),
   Source = c("UN WPP 2024", if (identical(I$basis, "number")) "GBD 2023 counts" else "GBD rate $\\times$ WPP",
              "GBD all-cause $-$ RHD", "GBD $\\times$ Layer-2 $\\alpha$", "Layer 2 within bounds",
-             paste0(fmt_f(I$nh$p_rhd_death_D, 3), " / ", fmt_f(U$nh$p_rhd_death_D, 4)), "Modelling assumption",
+             paste0("$<$", D_AGE, " / ", D_AGE, "+: ", pd_txt(I, 2), " (IDN); ", pd_txt(U, 2), " (UGA)"), "Modelling assumption",
              paste0(fmt_cov(I$cv$init$diagnosed_share), " / ", fmt_cov(I$cv$init$on_bpg_share), " (Indonesia)"), "Assumption"),
   Status = c("Observed", "Observed", "Observed", "Calibrated", "\\prov{Partly identified}", "\\prov{Fixed, provisional}",
              "\\prov{Fixed, new}", "\\prov{Provisional}", "\\prov{Provisional}"))
@@ -867,7 +874,7 @@ Time: 0.75 min (cumulative 15.5). Surgery is held equal in both arms, so it shap
 - Prevalence `r fmt_f(I$oc$weights[["W_PREV"]], 1)`, deaths `r fmt_f(I$oc$weights[["W_DEATH"]], 1)`, incidence `r fmt_f(I$oc$weights[["W_INC"]], 1)`
 - Each split 0–19 / 20+ at `r fmt_f(I$oc$weights[["prev_child_share"]], 1)` / `r fmt_f(1 - I$oc$weights[["prev_child_share"]], 1)`
 - Free: 6 childhood transitions + `r sum(grepl("^alpha", I$ptab$parameter))` incidence $\alpha$
-- Adult B$\rightarrow$C, C$\rightarrow$D: hazard $\times$ \prov{`r fmt_f(M_AD)`} (fixed)
+- Adult B$\rightarrow$C, C$\rightarrow$D: hazard $\times$ \prov{`r M_AD_SH`} (fixed)
 - Burn-in `r I$sc$priors$burn_years` cycles, per-capita balanced
 :::
 ::::
@@ -898,7 +905,7 @@ kb(fit_tab, "lrrrr", widths = c("4.4cm", "2.0cm", "1.4cm", "2.0cm", "1.4cm"), fo
 \srcline Ratios over the scored years, both sexes, `r basis_label`. Tolerance |log ratio| $<$ `r fmt_f(I$sc$spec$fit_tolerances[["prevalence"]])` (prevalence) and `r fmt_f(I$sc$spec$fit_tolerances[["deaths"]])` (deaths) in every year. Ratios to published GBD counts are in backup.
 
 ::: notes
-Time: 1.25 min (cumulative 17.75). The tolerances are operational criteria, not external validation. Indonesia reproduces childhood prevalence but only `r fmt_pct(I$tol[quantity == "RHD deaths, ages 0-19", ratio_max], 0)` of childhood deaths at best, while adult deaths are `r rng(d20(I))` times GBD even with the adult multiplier. Uganda is closer: its all-age deaths are within tolerance in `r dratio(U)$years_within` of `r dratio(U)$years_scored` scored years, adult deaths `r rng(d20(U))` times GBD, and prevalence stays low (`r rng(pratio(U))`). Parameters at a bound: `r hits(I)` (Indonesia), `r hits(U)` (Uganda). Transition: the pattern over time.
+Time: 1.25 min (cumulative 17.75). The tolerances are operational criteria, not external validation. Indonesia reproduces childhood prevalence but only `r fmt_pct(I$tol[quantity == "RHD deaths, ages 0-19", ratio_max], 0)` of childhood deaths at best, while adult deaths are `r rng(d20(I))` times GBD even with the adult multiplier. In Uganda, all-age deaths are within tolerance in `r dratio(U)$years_within` of `r dratio(U)$years_scored` scored years, adult deaths `r rng(d20(U))` times GBD, and prevalence stays low (`r rng(pratio(U))`). Parameters at a bound: `r hits(I)` (Indonesia), `r hits(U)` (Uganda). Transition: the pattern over time.
 :::
 
 ## Over `r MF`–`r CY` `r if (DRIFT_UP) "the death ratios rise while GBD deaths per prevalent case fall" else "the model / GBD ratios change across the scored years"`
@@ -967,36 +974,36 @@ pi_ <- t(vapply(cal6, function(p) prow(I, p), c("", ""))); pu_ <- t(vapply(cal6,
 par_tab <- data.frame(Parameter = unname(tp_lab[cal6]), pi = pi_[, 1], vi = pi_[, 2], vu = pu_[, 2])
 par_tab <- rbind(par_tab, data.frame(
   Parameter = paste0(c("B $\\rightarrow$ C", "C $\\rightarrow$ D"), ", age $>$", BAGE, " (derived)"),
-  pi = paste0("hazard $\\times$ ", fmt_f(M_AD)), vi = fmt_f(c(I$bc_ad, I$cd_ad), 4), vu = fmt_f(c(U$bc_ad, U$cd_ad), 4)))
+  pi = paste0("hazard $\\times$ ", M_AD_SH), vi = fmt_f(c(I$bc_ad, I$cd_ad), 4), vu = fmt_f(c(U$bc_ad, U$cd_ad), 4)))
 names(par_tab) <- c("Annual probability", "Centre [bounds]", "Indonesia", "Uganda")
 kb(par_tab, "lrrr", widths = c("3.8cm", "3.4cm", "2.2cm", "2.2cm"), font = 9)
 ```
 
-\srcline Amber bold: at a bound. Incidence multipliers: `r fmt_f(min(I$bp$incidence_alpha$alpha))`--`r fmt_f(max(I$bp$incidence_alpha$alpha))` (Indonesia), `r fmt_f(min(U$bp$incidence_alpha$alpha))`--`r fmt_f(max(U$bp$incidence_alpha$alpha))` (Uganda). Calibrated rows are childhood values. Fixed: D death, adult B normalisation, adult progression multiplier `r fmt_f(M_AD)`, entry mixes, D$\rightarrow$C = 0.
+\srcline Amber bold: at a bound. Incidence multipliers: `r fmt_f(min(I$bp$incidence_alpha$alpha))`--`r fmt_f(max(I$bp$incidence_alpha$alpha))` (Indonesia), `r fmt_f(min(U$bp$incidence_alpha$alpha))`--`r fmt_f(max(U$bp$incidence_alpha$alpha))` (Uganda). Calibrated rows are childhood values. Fixed: D death, adult B normalisation, adult progression multiplier `r M_AD_SH`, entry mixes, D$\rightarrow$C = 0.
 
 ::: notes
-Time: 1.0 min (cumulative 20.75). Bound hits: `r hits(I)` in Indonesia, `r hits(U)` in Uganda; the optimiser pushes childhood progression up to create childhood deaths. With adult hazards fixed at `r fmt_f(M_AD)` times the childhood values, Indonesia's adult C to D is `r fmt_f(I$cd_ad, 3)` against a childhood `r fmt_f(I$tr$p_C_to_D, 3)`, but childhood B to C rises to `r fmt_f(I$tr$p_B_to_C, 3)`, so adult B to C stays at `r fmt_f(I$bc_ad, 3)`. Uganda's childhood B to C is `r fmt_f(U$tr$p_B_to_C, 4)` (adult `r fmt_f(U$bc_ad, 4)`), and incidence is scaled down to `r fmt_f(min(U$bp$incidence_alpha$alpha))`–`r fmt_f(max(U$bp$incidence_alpha$alpha))`. All `r nrow(as.data.table(I$sc$convergence))` starts converged per country. Transition: stage D.
+Time: 1.0 min (cumulative 20.75). Bound hits: `r hits(I)` in Indonesia, `r hits(U)` in Uganda; the optimiser pushes childhood progression up to create childhood deaths. With adult hazards fixed at `r M_AD_SH` times the childhood values, Indonesia's adult C to D is `r fmt_f(I$cd_ad, 3)` against a childhood `r fmt_f(I$tr$p_C_to_D, 3)`, but childhood B to C rises to `r fmt_f(I$tr$p_B_to_C, 3)`, so adult B to C stays at `r fmt_f(I$bc_ad, 3)`. Uganda's childhood B to C is `r fmt_f(U$tr$p_B_to_C, 4)` (adult `r fmt_f(U$bc_ad, 4)`), and incidence is scaled down to `r fmt_f(min(U$bp$incidence_alpha$alpha))`–`r fmt_f(max(U$bp$incidence_alpha$alpha))`. All `r nrow(as.data.table(I$sc$convergence))` starts converged per country. Transition: stage D.
 :::
 
 ## Stage D holds `r fmt_pct(I$eda$stage_shares_last[["D"]], 0)` of Indonesia's modelled RHD against a GBD heart-failure proxy of `r fmt_pct(I$eda$d_share_proxy_gbd_hf, 1)`
 
 ```{r tab-stage-d}
 sd_tab <- data.frame(
-  q = c("Stage-D annual RHD death probability (fixed input)", paste0("Realised D death risk, ", CY),
+  q = c(paste0("Stage-D annual RHD death probability, age $<$", D_AGE, " / ", D_AGE, "+ (fixed input)"), paste0("Realised D death risk, all ages, ", CY),
         paste0("Stage-D share of classifiable RHD, ", CY), "GBD heart-failure proxy share (diagnostic)",
         paste0("Model / GBD RHD deaths per prevalent case, ", CY)),
-  i = c(fmt_pct(I$nh$p_rhd_death_D, 1), fmt_pct(I$dfa$realized_D_death_risk, 1), fmt_pct(I$eda$stage_shares_last[["D"]], 1),
+  i = c(paste0(fmt_pct(I$nh$p_rhd_death_D_child, 1), " / ", fmt_pct(I$nh$p_rhd_death_D_adult, 1)), fmt_pct(I$dfa$realized_D_death_risk, 1), fmt_pct(I$eda$stage_shares_last[["D"]], 1),
         fmt_pct(I$eda$d_share_proxy_gbd_hf, 1), fmt_f(I$eda$cf_implied / I$eda$gbd_cf, 1)),
-  u = c(fmt_pct(U$nh$p_rhd_death_D, 1), fmt_pct(U$dfa$realized_D_death_risk, 1), fmt_pct(U$eda$stage_shares_last[["D"]], 1),
+  u = c(paste0(fmt_pct(U$nh$p_rhd_death_D_child, 1), " / ", fmt_pct(U$nh$p_rhd_death_D_adult, 1)), fmt_pct(U$dfa$realized_D_death_risk, 1), fmt_pct(U$eda$stage_shares_last[["D"]], 1),
         fmt_pct(U$eda$d_share_proxy_gbd_hf, 1), fmt_f(U$eda$cf_implied / U$eda$gbd_cf, 1)))
 names(sd_tab) <- c("", "Indonesia", "Uganda")
 kb(sd_tab, "lrr", widths = c("7.4cm", "2.5cm", "2.5cm"))
 ```
 
-\srcline D mortality is the same for every disease and diagnosis history (the former late-entry multiplier of 2 is removed). Realised risk is lower because of competing other-cause death and reference surgery.
+\srcline D mortality depends only on attained age and is the same for every disease and diagnosis history (the former late-entry multiplier of 2 is removed). Realised risk is lower because of competing other-cause death and reference surgery; the all-age value is dominated by adult D.
 
 ::: notes
-Time: 0.75 min (cumulative 21.5). Adult deaths changed without touching D mortality: with no direct C or D entry, deaths come only through progression, and adult C to D (the childhood rate scaled by the `r fmt_f(M_AD)` hazard multiplier) drives adult D inflow. The heart-failure proxy is not a validated stage target. Transition: why the fit fails.
+Time: 0.75 min (cumulative 21.5). D mortality is now fixed by attained age, `r pd_txt(I)` (Indonesia) and `r pd_txt(U)` (Uganda) below and from age `r D_AGE`; the lower adult value means each adult D case dies more slowly, so D accumulates. With no direct C or D entry, deaths come only through progression, and adult C to D (the childhood rate scaled by the `r M_AD_SH` hazard multiplier) drives adult D inflow. The heart-failure proxy is not a validated stage target. Transition: why the fit fails.
 :::
 
 ## Four mechanisms limit the fit under the fixed assumptions
@@ -1009,7 +1016,7 @@ mc_tab <- data.frame(
         paste0("Prevalence 20--24: ", fmt_f(I$mech$prev_2024), " / ", fmt_f(U$mech$prev_2024), " $\\times$ GBD"),
         paste0("Uganda prevalence 60+: ", fmt_f(U$mech$prev_60p), " $\\times$ GBD"),
         paste0("Deaths per case ", fmt_pct(I$mech$gbd_cf_change), " / ", fmt_pct(U$mech$gbd_cf_change), ", ", MF, "--", CY)),
-  W = c(paste0("Childhood deaths need fast progression; adults inherit it at ", fmt_f(M_AD), "$\\times$ the hazard and still over-progress"),
+  W = c(paste0("Childhood deaths need fast progression; adults inherit it at ", M_AD_SH, "$\\times$ the hazard and still over-progress"),
         paste0("Child A counts as RHD; the same lesion stops counting at ", BAGE + 1),
         paste0("Adult B leaves only via ", fmt_pct(I$nh$p_B_to_no_rhd_adult), " normalisation or progression"),
         "Constant natural history cannot reproduce a declining trend"))
@@ -1020,7 +1027,7 @@ kb(mc_tab, "lll", widths = c("3.6cm", "4.6cm", "4.6cm"), font = 9)
 \srcline Evidence from the saved Layer-2 targets and fit (Indonesia / Uganda where two values are shown).
 
 ::: notes
-Time: 1.5 min (cumulative 23.0). Children enter only stage A, and adult B to C and C to D are the childhood rates scaled by one fixed hazard multiplier (`r fmt_f(M_AD)`), so reaching the childhood case fatality GBD reports still inflates adult deaths; the multiplier narrows that gap but the refit offsets part of it by raising childhood B to C. Prior-A exclusion creates the 20–24 dip. Adult exits are too slow for GBD's declining prevalence with age in Uganda. And GBD's case fatality falls over 2010–2019, which constant natural history cannot reproduce. Each is a fixed assumption, so fixing it is a decision, not a tuning step. Transition: what changing them achieved in scratch tests.
+Time: 1.5 min (cumulative 23.0). Children enter `r if (CH_A_ONLY) "only stage A" else "mainly stage A"`, and adult B to C and C to D are the childhood rates scaled by a fixed hazard multiplier (`r M_AD_SH`), so reaching the childhood case fatality GBD reports still inflates adult deaths; the multiplier narrows that gap but the refit offsets part of it by raising childhood B to C. Prior-A exclusion creates the 20–24 dip. Adult exits are too slow for GBD's declining prevalence with age in Uganda. And GBD's case fatality falls over 2010–2019, which constant natural history cannot reproduce. Each is a fixed assumption, so fixing it is a decision, not a tuning step. Transition: what changing them achieved in scratch tests.
 :::
 
 ## `r if (is.null(ALT)) "Scratch-only alternative tests are described in the checkpoint note" else "In the 5 Nov scratch tests no variant passed; adult parameters plus prior-A in prevalence came closest"`
@@ -1037,7 +1044,7 @@ if (is.null(ALT)) {
 }
 ```
 
-\srcline Scratch tests on the previous shared-rate model (dev/ checkpoint note; not saved outputs). The current model fixes the adult multiplier at `r fmt_f(M_AD)`.
+\srcline Scratch tests on the previous shared-rate model (dev/ checkpoint note; not saved outputs). The current model fixes the adult multiplier at `r M_AD_SH`.
 
 ::: notes
 Time: 1.0 min (cumulative 24.0). These tests predate the adult multiplier. Freeing three adult parameters (adult B to C, C to D and B normalisation) cut the death ratios most. Counting prior-A as prevalence removed the 20–24 dip and brought prevalence within tolerance, but deaths still drifted above tolerance in later years. The adopted fixed multiplier is a restricted version of the first idea: one fixed adult reduction on B to C and C to D rather than freely estimated adult rates. Transition: who gets diagnosed, and at what stage.
@@ -1275,7 +1282,8 @@ Time: 0.5 min (cumulative 31.5). A progression mechanism delays benefits: the sc
 **Implemented**
 
 - First-diagnosis engine
-- Adult hazard multiplier (`r fmt_f(M_AD)`)
+- Adult hazard multiplier (`r M_AD_SH`)
+- Age-specific D mortality ($<`r D_AGE`$ / `r D_AGE`+)
 - Screening, confirmation, BPG cascade
 - Joint calibration; bridge
 - Outputs, costing, BCR
@@ -1310,7 +1318,7 @@ op_tab <- data.frame(
   O = c("1 (recommended in the 5 Nov checkpoint)", "2", paste0("3 (current model, adopted 6 Nov)")),
   C = c("Free adult B$\\rightarrow$C, C$\\rightarrow$D, B$\\rightarrow$normalised; count adult prior-A as prevalence",
         "Free the three adult parameters only; keep prior-A excluded",
-        paste0("Fix one common adult hazard multiplier (", fmt_f(M_AD), ") on B$\\rightarrow$C and C$\\rightarrow$D; keep prior-A excluded")),
+        paste0("Fix the adult hazard multiplier (", M_AD_SH, ") on B$\\rightarrow$C and C$\\rightarrow$D; fixed age-specific D mortality (9 Nov); keep prior-A excluded")),
   E = c("Prevalence within tolerance; deaths 1.0--1.5$\\times$, drifting up",
         "Deaths 1.0--1.5$\\times$; prevalence 0.76--0.87$\\times$",
         paste0("Deaths ", rng(dratio(I)), "$\\times$ (Indonesia), ", rng(dratio(U)), "$\\times$ (Uganda); prevalence ",
@@ -1352,7 +1360,7 @@ Time: 0.25 min (cumulative 33.75). Pause here, then open the discussion.
 
 ## Five collaborator decisions will define the next model version
 
-1. Should the fixed adult hazard multiplier (`r fmt_f(M_AD)`) give way to adult rates estimated from data, and should adult normalisation be estimated?
+1. Should the fixed adult hazard multiplier (`r M_AD_SH`) give way to adult rates estimated from data, and should adult normalisation be estimated?
 2. Should adult prior-A count as RHD prevalence, to match the GBD case definition across age 21?
 3. Should the calibration reproduce GBD's falling case fatality, or score fewer years?
 4. Is the assumed `r fmt_pct(RRR_SAP)` progression-hazard reduction to age `r AMAX` acceptable, and should stage B at `r AMAX + 1L`+ stay on BPG?
@@ -1608,7 +1616,7 @@ if (is.null(LIT)) {
 }
 ```
 
-\srcline Table 2 of the collaborators' September 2026 worksheet, annualised. Model values are the calibrated or fixed values in force (childhood values; adult B$\rightarrow$C and C$\rightarrow$D = hazard $\times$ `r fmt_f(M_AD)`: Indonesia `r fmt_f(I$bc_ad, 4)` / `r fmt_f(I$cd_ad, 4)`, Uganda `r fmt_f(U$bc_ad, 4)` / `r fmt_f(U$cd_ad, 4)`).
+\srcline Table 2 of the collaborators' September 2026 worksheet, annualised. Model values are the calibrated or fixed values in force (childhood values; adult B$\rightarrow$C and C$\rightarrow$D = hazard $\times$ `r M_AD_SH`: Indonesia `r fmt_f(I$bc_ad, 4)` / `r fmt_f(I$cd_ad, 4)`, Uganda `r fmt_f(U$bc_ad, 4)` / `r fmt_f(U$cd_ad, 4)`).
 
 ## `r if (is.null(DPROXY)) "The stage-D mortality input is a provisional proxy, not a validated transition" else paste0("Stage-D mortality depends on its proxy: the two definitions differ up to ", fmt_n(max(DPROXY$gbd_hf / DPROXY$lit)), "-fold")`
 
@@ -1698,7 +1706,7 @@ kb(abs_tab, "lrrrr", widths = c("3.9cm", "1.95cm", "1.95cm", "1.95cm", "1.95cm")
 
 ## No sensitivity analysis exists yet; these analyses are planned
 
-- **Structural:** adult progression multiplier (now fixed at `r fmt_f(M_AD)`) and adult normalisation; prior-A in prevalence; direct advanced entry in children
+- **Structural:** adult progression multiplier (now fixed at `r M_AD_SH`) and adult normalisation; prior-A in prevalence; direct advanced entry in children
 - **Calibration:** prevalence : death weights; death-trend handling; target basis
 - **One-way:** assumed SAP progression multiplier $M$ and protection age (GOAL-trial child hazard ratios as the documented alternative); BPG initiation, retention, adherence; confirmation completion; screening window target
 - **Economic:** confirmation unit cost; VSL reference value, income elasticity and floor; income growth; discount rate; unit costs and their price years

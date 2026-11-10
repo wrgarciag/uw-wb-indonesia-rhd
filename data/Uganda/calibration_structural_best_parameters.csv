@@ -5,22 +5,24 @@ p_B_to_A,calibrated,0.08
 p_B_to_C,calibrated,0.08
 p_C_to_B,calibrated,0.025
 p_C_to_D,calibrated,0.08
-alpha[0-14|Female],calibrated,0.361959171383607
-alpha[15-24|Female],calibrated,0.35111806884703
-alpha[25-44|Female],calibrated,0.374482928678455
-alpha[45-64|Female],calibrated,0.47514367654444
-alpha[65-79|Female],calibrated,0.645202168318133
-alpha[80+|Female],calibrated,0.886775191228171
-alpha[0-14|Male],calibrated,0.336312199718861
-alpha[15-24|Male],calibrated,0.320003571676054
-alpha[25-44|Male],calibrated,0.339506072912839
-alpha[45-64|Male],calibrated,0.438458488951843
-alpha[65-79|Male],calibrated,0.612154039533827
-alpha[80+|Male],calibrated,0.866983067749005
+alpha[0-14|Female],calibrated,0.367641946729494
+alpha[15-24|Female],calibrated,0.350513398198337
+alpha[25-44|Female],calibrated,0.368480508563013
+alpha[45-64|Female],calibrated,0.465295684214956
+alpha[65-79|Female],calibrated,0.632154673296376
+alpha[80+|Female],calibrated,0.870836121973482
+alpha[0-14|Male],calibrated,0.34088573221783
+alpha[15-24|Male],calibrated,0.319166246185522
+alpha[25-44|Male],calibrated,0.334311581852646
+alpha[45-64|Male],calibrated,0.43005652377559
+alpha[65-79|Male],calibrated,0.60099140215644
+alpha[80+|Male],calibrated,0.853248153409858
 child_last_age (modelling convention),fixed,20
 p_D_to_C,fixed (structural zero),0
 p_rhd_death_A/B/C,fixed (structural zeros),0
-p_rhd_death_D (all histories),fixed,0.0597
+p_rhd_death_D_child (attained age < 20; all histories),fixed,0.06
+p_rhd_death_D_adult (attained age >= 20; all histories),fixed,0.03
+d_death_adult_age_min (stage-D mortality age boundary; first adult age),fixed,20
 late-entry D-death multiplier (removed),fixed at 1,1
 adult_prog_hazard_mult (adult > 20 B->C and C->D hazard multiplier),fixed,0.5
 residual_rhd_mortality_mult,fixed,1

@@ -17,7 +17,8 @@
 # against GBD RHD PREVALENCE (principal target: TOTAL classifiable disease, diagnosed +
 # undiagnosed; adult prior-A and normalised history excluded) and RHD-SPECIFIC DEATHS
 # (diagnosed + undiagnosed D), with incidence REPORTED as a validation output.
-# FIXED (never fitted): D mortality (one input for every history), entry mixes, adult
+# FIXED (never fitted): D mortality (fixed age-specific probabilities: child value at
+# attained age < d_death_adult_age_min, adult value at >= it; every history), entry mixes, adult
 # B normalisation, the adult progression hazard multiplier, D->C = 0 and the residual
 # multiplier 1. Reference care is applied
 # INSIDE the objective exactly as in production; fitted parameters are untreated.
@@ -651,15 +652,25 @@ stage_by_age_component <- rbindlist(lapply(seq_len(n_yr), function(t) {
     idcol = "age_component")
 }))
 stage_by_age_component[, `:=`(share_D = D / (A + B + C + D), deaths_per_prev_case = rhd_deaths / prev_obs)]
+# D fatality by the MORTALITY age groups (< / >= d_death_adult_age_min): input = D_start-weighted
+# mean of the cell-level base input (exactly the fixed value within one mortality group); min / max
+# record the inputs spanned; realised risk is lower (surgery service + competing other-cause death)
+d_age <- nhe_best$d_death_adult_age_min; dch_a <- ages < d_age; dad_a <- !dch_a
 d_fat <- rbindlist(lapply(seq_len(n_yr), function(t) {
   cyc <- pw$cycles[[t]]
-  rbindlist(lapply(list(all = rep(TRUE, n_age), "0-20" = ch_a, "21+" = ad_a), function(sel) {
+  rbindlist(lapply(setNames(list(rep(TRUE, n_age), dch_a, dad_a), c("all", sprintf("0-%d", d_age - 1L), sprintf("%d+", d_age))), function(sel) {
     Ds <- sum(cyc$D_start[sel, ]); dd <- sum(cyc$rhd_deaths_D[sel, ])
-    data.table(year = yrs[t], D_start = Ds, rhd_deaths_D = dd, input_D_death_prob = nhe_best$pd,
+    data.table(year = yrs[t], D_start = Ds, rhd_deaths_D = dd,
+               input_D_death_prob = if (Ds > 0) sum(cyc$D_start[sel, ] * nhe_best$pd[sel, ]) / Ds else NA_real_,
+               input_D_death_prob_min = min(nhe_best$pd[sel, ]), input_D_death_prob_max = max(nhe_best$pd[sel, ]),
                realized_D_death_risk = if (Ds > 0) dd / Ds else NA_real_,
                D_start_zero = Ds <= 0, zero_deaths_when_undefined_ok = if (Ds > 0) NA else dd == 0)
   }), idcol = "ages")
 }))
+# cell-level guard (age-aligned): RHD deaths in D never exceed the start-of-cycle D stock x its own base input
+d_cell_excess <- max(vapply(seq_len(n_yr), function(t) {
+  cyc <- pw$cycles[[t]]; max(cyc$rhd_deaths_D - cyc$D_start * nhe_best$pd * (1 + 1e-9))
+}, numeric(1)))
 # stage at FIRST CONFIRMED DIAGNOSIS by age at diagnosis (scored years) vs the PROVISIONAL benchmark
 dx_comp <- rbindlist(lapply(list("<=20" = ch_a, ">20" = ad_a), function(sel) {
   v <- vapply(c("A", "B", "C", "D"), function(s) sum(vapply(which(match_cols), function(t) sum(pw$cycles[[t]][[paste0("n_dx_", s)]][sel, ]), 0)), 0)
@@ -687,8 +698,9 @@ attribution <- if (fit_ok)
   sprintf("prevalence (all ages, %s) and RHD deaths (all ages, %s and %s) within the checkpoint tolerances in every scored year", aA, cA, aA) else
   paste0("OUTSIDE checkpoint tolerance: ", paste(tol_summary[role == "checkpoint" & years_within < years_scored,
           sprintf("%s (ratio %.2f-%.2f over %d-%d)", quantity, ratio_min, ratio_max, MATCH_FROM, CAL_YEAR_END)], collapse = "; "),
-         sprintf(". Fixed inputs that bound the fit: D death %.4f (all histories), entry mix child %s / adult %s, adult B normalisation %.3f; D share entering %d = %.1f%% (GBD HF proxy %s).",
-                 nhe_best$pd, paste(NH0$entry_mix_child, collapse = "/"), paste(NH0$entry_mix_adult, collapse = "/"),
+         sprintf(". Fixed inputs that bound the fit: D death %.4f at age < %d / %.4f at age >= %d (all histories), entry mix child %s / adult %s, adult B normalisation %.3f; D share entering %d = %.1f%% (GBD HF proxy %s).",
+                 NH0$p_rhd_death_D_child, NH0$d_death_adult_age_min, NH0$p_rhd_death_D_adult, NH0$d_death_adult_age_min,
+                 paste(NH0$entry_mix_child, collapse = "/"), paste(NH0$entry_mix_adult, collapse = "/"),
                  NH0$p_B_to_no_rhd_adult, CAL_YEAR_END, 100 * stage_shares[["D"]],
                  if (is.na(dmi$meta$d_share_proxy_gbd_hf)) "n/a" else sprintf("%.1f%%", 100 * dmi$meta$d_share_proxy_gbd_hf)))
 
@@ -728,19 +740,23 @@ par_tab[, source := c("age <= 20 annual probability [PROVISIONAL centre 00 block
                       rep("weak prior on GBD incidence-per-total-population pattern (log-sd SIGMA_ALPHA_STRUCT); Layer-1 alpha = start only", n_alpha))]
 eff_hr <- dmi$effects
 fixed_tab <- data.table(
-  parameter = c("child_last_age (modelling convention)", "p_D_to_C", "p_rhd_death_A/B/C", "p_rhd_death_D (all histories)",
+  parameter = c("child_last_age (modelling convention)", "p_D_to_C", "p_rhd_death_A/B/C",
+                sprintf("p_rhd_death_D_child (attained age < %d; all histories)", NH0$d_death_adult_age_min),
+                sprintf("p_rhd_death_D_adult (attained age >= %d; all histories)", NH0$d_death_adult_age_min),
+                "d_death_adult_age_min (stage-D mortality age boundary; first adult age)",
                 "late-entry D-death multiplier (removed)", "adult_prog_hazard_mult (adult > 20 B->C and C->D hazard multiplier)",
                 "residual_rhd_mortality_mult", "p_B_to_no_rhd_adult",
                 paste0("entry_mix_child[", names(NH0$entry_mix_child), "]"), paste0("entry_mix_adult[", names(NH0$entry_mix_adult), "]"),
                 "sap_progression_rrr", "sap_progression_hazard_mult (M)", "sap_protection_age_max (attained age)",
                 "sap_hr_prior_A_to_B_adult", "sap_hr_C_to_D", "sap_hr_D_to_rhd_death"),
-  role = c("fixed", "fixed (structural zero)", "fixed (structural zeros)", "fixed", "fixed at 1", "fixed", "fixed", "fixed",
+  role = c("fixed", "fixed (structural zero)", "fixed (structural zeros)", "fixed", "fixed", "fixed", "fixed at 1", "fixed", "fixed", "fixed",
            rep("fixed (new simplifying assumption)", 8), rep("fixed (applied in reference care)", 6)),
-  value = c(NH0$child_last_age, 0, 0, nhe_best$pd, 1, NH0$adult_prog_hazard_mult, NH0$residual_rhd_mortality_mult, NH0$p_B_to_no_rhd_adult,
+  value = c(NH0$child_last_age, 0, 0, NH0$p_rhd_death_D_child, NH0$p_rhd_death_D_adult, NH0$d_death_adult_age_min,
+            1, NH0$adult_prog_hazard_mult, NH0$residual_rhd_mortality_mult, NH0$p_B_to_no_rhd_adult,
             NH0$entry_mix_child, NH0$entry_mix_adult,
             eff_hr$sap_progression_rrr, eff_hr$sap_progression_hazard_mult, eff_hr$sap_protection_age_max,
             eff_hr$sap_hr_prior_A_to_B_adult, eff_hr$sap_hr_C_to_D, eff_hr$sap_hr_D_to_rhd_death),
-  source = c(rep("00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated", 16),
+  source = c(rep("00 block G/H [PROVISIONAL reference input / country input / modelling assumption]; not estimated", 18),
              rep(paste0("00 block H: assumed 55% reduction in progression hazards (expert-informed scenario), informed by evidence on prevention of recurrent rheumatic fever ",
                         "[ASSUMPTION; not estimated]: M on treated ", paste(eff_hr$sap_effect_transitions, collapse = " and "),
                         " hazards (same M on both = assumption) at attained age <= sap_protection_age_max; Manyemba et al. RR 0.45 is for RF recurrence (not a HR, not valve progression)"), 3),
@@ -870,7 +886,14 @@ structural_violations <- character(0)
 viol <- function(cond, msg) if (isTRUE(cond)) structural_violations <<- c(structural_violations, msg)
 viol(any(abs(stage_stocks_year$deaths_outside_D) > 1e-9 * (1 + stage_stocks_year$rhd_deaths)),
      "D-only: RHD deaths occurred outside stage D")   # engine has no A/B/C death pathway; tolerance = summation round-off
-viol(!isTRUE(all.equal(nhe_best$pd, NH0$p_rhd_death_D)), "fixed D-mortality input not preserved")
+# fixed AGE-SPECIFIC D mortality preserved exactly, aligned on attained age (rows) for every sex:
+# child value at every age < boundary, adult value at every age >= boundary (spot rows boundary-1 / boundary / boundary+1)
+pd_ok <- identical(dim(nhe_best$pd), c(n_age, n_sex)) && identical(nhe_best$d_death_adult_age_min, NH0$d_death_adult_age_min) &&
+  all(nhe_best$pd[dch_a, ] == NH0$p_rhd_death_D_child) && all(nhe_best$pd[dad_a, ] == NH0$p_rhd_death_D_adult)
+pd_spot <- nhe_best$pd[match(d_age + c(-1L, 0L, 1L), ages), , drop = FALSE]
+viol(!pd_ok || anyNA(pd_spot) || any(pd_spot[1, ] != NH0$p_rhd_death_D_child) || any(pd_spot[2:3, ] != NH0$p_rhd_death_D_adult),
+     "fixed age-specific D-mortality input not preserved / not aligned on attained age")
+viol(d_cell_excess > 1e-9, "RHD deaths in D exceed start-of-cycle D x the age-specific base input in some cell")
 viol(!identical(abcd_nh_fixed(nh_of(bp$tr)), dmi$meta$natural_history_fixed), "fixed natural-history inputs changed during calibration")
 viol(any(!is.finite(unlist(stage_stocks_year))) ||
        any(unlist(stage_stocks_year[, .(A, B, C, D, undiagnosed_start, diagnosed_start, prior_A_start, normalised_start, rhd_deaths, new_disease)]) < -1e-9),
@@ -966,8 +989,10 @@ ref_care_record <- c(REF_CARE, list(adherence_factor = REF_ADH, init = INIT,
 best_parameters <- list(
   transitions = bp$tr,                      # scalar CHILDHOOD annual probabilities (incl. p_D_to_C = 0); adult B->C / C->D in natural_history$derived
   natural_history = nh_best,                # full natural history the engine ran (fixed + calibrated + derived)
-  p_rhd_death = c(A = 0, B = 0, C = 0, D = nhe_best$pd),     # legacy c(A,B,C,D): the single D input (all histories)
-  p_rhd_death_note = "D-only; one fixed D input for every disease / diagnosis history (no late-entry multiplier)",
+  p_rhd_death = c(A = 0, B = 0, C = 0),     # legacy c(A,B,C): exact zeros; NO scalar D element (D mortality is age-specific)
+  p_rhd_death_D_by_age = nhe_best$pd,       # [age x sex] FIXED base D death probability the engine ran (attained age)
+  p_rhd_death_note = sprintf("D-only; FIXED base D death probability by attained age: %.4f at age < %d, %.4f at age >= %d, every disease / diagnosis history (no late-entry multiplier); not fitted",
+                             NH0$p_rhd_death_D_child, NH0$d_death_adult_age_min, NH0$p_rhd_death_D_adult, NH0$d_death_adult_age_min),
   residual_mortality_mult = 1, residual_mortality_mult_role = "fixed at 1 (not estimated)",
   aggregate_stage_shares = stage_shares,    # derived model shares entering CAL_YEAR_END (diagnostic)
   care_stage_shares = care_stage_shares,    # undiagnosed / diagnosed / on-BPG x stage shares (diagnostic)
@@ -1018,7 +1043,8 @@ calib$stage_calibration$objective_components <- list(
 calib$stage_calibration$priors <- list(
   transition_centers = tr_prior, sigma_trans = SIGMA_TRANS,
   sigma_alpha = SIGMA_ALPHA_STRUCT, lambda_smooth_alpha = LAMBDA_SMOOTH_STRUCT, alpha_centers = "1 (GBD incidence pattern)",
-  mortality_note = "D-only: one FIXED D mortality input for every history (no prior, not estimated, no late-entry multiplier); A/B/C exact 0",
+  mortality_note = sprintf("D-only: FIXED age-specific D mortality (%.4f at attained age < %d, %.4f at >= %d) for every history (no prior, not estimated, not in the parameter vector, no late-entry multiplier); A/B/C exact 0",
+                           NH0$p_rhd_death_D_child, NH0$d_death_adult_age_min, NH0$p_rhd_death_D_adult, NH0$d_death_adult_age_min),
   burn_years = BURN_YEARS)
 calib$stage_calibration$bounds <- list(transitions = TRANS_BOUNDS, alpha = c(ALPHA_LO, ALPHA_HI), boundary_hits = boundary_hits)
 calib$stage_calibration$excess_death_attribution <- list(
@@ -1052,6 +1078,9 @@ calib$stage_calibration$spec <- list(engine_spec = ABCD_ENGINE_SPEC, mortality_s
                                      entry_mix_adult = NH0$entry_mix_adult,
                                      adult_prog_hazard_mult = NH0$adult_prog_hazard_mult,
                                      adult_progression = "adult (> child_last_age) B->C and C->D: p_adult = 1 - (1 - p_child)^adult_prog_hazard_mult",
+                                     d_mortality = list(p_rhd_death_D_child = NH0$p_rhd_death_D_child, p_rhd_death_D_adult = NH0$p_rhd_death_D_adult,
+                                                        d_death_adult_age_min = NH0$d_death_adult_age_min,
+                                                        rule = "fixed base D death probability by current attained age (child < boundary, adult >= boundary), every D history; not fitted"),
                                      sap_hr = eff_cal[c("sap_progression_rrr", "sap_progression_hazard_mult", "sap_protection_age_max",
                                                         "sap_effect_transitions", "sap_hr_prior_A_to_B_adult",
                                                         "sap_hr_C_to_D", "sap_hr_D_to_rhd_death")],   # typed named list (not unlist())
@@ -1081,8 +1110,9 @@ fwrite(par_tab[, .(parameter, role, value)], paste0(wd_data, "calibration_struct
 # 11. REPORT
 #===============================================================================
 cat("\n", strrep("=", 74), "\nSTRUCTURAL (LAYER-2) CALIBRATION — population burden + first diagnosis (", ABCD_ENGINE_SPEC, ")\n", strrep("=", 74), "\n", sep = "")
-cat(sprintf("Fixed: D death %.4f (all histories) | adult B->normalised %.3f | adult B->C / C->D hazard multiplier %.2f | entry mix child %s, adult %s | child rules at age <= %d\n",
-            nhe_best$pd, NH0$p_B_to_no_rhd_adult, NH0$adult_prog_hazard_mult, paste(NH0$entry_mix_child, collapse = "/"),
+cat(sprintf("Fixed: D death %.4f at age < %d / %.4f at age >= %d (all histories) | adult B->normalised %.3f | adult B->C / C->D hazard multiplier %.2f | entry mix child %s, adult %s | child rules at age <= %d\n",
+            NH0$p_rhd_death_D_child, NH0$d_death_adult_age_min, NH0$p_rhd_death_D_adult, NH0$d_death_adult_age_min,
+            NH0$p_B_to_no_rhd_adult, NH0$adult_prog_hazard_mult, paste(NH0$entry_mix_child, collapse = "/"),
             paste(NH0$entry_mix_adult, collapse = "/"), NH0$child_last_age))
 cat(sprintf("Calibrated transitions: %s\n",
             paste(sprintf("%s=%.4f (centre %.3f)", trans_names, unlist(bp$tr[trans_names]), unlist(tr_prior[trans_names])), collapse = ", ")))
@@ -1104,10 +1134,12 @@ cat(sprintf("Childhood share of RHD deaths %d: model %.3f vs target %.3f\n", CAL
             child_share[year == CAL_YEAR_END, child_share_model], child_share[year == CAL_YEAR_END, child_share_target]))
 cat("Age-specific fit at the last year (model/target ratio):\n")
 print(dcast(fit_age_last[, .(measure, age_group, ratio = round(ratio, 2))], age_group ~ measure, value.var = "ratio")[match(grp_present, age_group)])
-cat(sprintf("Realised D death risk %d: all %s | ages 0-20 %s | 21+ %s (input %.4f)\n", CAL_YEAR_END,
+cat(sprintf("Realised D death risk %d: all %s | ages 0-%d %s (input %.4f) | %d+ %s (input %.4f)\n", CAL_YEAR_END,
             format(round(d_fat[year == CAL_YEAR_END & ages == "all", realized_D_death_risk], 4)),
-            format(round(d_fat[year == CAL_YEAR_END & ages == "0-20", realized_D_death_risk], 4)),
-            format(round(d_fat[year == CAL_YEAR_END & ages == "21+", realized_D_death_risk], 4)), nhe_best$pd))
+            d_age - 1L, format(round(d_fat[year == CAL_YEAR_END & ages == sprintf("0-%d", d_age - 1L), realized_D_death_risk], 4)),
+            NH0$p_rhd_death_D_child,
+            d_age, format(round(d_fat[year == CAL_YEAR_END & ages == sprintf("%d+", d_age), realized_D_death_risk], 4)),
+            NH0$p_rhd_death_D_adult))
 cat(sprintf("ATTRIBUTION: %s\n", attribution))
 cat(sprintf("STATUS: %s\n  structural: %s\n  numerical : %s\n  boundary hits: %s\n", status, structural_status, numerical_status,
             if (length(boundary_hits)) paste(boundary_hits, collapse = ", ") else "none"))

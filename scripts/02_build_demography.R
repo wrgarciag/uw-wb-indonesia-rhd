@@ -18,7 +18,9 @@
 #       tidy long {location, year, sex, age, Nx}; |OBS_YEARS| yr x 2 sex x 101 age.
 #       Single-year age distribution SPLINE-SMOOTHED (removes single-year sawtooth /
 #       age-heaping), then rescaled so each (sex, year) sums EXACTLY to the source
-#       WPP all-age total for that sex-year (totals preserved).
+#       WPP all-age total for that sex-year (totals preserved). The terminal OPEN
+#       interval 100+ is not a single year of age: it keeps WPP's own count
+#       (unsmoothed, as in the projection table); ages 0..99 carry the smoothing.
 #   pop_projection.rds / .csv   (STABLE filename — no year range in the name)
 #       tidy long {location, year, sex, age, Nx}; |PROJ_YEARS| yr x 2 sex x 101 age.
 #       WPP2024 medium-variant projection, taken directly (UN single-year projections
@@ -206,15 +208,24 @@ if (length(OBS_YEARS_FROM_PROJ))
 
 # 4b  spline-smooth the single-year age distribution within each (location,year,sex),
 #     then rescale so the smoothed counts sum to the source all-age total.
+#     The terminal OPEN interval (TERMINAL_AGE = 100+) is NOT a single year of age, so its
+#     SMOOTHED value is discarded and WPP's own count kept (9 Nov 2026): smoothing it as one
+#     age moved, e.g., Uganda males 100+ in 2014 from 5 to 2.07 persons and made the
+#     observed years inconsistent with the (unsmoothed) projection at age 100. The spline is
+#     still fitted over 0..100 (the 100+ point anchors the curve's end: a 0..99-only fit
+#     drives Uganda's tiny male age-99 counts to zero), and the smoothed 0..99 values are
+#     rescaled to their source 0..99 total, so the sex-year total is still preserved exactly.
 smooth_age_distribution <- function(df) {
   df <- df[order(df$age), ]
-  raw_total <- sum(df$Nx)
+  single <- df$age < TERMINAL_AGE               # single years 0..99; the open group keeps its WPP count
+  raw_single <- sum(df$Nx[single])
   # smooth.spline needs >= 4 distinct x; ages 0..100 always satisfy this
   fit <- stats::smooth.spline(x = df$age, y = df$Nx)
   sm  <- stats::predict(fit, df$age)$y
   sm[sm < 0 | !is.finite(sm)] <- 0             # age heaping can push tails <0
-  if (sum(sm) > 0) sm <- sm * (raw_total / sum(sm))   # PRESERVE the sex-year total
-  df$Nx <- sm
+  sm  <- sm[single]
+  if (sum(sm) > 0) sm <- sm * (raw_single / sum(sm))   # PRESERVE the 0..99 (hence sex-year) total
+  df$Nx[single] <- sm
   df
 }
 
@@ -288,6 +299,13 @@ tot_check <- obs_raw |>
 if (max(tot_check$rel) > 1e-6)
   stop("Smoothing did not preserve sex-year totals (max rel err = ",
        signif(max(tot_check$rel), 3), ").", call. = FALSE)
+# the open interval (100+) is carried unsmoothed: identical to the source WPP count
+open_check <- obs_raw |>
+  filter(age == TERMINAL_AGE) |>
+  rename(Nx_raw = Nx) |>
+  inner_join(pop_observed |> filter(age == TERMINAL_AGE), by = c("location", "year", "sex", "age"))
+if (nrow(open_check) == 0L || nrow(open_check) != sum(obs_raw$age == TERMINAL_AGE) || any(open_check$Nx != open_check$Nx_raw))
+  stop("Open age group ", TERMINAL_AGE, "+ was altered by the smoothing (must keep the WPP count).", call. = FALSE)
 
 # sane national totals: expected ~2020 national population, COUNTRY-specific band
 # from 00_run_all.R (Indonesia ~275M, Uganda ~45M). Standalone fallback = Indonesia.

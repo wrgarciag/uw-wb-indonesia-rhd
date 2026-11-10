@@ -246,8 +246,17 @@ run_location <- function(loc, baseline_state) {
   # D-only + entry timing: deaths in D never exceed the D START stock x the D input risk
   fail(stg_all[, any(rhd_deaths_A != 0 | rhd_deaths_B != 0 | rhd_deaths_C != 0)], "D_only: non-zero RHD deaths in A/B/C.")
   fail(stg_all[, max(abs(rhd_deaths - rhd_deaths_D_undiagnosed - rhd_deaths_D_diagnosed))] > 1e-9, "D deaths by diagnosis status do not sum to RHD deaths.")
-  fail(stg_all[, any(rhd_deaths_D > D_start * nhe$pd * (1 + 1e-9) + 1e-9)],
-       "D deaths exceed start-of-cycle D x input risk (a new D case may not die in its entry cycle).")
+  # fixed AGE-SPECIFIC D input: matrix = child value at attained age < boundary, adult value at >= boundary
+  d_age <- nhe$d_death_adult_age_min
+  fail(!identical(dim(nhe$pd), c(n_age, n_sex)) || !identical(d_age, st$natural_history$d_death_adult_age_min) ||
+       any(nhe$pd[AGES < d_age, ] != st$natural_history$p_rhd_death_D_child) ||
+       any(nhe$pd[AGES >= d_age, ] != st$natural_history$p_rhd_death_D_adult),
+       "stage-D base mortality matrix does not match the fixed age-specific inputs (attained age alignment).")
+  # per-cell base input aligned on the row's own attained age and sex (no recycling)
+  pd_cell <- nhe$pd[cbind(match(stg_all$age, AGES), match(stg_all$sex, SEXES))]
+  fail(length(pd_cell) != nrow(stg_all) || anyNA(pd_cell), "could not align the stage-D input with the stage table (age / sex).")
+  fail(stg_all[, any(rhd_deaths_D > D_start * pd_cell * (1 + 1e-9) + 1e-9)],
+       "D deaths exceed start-of-cycle D x its age-specific input risk (a new D case may not die in its entry cycle).")
   fail(stg_all[, sum(other_deaths_A + other_deaths_B + other_deaths_C)] <= 0, "background deaths absent from A/B/C.")
   fail(stg_all[d_start_zero_flag == 1 & rhd_deaths_D > 0, .N] > 0, "RHD deaths from D with zero D start stock.")
   # SAP progression mechanism
@@ -301,11 +310,16 @@ run_location <- function(loc, baseline_state) {
   attr(wsd_all, "deaths_averted_cum") <- d_ref - d_sap
 
   # --- additive diagnostics ($diag) ---------------------------------------------
-  d_fat <- rbind(
-    stg_all[, .(ages = "all", D_start = sum(D_start), rhd_deaths_D = sum(rhd_deaths_D)), by = .(scenario, year)],
-    stg_all[age <= y_last, .(ages = sprintf("0-%d", y_last), D_start = sum(D_start), rhd_deaths_D = sum(rhd_deaths_D)), by = .(scenario, year)],
-    stg_all[age > y_last, .(ages = sprintf("%d+", y_last + 1L), D_start = sum(D_start), rhd_deaths_D = sum(rhd_deaths_D)), by = .(scenario, year)])
-  d_fat[, `:=`(input_D_death_prob = nhe$pd, realized_D_death_risk = fifelse(D_start > 0, rhd_deaths_D / D_start, NA_real_), D_start_zero = D_start <= 0)]
+  # D fatality by the MORTALITY age groups (< / >= d_death_adult_age_min); input = D_start-weighted
+  # base input of the group (exactly the fixed value within one group), min / max = inputs spanned
+  d_tmp <- stg_all[, .(scenario, year, age, D_start, rhd_deaths_D, pd_in = pd_cell)]
+  d_grp <- function(sel, lab) d_tmp[sel, .(ages = lab, D_start = sum(D_start), rhd_deaths_D = sum(rhd_deaths_D),
+                                            input_D_death_prob = if (sum(D_start) > 0) sum(D_start * pd_in) / sum(D_start) else NA_real_,
+                                            input_D_death_prob_min = min(pd_in), input_D_death_prob_max = max(pd_in)), by = .(scenario, year)]
+  d_fat <- rbind(d_grp(rep(TRUE, nrow(d_tmp)), "all"),
+                 d_grp(d_tmp$age < d_age, sprintf("0-%d", d_age - 1L)),
+                 d_grp(d_tmp$age >= d_age, sprintf("%d+", d_age)))
+  d_fat[, `:=`(realized_D_death_risk = fifelse(D_start > 0, rhd_deaths_D / D_start, NA_real_), D_start_zero = D_start <= 0)]
   sap_tr <- stg_all[, .(living_rhd_start = sum(living_rhd_start), diagnosed = sum(n_diagnosed), new_diagnoses = sum(n_new_diagnoses),
                         new_diagnoses_screen = sum(n_dx_screen), new_diagnoses_clinical = sum(n_dx_clinical),
                         screen_true_positives = sum(n_screen_true_positive), confirmations_completed = sum(n_confirm_completed),
@@ -335,7 +349,8 @@ run_location <- function(loc, baseline_state) {
                    engine_spec = meta$engine_spec,
                    mortality_structure = meta$mortality_structure, sap_mechanism = eff$sap_mechanism,
                    d_fatality_by_year = d_fat,
-                   d_fatality_convention = "deaths_D / D_start (start-of-cycle stock), all ages and by child/adult rule ages; NA with D_start_zero = TRUE when D_start = 0",
+                   d_fatality_convention = sprintf("deaths_D / D_start (start-of-cycle stock), all ages and by the stage-D MORTALITY age groups (attained age < %d: input %.4f; >= %d: input %.4f; base inputs before surgery and competing other-cause death); NA with D_start_zero = TRUE when D_start = 0",
+                                                   d_age, st$natural_history$p_rhd_death_D_child, d_age, st$natural_history$p_rhd_death_D_adult),
                    sap_trace_by_year = sap_tr, screening_by_year = scr, care_state_by_year = state_tr,
                    uncosted = "confirmatory echo (n_confirm_completed) has no unit cost in 00 block J",
                    all_cause_reconstruction_by_year = mx_recon,

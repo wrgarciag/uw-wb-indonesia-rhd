@@ -1,36 +1,46 @@
 parameter,value
-p_A_to_no_rhd,0.11324941571304
-p_A_to_B,0.0440479780755357
-p_B_to_A,0.229197766531458
-p_B_to_C,0.00289245670935603
-p_C_to_B,0.15
-p_C_to_D,0.0313937125198092
-alpha[0-14|Female],0.2
-alpha[15-24|Female],0.2
-alpha[25-44|Female],0.214430987677931
-alpha[45-64|Female],0.295173327364094
-alpha[65+|Female],0.440910184598328
-alpha[0-14|Male],0.2
-alpha[15-24|Male],0.2
-alpha[25-44|Male],0.210064122928071
-alpha[45-64|Male],0.286015970964741
-alpha[65+|Male],0.424302739008571
-y_last_onset_age,20
+p_A_to_no_rhd,0.08
+p_A_to_B,0.03
+p_B_to_A,0.08
+p_B_to_C,0.08
+p_C_to_B,0.025
+p_C_to_D,0.08
+alpha[0-14|Female],0.367665079172357
+alpha[15-24|Female],0.350352510571273
+alpha[25-44|Female],0.36818593854732
+alpha[45-64|Female],0.464790411408707
+alpha[65-79|Female],0.631601825711568
+alpha[80+|Female],0.870329108612946
+alpha[0-14|Male],0.340825228467631
+alpha[15-24|Male],0.319025226652437
+alpha[25-44|Male],0.334070790530226
+alpha[45-64|Male],0.429750744789454
+alpha[65-79|Male],0.600571973245255
+alpha[80+|Male],0.852824514337522
+child_last_age (modelling convention),20
 p_D_to_C,0
 p_rhd_death_A/B/C,0
-p_rhd_death_D_Y,0.0597
-d_death_hr_O,2
-p_rhd_death_D_O (derived),0.11583591
+p_rhd_death_D_child (attained age < 20; all histories),0.06
+p_rhd_death_D_adult (attained age >= 20; all histories),0.03
+d_death_adult_age_min (stage-D mortality age boundary; first adult age),20
+late-entry D-death multiplier (removed),1
+adult_prog_hazard_mult (adult > 20 B->C and C->D hazard multiplier),0.5
 residual_rhd_mortality_mult,1
 p_B_to_no_rhd_adult,0.02
-o_progression_hr,0.48
-p_B_to_C_O (derived at fit),0.00138942486841309
-p_C_to_D_O (derived at fit),0.0151939765478941
-entry_mix_Y[A],0.5
-entry_mix_Y[B],0.3
-entry_mix_Y[C],0.15
-entry_mix_Y[D],0.05
-entry_mix_O[A],0
-entry_mix_O[B],0.6
-entry_mix_O[C],0.3
-entry_mix_O[D],0.1
+entry_mix_child[A],0.75
+entry_mix_child[B],0.25
+entry_mix_child[C],0
+entry_mix_child[D],0
+entry_mix_adult[A],0
+entry_mix_adult[B],1
+entry_mix_adult[C],0
+entry_mix_adult[D],0
+sap_progression_rrr,0.55
+sap_progression_hazard_mult (M),0.45
+sap_protection_age_max (attained age),39
+sap_hr_prior_A_to_B_adult,1
+sap_hr_C_to_D,1
+sap_hr_D_to_rhd_death,1
+"p_B_to_C_adult (effective, age > 20)",0.0408336953374562
+"p_C_to_D_adult (effective, age > 20)",0.0408336953374562
+"p_prior_A_to_B_adult (effective, age > 20)",0.03
