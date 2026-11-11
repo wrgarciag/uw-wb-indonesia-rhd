@@ -1,0 +1,142 @@
+[2026-11-10 10:50:49] 01 sampling: 500 draws | trial-regime share 0.484 | M_AB median 0.328 (95% 0.036-0.731) | M_BC median 0.379 (95% 0.074-0.745) | truncation rejections 0
+[2026-11-10 10:50:57] 02 V11a  PASS engines loaded into isolated environments: no abcd_* objects created in the global environment | value 0 | 
+[2026-11-10 10:50:57] 02 V11b  PASS production engine environment unchanged by loading the VOI engine (abcd_sap_hr bodies differ, production body = file) | value 0 | 
+[2026-11-10 10:50:57] 02 V0a   PASS engine spec: saved baseline == VOI engine == production engine | value 0 | 
+[2026-11-10 10:50:57] 02 V0b   PASS saved production point values equal VOI_POINT (M 0.45 shared, protection age 39, partial 0.5) | value 0 | 
+[2026-11-10 10:50:57] 02 V0c   PASS fixed SAP specification: C->D, D->death and prior-A multipliers 1; transitions A_to_B, B_to_C | value 0 | 
+[2026-11-10 10:50:57] 02 V1    PASS production engine re-run reproduces saved 06 outputs (annual deaths, deaths 0-19, prevalence, screening, on-BPG PY, surgeries, confirmations, diagnoses, protected PY) | value 1.423e-15 | 
+[2026-11-10 10:50:57] 02 V1b   PASS production run flags: no population deficit, care violation or onset-cap hit | value 0 | 
+[2026-11-10 10:50:57] 02 V2    PASS VOI engine (production shared multiplier) == production engine: annual sums, every cycle matrix, final state (max abs diff) | value 0 | 
+[2026-11-10 10:50:57] 02 V3    PASS VOI engine SEPARATE multipliers at M_AB = M_BC = 0.45 == shared form (max abs diff, every cycle/cell/final state) | value 0 | 
+[2026-11-10 10:50:57] 02 V3b   PASS effect matrices identical: production abcd_sap_hr vs VOI shared vs VOI separate at the point values | value 0 | 
+[2026-11-10 10:50:57] 02 V4a   PASS economic totals reproduce saved 08 summary (disc/undisc cost, benefit, net benefit, BCR, deaths averted, cost/death, cost/DALY) | value 3.643e-15 | 
+[2026-11-10 10:50:57] 02 V4b   PASS annual arm costs and RHD deaths reproduce saved 08 $incremental (every year) | value 1.423e-15 | 
+[2026-11-10 10:50:57] 02 V4c   PASS unit costs taken as saved APPLIED 2025 US$ (no repeated price conversion); VSL schedule = saved 08 schedule | value 0 | screen 1.0998, SAP 109.98 per PY, surgery 8998 (constant 2025 US$)
+[2026-11-10 10:50:57] 02 V5a   PASS M_AB = 0.45, M_BC = 1: A->B multiplier = 1 - a(1 - 0.45) at age <= 39, B->C multiplier = 1 everywhere | value 0 | 
+[2026-11-10 10:50:57] 02 V5b   PASS M_AB = 1, M_BC = 0.45: A->B multiplier = 1 everywhere, B->C multiplier = 1 - a(1 - 0.45) at age <= 39 | value 0 | 
+[2026-11-10 10:50:57] 02 V5c   PASS removing either channel lowers deaths averted (informational; deaths averted: point / A->B only / B->C only) | value 6784 | point 6784.0 | A->B effect only 835.4 | B->C effect only 6304.0
+[2026-11-10 10:50:57] 02 V6    PASS M_AB = M_BC = 1 (no SAP effect): |deaths averted| / total deaths and |benefit| / point benefit ~ 0, so INB = -incremental cost | value 2.117e-15 | deaths averted -1.27e-11; INB -2.22e+08 = -cost 2.22e+08
+[2026-11-10 10:50:57] 02 V7a   PASS protection age 20: multipliers follow attained age <= 20 and equal 1 above 20 | value 0 | 
+[2026-11-10 10:50:57] 02 V7b   PASS protection age 100 (no cap): multipliers < 1 at every attained age (adherence > 0) | value 0 | 
+[2026-11-10 10:50:57] 02 V8    PASS partial protection 0.2: adherence factor rebuilt every year in both arms (ref 0.64; scale-up 0.64 -> 0.87) and used by the multipliers | value 0 | ref 0.640; scale-up 0.640 -> 0.870
+[2026-11-10 10:50:57] 02 V9    PASS engine refuses invalid / ambiguous SAP specifications and accepts valid ones | value 0 | refused: M_AB_zero, M_BC_above_1, M_AB_NA, only_one_split, shared_and_split, per_transition_rrr_mismatch, protection_age_non_integer, protection_age_above_max, C_to_D_not_1, D_death_not_1, shared_rrr_mismatch
+[2026-11-10 10:50:57] 02 V10   PASS abcd_project re-prepares the effect matrices for each draw (a stale cached .sap_hr from another draw is overwritten) | value 0 | 
+[2026-11-10 10:50:57] 02 V11c  PASS global environment still free of engine objects after all validation runs | value 0 | 
+[2026-11-10 10:51:58] 03 pilot: 20 draws in 1 chunk(s); 1 chunk(s) to simulate, 0 reused from checkpoints
+[2026-11-10 10:52:04] 03 pilot: simulated 20 draws on 1 worker(s) in 5.8 s (0 failure(s))
+[2026-11-10 10:52:04] 03 pilot: 20/20 draws ok | 0.27 s per paired draw | INB (VSL) range 1.27e+09 to 1.18e+10 | projected main run ~0.2 min
+[2026-11-10 10:52:20] 03 psa: 500 draws in 20 chunk(s); 20 chunk(s) to simulate, 0 reused from checkpoints
+[2026-11-10 10:52:47] 03 psa: simulated 500 draws on 12 worker(s) in 26.9 s (0 failure(s))
+[2026-11-10 10:52:48] 03 psa: pilot draws reproduced in the main run: 20 compared, max abs diff 0
+[2026-11-10 10:52:48] 03 psa: 500/500 draws ok | E[INB, VSL] = 5.399e+09 | P(INB > 0) = 1.000 | mean 0.53 s per paired draw
+[2026-11-10 10:58:11] 04 analysis: 500 paired draws (0 excluded) | 134 thresholds | GNI pc reference US$4830 | bootstrap 1000
+[2026-11-10 10:59:00] 04 bootstrap: 1000 replicates x 5 estimators x 134 thresholds in 48.9 s (0 failed fits)
+[2026-11-10 10:59:08] 04 VSL x 0.05                             E[INB]       51.9 m (MC se 6.0) | P(INB>0) 0.588 | EVPI    28.44 m (95% 24.45-32.28)
+[2026-11-10 10:59:08] 04 VSL x 0.1                              E[INB]      333.4 m (MC se 12.3) | P(INB>0) 0.912 | EVPI     4.49 m (95% 2.96-6.03)
+[2026-11-10 10:59:08] 04 VSL x 1 (reference case)               E[INB]     5398.9 m (MC se 125.8) | P(INB>0) 1.000 | EVPI     0.00 m (95% 0.00-0.00)
+[2026-11-10 10:59:08] 04 0.5 x GNI pc = US$2,415/DALY           E[INB]      -72.1 m (MC se 3.0) | P(INB>0) 0.128 | EVPI     6.59 m (95% 4.69-8.54)
+[2026-11-10 10:59:08] 04 1 x GNI pc = US$4,830/DALY             E[INB]       85.3 m (MC se 6.3) | P(INB>0) 0.708 | EVPI    19.50 m (95% 16.23-22.67)
+[2026-11-10 10:59:08] 04   0.5 x GNI pc = US$2,415/DALY           #1 M_BC (B->C multiplier)                     0.00 m (95% 0.00-1.59) | 0 <= EVPPI <= joint: OK | EXPLORATORY: unstable at this sample siz
+[2026-11-10 10:59:08] 04   0.5 x GNI pc = US$2,415/DALY           #2 M_AB (A->B multiplier)                     0.00 m (95% 0.00-0.57) | 0 <= EVPPI <= joint: OK | EXPLORATORY: unstable at this sample siz
+[2026-11-10 10:59:08] 04   0.5 x GNI pc = US$2,415/DALY           #2 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 10:59:08] 04   0.5 x GNI pc = US$2,415/DALY           #2 Protection age cap                         0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 10:59:08] 04   1 x GNI pc = US$4,830/DALY             #1 M_BC (B->C multiplier)                    10.77 m (95% 7.88-14.04) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 10:59:08] 04   1 x GNI pc = US$4,830/DALY             #2 M_AB (A->B multiplier)                    10.38 m (95% 7.50-13.72) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 10:59:08] 04   1 x GNI pc = US$4,830/DALY             #3 Protection age cap                         8.86 m (95% 5.62-12.06) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 10:59:08] 04   1 x GNI pc = US$4,830/DALY             #4 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 10:59:08] 04   VSL x 0.05                             #1 Protection age cap                        18.49 m (95% 14.98-22.05) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 10:59:08] 04   VSL x 0.05                             #2 M_BC (B->C multiplier)                    15.81 m (95% 12.12-19.82) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 10:59:08] 04   VSL x 0.05                             #3 M_AB (A->B multiplier)                    15.47 m (95% 11.84-19.73) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 10:59:08] 04   VSL x 0.05                             #4 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 10:59:08] 04   VSL x 0.1                              #1 M_BC (B->C multiplier)                     1.29 m (95% 0.35-2.69) | 0 <= EVPPI <= joint: OK | EXPLORATORY: unstable at this sample siz
+[2026-11-10 10:59:08] 04   VSL x 0.1                              #2 M_AB (A->B multiplier)                     1.06 m (95% 0.25-2.45) | 0 <= EVPPI <= joint: OK | EXPLORATORY: unstable at this sample siz
+[2026-11-10 10:59:08] 04   VSL x 0.1                              #3 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 10:59:08] 04   VSL x 0.1                              #3 Protection age cap                         0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 10:59:08] 04   VSL x 1 (reference case)               #1 M_AB (A->B multiplier)                     0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | EVPI = 0: no decision uncertainty in the
+[2026-11-10 10:59:08] 04   VSL x 1 (reference case)               #1 M_BC (B->C multiplier)                     0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | EVPI = 0: no decision uncertainty in the
+[2026-11-10 10:59:08] 04   VSL x 1 (reference case)               #1 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | EVPI = 0: no decision uncertainty in the
+[2026-11-10 10:59:08] 04   VSL x 1 (reference case)               #1 Protection age cap                         0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | EVPI = 0: no decision uncertainty in the
+[2026-11-10 11:01:58] draws: 500 saved draws reproduced exactly; total now 500
+[2026-11-10 11:02:01] 01 sampling: 500 draws | trial-regime share 0.484 | M_AB median 0.328 (95% 0.036-0.731) | M_BC median 0.379 (95% 0.074-0.745) | truncation rejections 0
+[2026-11-10 11:02:07] 02 V11a  PASS engines loaded into isolated environments: no abcd_* objects created in the global environment | value 0 | 
+[2026-11-10 11:02:07] 02 V11b  PASS production engine environment unchanged by loading the VOI engine (abcd_sap_hr bodies differ, production body = file) | value 0 | 
+[2026-11-10 11:02:07] 02 V0a   PASS engine spec: saved baseline == VOI engine == production engine | value 0 | 
+[2026-11-10 11:02:07] 02 V0b   PASS saved production point values equal VOI_POINT (M 0.45 shared, protection age 39, partial 0.5) | value 0 | 
+[2026-11-10 11:02:07] 02 V0c   PASS fixed SAP specification: C->D, D->death and prior-A multipliers 1; transitions A_to_B, B_to_C | value 0 | 
+[2026-11-10 11:02:07] 02 V1    PASS production engine re-run reproduces saved 06 outputs (annual deaths, deaths 0-19, prevalence, screening, on-BPG PY, surgeries, confirmations, diagnoses, protected PY) | value 1.423e-15 | 
+[2026-11-10 11:02:07] 02 V1b   PASS production run flags: no population deficit, care violation or onset-cap hit | value 0 | 
+[2026-11-10 11:02:07] 02 V2    PASS VOI engine (production shared multiplier) == production engine: annual sums, every cycle matrix, final state (max abs diff) | value 0 | 
+[2026-11-10 11:02:07] 02 V3    PASS VOI engine SEPARATE multipliers at M_AB = M_BC = 0.45 == shared form (max abs diff, every cycle/cell/final state) | value 0 | 
+[2026-11-10 11:02:07] 02 V3b   PASS effect matrices identical: production abcd_sap_hr vs VOI shared vs VOI separate at the point values | value 0 | 
+[2026-11-10 11:02:07] 02 V4a   PASS economic totals reproduce saved 08 summary (disc/undisc cost, benefit, net benefit, BCR, deaths averted, cost/death, cost/DALY) | value 3.643e-15 | 
+[2026-11-10 11:02:07] 02 V4b   PASS annual arm costs and RHD deaths reproduce saved 08 $incremental (every year) | value 1.423e-15 | 
+[2026-11-10 11:02:07] 02 V4c   PASS unit costs taken as saved APPLIED 2025 US$ (no repeated price conversion); VSL schedule = saved 08 schedule | value 0 | screen 1.0998, SAP 109.98 per PY, surgery 8998 (constant 2025 US$)
+[2026-11-10 11:02:07] 02 V5a   PASS M_AB = 0.45, M_BC = 1: A->B multiplier = 1 - a(1 - 0.45) at age <= 39, B->C multiplier = 1 everywhere | value 0 | 
+[2026-11-10 11:02:07] 02 V5b   PASS M_AB = 1, M_BC = 0.45: A->B multiplier = 1 everywhere, B->C multiplier = 1 - a(1 - 0.45) at age <= 39 | value 0 | 
+[2026-11-10 11:02:07] 02 V5c   PASS removing either channel lowers deaths averted (informational; deaths averted: point / A->B only / B->C only) | value 6784 | point 6784.0 | A->B effect only 835.4 | B->C effect only 6304.0
+[2026-11-10 11:02:07] 02 V6    PASS M_AB = M_BC = 1 (no SAP effect): |deaths averted| / total deaths and |benefit| / point benefit ~ 0, so INB = -incremental cost | value 2.117e-15 | deaths averted -1.27e-11; INB -2.22e+08 = -cost 2.22e+08
+[2026-11-10 11:02:07] 02 V7a   PASS protection age 20: multipliers follow attained age <= 20 and equal 1 above 20 | value 0 | 
+[2026-11-10 11:02:07] 02 V7b   PASS protection age 100 (no cap): multipliers < 1 at every attained age (adherence > 0) | value 0 | 
+[2026-11-10 11:02:07] 02 V8    PASS partial protection 0.2: adherence factor rebuilt every year in both arms (ref 0.64; scale-up 0.64 -> 0.87) and used by the multipliers | value 0 | ref 0.640; scale-up 0.640 -> 0.870
+[2026-11-10 11:02:07] 02 V9    PASS engine refuses invalid / ambiguous SAP specifications and accepts valid ones | value 0 | refused: M_AB_zero, M_BC_above_1, M_AB_NA, only_one_split, shared_and_split, per_transition_rrr_mismatch, protection_age_non_integer, protection_age_above_max, C_to_D_not_1, D_death_not_1, shared_rrr_mismatch
+[2026-11-10 11:02:07] 02 V10   PASS abcd_project re-prepares the effect matrices for each draw (a stale cached .sap_hr from another draw is overwritten) | value 0 | 
+[2026-11-10 11:02:07] 02 V11c  PASS global environment still free of engine objects after all validation runs | value 0 | 
+[2026-11-10 11:02:11] 03 pilot: 20 draws in 1 chunk(s); 0 chunk(s) to simulate, 1 reused from checkpoints
+[2026-11-10 11:02:11] 03 pilot: 20/20 draws ok | 0.27 s per paired draw | INB (VSL) range 1.27e+09 to 1.18e+10 | projected main run ~0.2 min
+[2026-11-10 11:02:11] 03 psa: 500 draws in 20 chunk(s); 0 chunk(s) to simulate, 20 reused from checkpoints
+[2026-11-10 11:02:12] 03 psa: pilot draws reproduced in the main run: 20 compared, max abs diff 0
+[2026-11-10 11:02:12] 03 psa: 500/500 draws ok | E[INB, VSL] = 5.399e+09 | P(INB > 0) = 1.000 | mean 0.53 s per paired draw
+[2026-11-10 11:02:15] 04 analysis: 500 paired draws (0 excluded) | 134 thresholds | GNI pc reference US$4830 | bootstrap 1000
+[2026-11-10 11:03:01] 04 bootstrap: 1000 replicates x 5 estimators x 134 thresholds in 44.8 s (0 failed fits)
+[2026-11-10 11:03:08] 04 VSL x 0.05                             E[INB]       51.9 m (MC se 6.0) | P(INB>0) 0.588 | EVPI    28.44 m (95% 24.45-32.28)
+[2026-11-10 11:03:08] 04 VSL x 0.1                              E[INB]      333.4 m (MC se 12.3) | P(INB>0) 0.912 | EVPI     4.49 m (95% 2.96-6.03)
+[2026-11-10 11:03:08] 04 VSL x 1 (reference case)               E[INB]     5398.9 m (MC se 125.8) | P(INB>0) 1.000 | EVPI     0.00 m (95% 0.00-0.00)
+[2026-11-10 11:03:08] 04 0.5 x GNI pc = US$2,415/DALY           E[INB]      -72.1 m (MC se 3.0) | P(INB>0) 0.128 | EVPI     6.59 m (95% 4.69-8.54)
+[2026-11-10 11:03:08] 04 1 x GNI pc = US$4,830/DALY             E[INB]       85.3 m (MC se 6.3) | P(INB>0) 0.708 | EVPI    19.50 m (95% 16.23-22.67)
+[2026-11-10 11:03:08] 04   0.5 x GNI pc = US$2,415/DALY           #1 M_BC (B->C multiplier)                     0.00 m (95% 0.00-1.59) | 0 <= EVPPI <= joint: OK | EXPLORATORY: unstable at this sample siz
+[2026-11-10 11:03:08] 04   0.5 x GNI pc = US$2,415/DALY           #2 M_AB (A->B multiplier)                     0.00 m (95% 0.00-0.57) | 0 <= EVPPI <= joint: OK | EXPLORATORY: point estimate 0 (learning 
+[2026-11-10 11:03:08] 04   0.5 x GNI pc = US$2,415/DALY           #2 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 11:03:08] 04   0.5 x GNI pc = US$2,415/DALY           #2 Protection age cap                         0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 11:03:08] 04   1 x GNI pc = US$4,830/DALY             #1 M_BC (B->C multiplier)                    10.77 m (95% 7.88-14.04) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 11:03:08] 04   1 x GNI pc = US$4,830/DALY             #2 M_AB (A->B multiplier)                    10.38 m (95% 7.50-13.72) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 11:03:08] 04   1 x GNI pc = US$4,830/DALY             #3 Protection age cap                         8.86 m (95% 5.62-12.06) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 11:03:08] 04   1 x GNI pc = US$4,830/DALY             #4 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 11:03:08] 04   VSL x 0.05                             #1 Protection age cap                        18.49 m (95% 14.98-22.05) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 11:03:08] 04   VSL x 0.05                             #2 M_BC (B->C multiplier)                    15.81 m (95% 12.12-19.82) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 11:03:08] 04   VSL x 0.05                             #3 M_AB (A->B multiplier)                    15.47 m (95% 11.84-19.73) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 11:03:08] 04   VSL x 0.05                             #4 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 11:03:08] 04   VSL x 0.1                              #1 M_BC (B->C multiplier)                     1.29 m (95% 0.35-2.69) | 0 <= EVPPI <= joint: OK | EXPLORATORY: unstable at this sample siz
+[2026-11-10 11:03:08] 04   VSL x 0.1                              #2 M_AB (A->B multiplier)                     1.06 m (95% 0.25-2.45) | 0 <= EVPPI <= joint: OK | EXPLORATORY: unstable at this sample siz
+[2026-11-10 11:03:08] 04   VSL x 0.1                              #3 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 11:03:08] 04   VSL x 0.1                              #3 Protection age cap                         0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 11:03:08] 04   VSL x 1 (reference case)               #1 M_AB (A->B multiplier)                     0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | EVPI = 0: no decision uncertainty in the
+[2026-11-10 11:03:08] 04   VSL x 1 (reference case)               #1 M_BC (B->C multiplier)                     0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | EVPI = 0: no decision uncertainty in the
+[2026-11-10 11:03:08] 04   VSL x 1 (reference case)               #1 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | EVPI = 0: no decision uncertainty in the
+[2026-11-10 11:03:08] 04   VSL x 1 (reference case)               #1 Protection age cap                         0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | EVPI = 0: no decision uncertainty in the
+[2026-11-10 11:04:55] 04 analysis: 500 paired draws (0 excluded) | 134 thresholds | GNI pc reference US$4830 | bootstrap 1000
+[2026-11-10 11:05:44] 04 bootstrap: 1000 replicates x 5 estimators x 134 thresholds in 48.6 s (0 failed fits)
+[2026-11-10 11:05:54] 04 VSL x 0.05                             E[INB]       51.9 m (MC se 6.0) | P(INB>0) 0.588 | EVPI    28.44 m (95% 24.45-32.28)
+[2026-11-10 11:05:54] 04 VSL x 0.1                              E[INB]      333.4 m (MC se 12.3) | P(INB>0) 0.912 | EVPI     4.49 m (95% 2.96-6.03)
+[2026-11-10 11:05:54] 04 VSL x 1 (reference case)               E[INB]     5398.9 m (MC se 125.8) | P(INB>0) 1.000 | EVPI     0.00 m (95% 0.00-0.00)
+[2026-11-10 11:05:54] 04 0.5 x GNI pc = US$2,415/DALY           E[INB]      -72.1 m (MC se 3.0) | P(INB>0) 0.128 | EVPI     6.59 m (95% 4.69-8.54)
+[2026-11-10 11:05:54] 04 1 x GNI pc = US$4,830/DALY             E[INB]       85.3 m (MC se 6.3) | P(INB>0) 0.708 | EVPI    19.50 m (95% 16.23-22.67)
+[2026-11-10 11:05:54] 04   0.5 x GNI pc = US$2,415/DALY           #1 M_BC (B->C multiplier)                     0.00 m (95% 0.00-1.59) | 0 <= EVPPI <= joint: OK | EXPLORATORY: unstable at this sample siz
+[2026-11-10 11:05:54] 04   0.5 x GNI pc = US$2,415/DALY           #2 M_AB (A->B multiplier)                     0.00 m (95% 0.00-0.57) | 0 <= EVPPI <= joint: OK | EXPLORATORY: point estimate 0 (learning 
+[2026-11-10 11:05:54] 04   0.5 x GNI pc = US$2,415/DALY           #2 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 11:05:54] 04   0.5 x GNI pc = US$2,415/DALY           #2 Protection age cap                         0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 11:05:54] 04   1 x GNI pc = US$4,830/DALY             #1 M_BC (B->C multiplier)                    10.77 m (95% 7.88-14.04) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 11:05:54] 04   1 x GNI pc = US$4,830/DALY             #2 M_AB (A->B multiplier)                    10.38 m (95% 7.50-13.72) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 11:05:54] 04   1 x GNI pc = US$4,830/DALY             #3 Protection age cap                         8.86 m (95% 5.62-12.06) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 11:05:54] 04   1 x GNI pc = US$4,830/DALY             #4 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 11:05:54] 04   VSL x 0.05                             #1 Protection age cap                        18.49 m (95% 14.98-22.05) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 11:05:54] 04   VSL x 0.05                             #2 M_BC (B->C multiplier)                    15.81 m (95% 12.12-19.82) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 11:05:54] 04   VSL x 0.05                             #3 M_AB (A->B multiplier)                    15.47 m (95% 11.84-19.73) | 0 <= EVPPI <= joint: OK | stable at this sample size (bootstrap re
+[2026-11-10 11:05:54] 04   VSL x 0.05                             #4 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 11:05:54] 04   VSL x 0.1                              #1 M_BC (B->C multiplier)                     1.29 m (95% 0.35-2.69) | 0 <= EVPPI <= joint: OK | EXPLORATORY: unstable at this sample siz
+[2026-11-10 11:05:54] 04   VSL x 0.1                              #2 M_AB (A->B multiplier)                     1.06 m (95% 0.25-2.45) | 0 <= EVPPI <= joint: OK | EXPLORATORY: unstable at this sample siz
+[2026-11-10 11:05:54] 04   VSL x 0.1                              #3 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 11:05:54] 04   VSL x 0.1                              #3 Protection age cap                         0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | negligible: bootstrap 97.5% bound < 5% o
+[2026-11-10 11:05:54] 04   VSL x 1 (reference case)               #1 M_AB (A->B multiplier)                     0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | EVPI = 0: no decision uncertainty in the
+[2026-11-10 11:05:54] 04   VSL x 1 (reference case)               #1 M_BC (B->C multiplier)                     0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | EVPI = 0: no decision uncertainty in the
+[2026-11-10 11:05:54] 04   VSL x 1 (reference case)               #1 Partial-adherence protection               0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | EVPI = 0: no decision uncertainty in the
+[2026-11-10 11:05:54] 04   VSL x 1 (reference case)               #1 Protection age cap                         0.00 m (95% 0.00-0.00) | 0 <= EVPPI <= joint: OK | EVPI = 0: no decision uncertainty in the

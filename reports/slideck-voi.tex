@@ -1,0 +1,861 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\documentclass[
+  ignorenonframetext,
+  aspectratio=169]{beamer}
+\newif\ifbibliography
+\usepackage{pgfpages}
+\setbeamertemplate{caption}[numbered]
+\setbeamertemplate{caption label separator}{: }
+\setbeamercolor{caption name}{fg=normal text.fg}
+\beamertemplatenavigationsymbolsempty
+% remove section numbering
+\setbeamertemplate{part page}{
+  \centering
+  \begin{beamercolorbox}[sep=16pt,center]{part title}
+    \usebeamerfont{part title}\insertpart\par
+  \end{beamercolorbox}
+}
+\setbeamertemplate{section page}{
+  \centering
+  \begin{beamercolorbox}[sep=12pt,center]{section title}
+    \usebeamerfont{section title}\insertsection\par
+  \end{beamercolorbox}
+}
+\setbeamertemplate{subsection page}{
+  \centering
+  \begin{beamercolorbox}[sep=8pt,center]{subsection title}
+    \usebeamerfont{subsection title}\insertsubsection\par
+  \end{beamercolorbox}
+}
+% Prevent slide breaks in the middle of a paragraph
+\widowpenalties 1 10000
+\raggedbottom
+\AtBeginPart{
+  \frame{\partpage}
+}
+\AtBeginSection{
+  \ifbibliography
+  \else
+    \frame{\sectionpage}
+  \fi
+}
+\AtBeginSubsection{
+  \frame{\subsectionpage}
+}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage[style=apa,backend=biber,natbib=true]{biblatex}
+\addbibresource{../library/references.bib}
+% ============================================================
+%  beamer_preamble.tex
+%  Executive deck — Indonesia CVD / FAIR Choices analysis
+%  World Bank  ·  University of Washington collaboration
+%  (Adapted in-repo from the prior project preamble: default Beamer
+%   look, Calibri fonts, colored blocks + scenario palette, then
+%   rebranded for the World Bank – UW Indonesia CVD work.)
+% ============================================================
+
+% ── Beamer theme (clean default look, lightly branded) ───────────────────────
+\usetheme{default}
+\usecolortheme{default}
+\usefonttheme{professionalfonts}
+
+% ── XeLaTeX fonts (requires xelatex engine) ─────────────────────────────────
+\usepackage{fontspec}
+\setmainfont{Calibri}[
+  BoldFont       = Calibri Bold,
+  ItalicFont     = Calibri Italic,
+  BoldItalicFont = Calibri Bold Italic
+]
+\setsansfont{Calibri}
+\setmonofont{Consolas}
+
+% ── Packages ────────────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{ragged2e}
+\usepackage{microtype}
+\usepackage{tabularx}
+\usepackage{makecell}
+\usepackage{multirow}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc, backgrounds, fit}
+\usepackage{hyperref}
+
+% ── Project colour palette (World Bank – UW; colour-blind aware) ─────────────
+\definecolor{wbnavy}{HTML}{0F2A56}        % primary dark navy (World Bank)
+\definecolor{wbblue}{HTML}{2166AC}        % accent blue
+\definecolor{uwpurple}{HTML}{4B2E83}      % UW brand purple (secondary accent)
+\definecolor{uwgold}{HTML}{B7A57A}        % UW gold (rare accent)
+
+% Scenario-family colours (must match ggplot palette in the .Rmd)
+\definecolor{clinicalcol}{HTML}{3B6FB6}   % clinical scenarios (blue)
+\definecolor{phcol}{HTML}{1B9E77}         % public-health scenarios (teal-green)
+\definecolor{combinedcol}{HTML}{08306B}   % combined package (dark navy)
+\definecolor{comparatorgrey}{HTML}{9E9E9E}% comparators / baseline context
+\definecolor{incidencecol}{HTML}{2166AC}  % incidence (Well->Sick) effects
+\definecolor{casefatalcol}{HTML}{B2182B}  % case-fatality (Sick->Death) effects
+\definecolor{bgmortcol}{HTML}{7F7F7F}     % background mortality
+\definecolor{highlightblue}{HTML}{DBEAFE} % table row highlight
+\definecolor{highlightgold}{HTML}{FCEFCB} % combined-package row highlight
+
+% ── Light branding: navy frame titles, blue structure accents ───────────────
+\setbeamercolor{structure}{fg=wbblue}
+\setbeamercolor{title}{fg=wbnavy}
+\setbeamercolor{subtitle}{fg=wbblue}
+\setbeamercolor{author}{fg=black}
+\setbeamercolor{date}{fg=black}
+\setbeamercolor{institute}{fg=black}
+\setbeamercolor{frametitle}{fg=wbnavy}
+\setbeamercolor{normal text}{fg=black}
+\setbeamerfont{frametitle}{series=\bfseries}
+\setbeamerfont{title}{series=\bfseries}
+
+% Keep default background/frametitle templates (clean, no heavy canvas).
+
+% ── Colored blocks (boxes) ──────────────────────────────────────────────────
+\setbeamercolor{block title}{bg=wbnavy!12, fg=wbnavy}
+\setbeamercolor{block body}{bg=wbnavy!5}
+
+\setbeamercolor{block title alerted}{bg=casefatalcol!15, fg=casefatalcol!80!black}
+\setbeamercolor{block body alerted}{bg=casefatalcol!6}
+
+\setbeamercolor{block title example}{bg=phcol!15, fg=phcol!75!black}
+\setbeamercolor{block body example}{bg=phcol!6}
+
+% Custom family-coloured blocks
+\newenvironment{clinicalblock}[1]{%
+  \setbeamercolor{block title}{bg=clinicalcol!16, fg=clinicalcol!80!black}%
+  \setbeamercolor{block body}{bg=clinicalcol!6}%
+  \begin{block}{#1}%
+}{\end{block}}
+
+\newenvironment{phblock}[1]{%
+  \setbeamercolor{block title}{bg=phcol!16, fg=phcol!75!black}%
+  \setbeamercolor{block body}{bg=phcol!6}%
+  \begin{block}{#1}%
+}{\end{block}}
+
+\newenvironment{combinedblock}[1]{%
+  \setbeamercolor{block title}{bg=combinedcol!18, fg=combinedcol}%
+  \setbeamercolor{block body}{bg=combinedcol!7}%
+  \begin{block}{#1}%
+}{\end{block}}
+
+% ── Bullet style (blue accent) ──────────────────────────────────────────────
+\setbeamertemplate{itemize item}{\textcolor{wbblue}{\textbullet}}
+\setbeamertemplate{itemize subitem}{\textcolor{wbblue}{--}}
+\setbeamertemplate{itemize subsubitem}{\textcolor{wbblue}{\textperiodcentered}}
+\setbeamertemplate{enumerate item}{\textcolor{wbblue}{\insertenumlabel.}}
+
+% ── Headline highlight command ──────────────────────────────────────────────
+\newcommand{\hlkey}[1]{%
+  \colorbox{highlightblue}{\textcolor{wbnavy}{\textbf{#1}}}%
+}
+
+% ── Clean footer (World Bank – UW) ──────────────────────────────────────────
+\setbeamertemplate{footline}{%
+  \leavevmode
+  \hbox{%
+    \begin{beamercolorbox}[wd=0.34\paperwidth, ht=2.25ex, dp=1ex, left]{author in head/foot}%
+      \hspace{1em}\usebeamerfont{author in head/foot}%
+      %\textcolor{black!60}{\footnotesize World Bank \textperiodcentered\ University of Washington}%
+       \textcolor{black!60}{\footnotesize Disease Control Priorities}%
+	\end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=0.56\paperwidth, ht=2.25ex, dp=1ex, center]{title in head/foot}%
+      \usebeamerfont{title in head/foot}%
+      \textcolor{black!60}{\footnotesize Indonesia CVD --- Health Impact, Costs \& Economic Returns}%
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=0.10\paperwidth, ht=2.25ex, dp=1ex, right]{date in head/foot}%
+      \usebeamerfont{date in head/foot}%
+      \textcolor{black!60}{\footnotesize \insertframenumber{}/\inserttotalframenumber}%
+      \hspace{0.5em}%
+    \end{beamercolorbox}%
+  }%
+  \vskip0pt%
+}
+\setbeamertemplate{navigation symbols}{}
+
+% ── Section divider slides (auto from # headers) ────────────────────────────
+\AtBeginSection[]{%
+  \begin{frame}
+    \vfill
+    \centering
+    \begin{beamercolorbox}[sep=10pt, center, shadow=false, rounded=true]{block title}
+      \usebeamerfont{title}\insertsectionhead\par
+    \end{beamercolorbox}
+    \vfill
+  \end{frame}
+}
+% ---- VOI-deck additions (the house preamble stays untouched) -------------------------
+\usepackage{etoolbox}
+% -- APA 7 citations and generated reference list: rmarkdown loads biblatex with the YAML
+%    biblatexoptions (style=apa, backend=biber, natbib=true); these settings follow it --
+\DeclareFieldFormat{apacase}{#1}
+\setlength{\bibhang}{0pt}
+\setlength{\bibitemsep}{0.6\baselineskip}
+\renewcommand*{\bibfont}{\footnotesize\raggedright}
+\setcounter{biburlbigbreakpenalty}{5000}
+\setcounter{biburlbreakpenalty}{5000}
+\setbeamertemplate{frametitle continuation}{}
+\setbeamertemplate{bibliography item}{}
+\setbeamercolor{bibliography item}{fg=black}
+\setbeamercolor{bibliography entry author}{fg=black}
+\setbeamercolor{bibliography entry title}{fg=black}
+\setbeamercolor{bibliography entry location}{fg=black}
+\setbeamercolor{bibliography entry note}{fg=black}
+% Render-time repairs for reference-manager exports (the .bib itself is not edited here).
+\DeclareSourcemap{
+  \maps[datatype=bibtex]{
+    \map{
+      \step[fieldset=abstract, null]
+      \step[fieldset=keywords, null]
+      \step[fieldset=month, null]
+      \step[fieldset=issn, null]
+      \step[fieldset=pmid, null]
+    }
+    \map{
+      \step[fieldsource=note, match=\regexp{^\s*doi:}, final]
+      \step[fieldset=note, null]
+    }
+    \map{
+      \step[fieldsource=title, match=\regexp{\\([\x{25}\x{26}\x{23}])}, replace=\regexp{$1}]
+      \step[fieldsource=title, match=\regexp{([\x{25}\x{26}\x{23}])}, replace=\regexp{\\$1}]
+      \step[fieldsource=journal, match=\regexp{\\([\x{25}\x{26}\x{23}])}, replace=\regexp{$1}]
+      \step[fieldsource=journal, match=\regexp{([\x{25}\x{26}\x{23}])}, replace=\regexp{\\$1}]
+    }
+    \map{
+      \step[fieldsource=doi, match=\regexp{^(10\.\d{4,9}/[^\s;]+?)(?:/ASSET/.*|;.*)$}, replace=\regexp{$1}]
+      \step[fieldsource=url, match=\regexp{^(\S+)\s.*$}, replace=\regexp{$1}]
+    }
+    \map{
+      \step[fieldsource=pages, match=\regexp{^(\w+)\s*-+\s*\1$}, replace=\regexp{$1}]
+      \step[fieldsource=journal, match=\regexp{\s+\d{4}\s+\d+:\d+$}, replace=\regexp{}]
+    }
+    \map[overwrite=false]{
+      \step[fieldsource=issue, fieldtarget=number]
+    }
+  }
+}
+\makeatletter
+\AtBeginBibliography{%
+  \global\beamer@frametopskipautobreak=.45cm plus .5\paperheight\relax
+  \global\beamer@framebottomskipautobreak=0pt plus 1fill\relax}
+\AtBeginDocument{%
+  \patchcmd{\abx@macro@title}{\bbx@tempa\newblock\unspace}{\bbx@tempa\newblock}{}{}}
+% -- Closing slide  ## {.standout}: full-bleed navy, unnumbered; it ends the main deck,
+%    so backup slides and references are numbered separately (B1, B2, ...).
+\usepackage{appendixnumberbeamer}
+\renewcommand{\appendixname}{Backup}
+\AtBeginPart{}
+\newif\ifdeckbk
+\newif\ifdeck@standout
+\define@key{beamerframe}{standout}[true]{%
+  \deck@standouttrue
+  \begingroup
+  \setkeys{beamerframe}{c,noframenumbering}%
+  \setbeamercolor{background canvas}{bg=wbnavy}%
+  \setbeamercolor{normal text}{fg=white}%
+  \setbeamertemplate{footline}{}%
+  \usebeamercolor[fg]{normal text}%
+  \centering\Large}
+\pretocmd{\beamer@reseteecodes}{%
+  \ifdeck@standout\endgroup\deck@standoutfalse\global\deckbktrue
+    \ifnum\currentgrouplevel>0 \aftergroup\appendix\else\appendix\fi
+  \fi}{}{}
+\makeatother
+% -- No section-divider slides in this deck --
+\AtBeginSection[]{}
+% -- One number that carries a slide; grey source line under figures and tables --
+\newcommand{\bignumber}[2]{%
+  \begin{center}
+    {\fontsize{34}{38}\selectfont\bfseries\textcolor{wbnavy}{#1}}\par\vspace{3pt}
+    {\large #2}\par
+  \end{center}}
+\newcommand{\sourceline}[1]{\par\vspace{4pt}{\footnotesize\raggedright\textcolor{black!60}{#1}\par}}
+% -- Caveat box (amber), at most one per slide --
+\definecolor{caveatcol}{HTML}{B35806}
+\newenvironment{uncertaintyblock}[1]{%
+  \setbeamercolor{block title}{bg=caveatcol!14, fg=caveatcol!85!black}%
+  \setbeamercolor{block body}{bg=caveatcol!5}%
+  \begin{block}{#1}}{\end{block}}
+% -- Footer: house layout; the recurring Pillar 3 kicker sits in the centre; backup frames are B1, B2, ... --
+\setbeamertemplate{footline}{\leavevmode\hbox{%
+  \begin{beamercolorbox}[wd=0.30\paperwidth, ht=2.25ex, dp=1ex, left]{author in head/foot}%
+    \hspace{1em}\textcolor{black!60}{\footnotesize Disease Control Priorities}\end{beamercolorbox}%
+  \begin{beamercolorbox}[wd=0.60\paperwidth, ht=2.25ex, dp=1ex, center]{title in head/foot}%
+    \textcolor{black!60}{\footnotesize Pillar 3 \textperiodcentered{} What would better evidence be worth?}\end{beamercolorbox}%
+  \begin{beamercolorbox}[wd=0.10\paperwidth, ht=2.25ex, dp=1ex, right]{date in head/foot}%
+    \textcolor{black!60}{\footnotesize\ifdeckbk B\insertframenumber\else\insertframenumber/\inserttotalframenumber\fi}%
+    \hspace{0.5em}\end{beamercolorbox}}\vskip0pt}
+
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{colortbl}
+\usepackage{pdflscape}
+\usepackage{tabu}
+\usepackage{threeparttable}
+\usepackage{threeparttablex}
+\usepackage[normalem]{ulem}
+\usepackage{makecell}
+\usepackage{xcolor}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Better evidence on secondary prophylaxis could change Uganda's scale-up decision, but rarely Indonesia's},
+  pdfauthor={William Garcia},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Better evidence on secondary prophylaxis could change Uganda's
+scale-up decision, but rarely Indonesia's}
+\subtitle{Pillar 3 · What would better evidence be worth? Value of
+information for RHD prophylaxis, 2026--2050}
+\author{William Garcia}
+\date{November 2026}
+\institute{University of Washington · World Bank}
+
+\begin{document}
+\frame{\titlepage}
+
+\begin{frame}{We value perfect knowledge of four prophylaxis inputs for
+one decision}
+\phantomsection\label{we-value-perfect-knowledge-of-four-prophylaxis-inputs-for-one-decision}
+\begin{columns}[T]
+\begin{column}{0.44\linewidth}
+\textbf{One decision, 2026--2050}
+
+Current care, or scale up echo screening plus secondary antibiotic
+prophylaxis (SAP)?
+\end{column}
+
+\begin{column}{0.52\linewidth}
+\textbf{Four uncertain SAP inputs}
+
+\begin{enumerate}
+\tightlist
+\item
+  Efficacy, stage A \(\rightarrow\) B (minimal \(\rightarrow\) mild)
+\item
+  Efficacy, stage B \(\rightarrow\) C (mild \(\rightarrow\) advanced)
+\item
+  Age to which protection lasts
+\item
+  Protection with partial adherence
+\end{enumerate}
+\end{column}
+\end{columns}
+
+\medskip
+
+\begin{uncertaintyblock}{Held fixed}
+Disease model, care cascade, costs, valuation. No SAP effect on late stages or on deaths.
+\end{uncertaintyblock}
+\end{frame}
+
+\begin{frame}{One trial of 818 participants anchors the effect of
+prophylaxis on early RHD}
+\phantomsection\label{one-trial-of-818-participants-anchors-the-effect-of-prophylaxis-on-early-rhd}
+\bignumber{0.09}{risk ratio for progression of early RHD on prophylaxis (95\% CI 0.03--0.29)}
+
+\medskip
+
+\begin{center}
+Effects at other stages, older ages and partial adherence are extrapolations
+\end{center}
+
+\sourceline{Systematic review of long-term antibiotic prophylaxis \parencite{Bray2024}; the trial is GOAL \parencite{Beaton2022}.}
+\end{frame}
+
+\begin{frame}{By 2050, scale-up returns US\$2.8 per dollar in Indonesia,
+US\$0.78 in Uganda}
+\phantomsection\label{by-2050-scale-up-returns-us2.8-per-dollar-in-indonesia-us0.78-in-uganda}
+\begin{center}\includegraphics[width=1\linewidth]{slideck-voi_files/figure-beamer/fig-bcr-1} \end{center}
+
+\sourceline{Incremental benefit (deaths averted $\times$ reference VSL) $\div$ incremental programme cost, discounted 3\% to 2026, constant 2025 US\$, 2026--2050 only. Bars: median and 95\% PSA interval, 500 draws.}
+\end{frame}
+
+\begin{frame}{Perfect information pays only in draws where the other
+option wins}
+\phantomsection\label{perfect-information-pays-only-in-draws-where-the-other-option-wins}
+\begin{center}\includegraphics[width=1\linewidth]{slideck-voi_files/figure-beamer/fig-inb-1} \end{center}
+
+\sourceline{Colour: draws in which the option not chosen on current evidence is better. EVPI = average net benefit regained in those draws. VSL $\times$ 1, 2026--2050, discounted, constant 2025 US\$.}
+\end{frame}
+
+\begin{frame}{In Indonesia, perfect evidence is worth at most US\$0.50
+million}
+\phantomsection\label{in-indonesia-perfect-evidence-is-worth-at-most-us0.50-million}
+\framesubtitle{The value of knowing how well secondary prophylaxis works \textperiodcentered{} Indonesia}
+
+\bignumber{US\$0.50m}{expected value of perfect information, 2026--2050}
+
+\begin{center}
+Scale-up preferred on current evidence (BCR 2.83); better in 97.6\% of draws
+\end{center}
+
+\begin{table}
+\centering
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{7.2cm}>{\raggedleft\arraybackslash}p{2.4cm}>{}r}
+\toprule
+Perfect information compared with & US\$ (2025) & Share\\
+\midrule
+Programme cost, 2026--2050 & US\$678m & \textbf{0.073\%}\\
+Govt. health spending (GGHE-D), 1 year (2023) & US\$19.1bn & \textbf{0.0026\%}\\
+GDP, 1 year (2023) & US\$1,320bn & \textbf{0.000038\%}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\sourceline{EVPI bootstrap 95\%: US\$0.21m--US\$0.86m. Gross programme cost, discounted; GGHE-D and GDP in 2023 \parencite{WHO2025, WorldBank2026}. Scale comparisons, not budgets.}
+\end{frame}
+
+\begin{frame}{In Uganda, perfect evidence, worth up to US\$1.5 million,
+could flip the choice}
+\phantomsection\label{in-uganda-perfect-evidence-worth-up-to-us1.5-million-could-flip-the-choice}
+\framesubtitle{The value of knowing how well secondary prophylaxis works \textperiodcentered{} Uganda}
+
+\bignumber{US\$1.5m}{expected value of perfect information, 2026--2050}
+
+\begin{center}
+Current care preferred (BCR 0.78); scale-up better in 30.8\% of draws
+\end{center}
+
+\begin{table}
+\centering
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{7.2cm}>{\raggedleft\arraybackslash}p{2.4cm}>{}r}
+\toprule
+Perfect information compared with & US\$ (2025) & Share\\
+\midrule
+Programme cost, 2026--2050 & US\$255m & \textbf{0.60\%}\\
+Govt. health spending (GGHE-D), 1 year (2023) & US\$502m & \textbf{0.31\%}\\
+GDP, 1 year (2023) & US\$54.4bn & \textbf{0.0028\%}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\sourceline{EVPI bootstrap 95\%: US\$1.3m--US\$1.8m. Gross programme cost, discounted; GGHE-D and GDP in 2023 \parencite{WHO2025, WorldBank2026}. Scale comparisons, not budgets.}
+\end{frame}
+
+\begin{frame}{In Indonesia, only the two efficacy inputs carry
+information value}
+\phantomsection\label{in-indonesia-only-the-two-efficacy-inputs-carry-information-value}
+\framesubtitle{Which uncertainty is worth resolving? \textperiodcentered{} Indonesia}
+
+\begin{center}\includegraphics[width=1\linewidth]{slideck-voi_files/figure-beamer/fig-par-idn-1} \end{center}
+
+\sourceline{Learning one input alone, others still uncertain; values overlap and do not add. Bars: bootstrap 95\%; imprecise at 500 draws.}
+\end{frame}
+
+\begin{frame}{In Uganda, the age to which protection lasts is the most
+valuable single input}
+\phantomsection\label{in-uganda-the-age-to-which-protection-lasts-is-the-most-valuable-single-input}
+\framesubtitle{Which uncertainty is worth resolving? \textperiodcentered{} Uganda}
+
+\begin{center}\includegraphics[width=1\linewidth]{slideck-voi_files/figure-beamer/fig-par-uga-1} \end{center}
+
+\sourceline{The joint value exceeds every single input: combinations of inputs, not one alone, flip the decision. Bars: bootstrap 95\%.}
+\end{frame}
+
+\begin{frame}{Information value peaks where the decision sits near
+break-even}
+\phantomsection\label{information-value-peaks-where-the-decision-sits-near-break-even}
+\begin{center}\includegraphics[width=1\linewidth]{slideck-voi_files/figure-beamer/fig-curve-1} \end{center}
+
+\sourceline{Joint EVPI with deaths averted valued at a multiple of the reference VSL; y-axes differ by country. Dot: reference. Band: bootstrap 95\%.}
+\end{frame}
+
+\begin{frame}{These are upper bounds from a fixed model with provisional
+priors}
+\phantomsection\label{these-are-upper-bounds-from-a-fixed-model-with-provisional-priors}
+\begin{columns}[T]
+\begin{column}{0.48\linewidth}
+\textbf{A skeptic would say}
+
+Priors are not expert-agreed, the model misses GBD burden, and no study
+gives perfect information.
+\end{column}
+
+\begin{column}{0.48\linewidth}
+\textbf{What the analysis supports}
+
+A cap on what resolving these four inputs is worth for this decision; a
+real study is worth less.
+\end{column}
+\end{columns}
+
+\medskip
+
+\begin{uncertaintyblock}{Not assessed}
+SAP effects on stage C $\rightarrow$ D; recalibration; any specific study design.
+\end{uncertaintyblock}
+\end{frame}
+
+\begin{frame}{For this decision, research on these inputs costing more
+than the cap cannot pay off}
+\phantomsection\label{for-this-decision-research-on-these-inputs-costing-more-than-the-cap-cannot-pay-off}
+\begin{table}
+\centering
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{1.8cm}>{\raggedright\arraybackslash}p{4.0cm}>{}r>{\raggedright\arraybackslash}p{4.4cm}}
+\toprule
+ & Choice on current evidence & Cap (EVPI) & Most valuable single input\\
+\midrule
+Indonesia & Scale-up (97.6\% of draws) & \textbf{US\$0.50m} & Efficacy, A $\rightarrow$ B or B $\rightarrow$ C (overlap)\\
+Uganda & Current care (69.2\% of draws) & \textbf{US\$1.5m} & Age to which protection lasts\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\sourceline{EVPI caps the expected value of any study on these four inputs for the national scale-up decision, 2026--2050; other decisions or countries could add value.}
+\end{frame}
+
+\begin{frame}[standout]{}
+\phantomsection\label{section}
+Through 2050, knowing how well prophylaxis works could change Uganda's
+scale-up decision but rarely Indonesia's, and is worth at most US\$1.5
+million in Uganda and US\$0.50 million in Indonesia.
+\end{frame}
+
+\section{Backup}\label{backup}
+
+\begin{frame}{The BCR is incremental and discounted, and counts only
+benefits to 2050}
+\phantomsection\label{the-bcr-is-incremental-and-discounted-and-counts-only-benefits-to-2050}
+\begin{table}
+\centering\begingroup\fontsize{10}{12}\selectfont
+
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{5.8cm}>{\raggedleft\arraybackslash}p{3.4cm}>{\raggedleft\arraybackslash}p{3.4cm}}
+\toprule
+ & Indonesia & Uganda\\
+\midrule
+Expected benefit E[B] & US\$259m & US\$16.7m\\
+Expected incremental cost E[C] & US\$91.5m & US\$21.4m\\
+\textbf{E[B] / E[C] (decision ratio)} & \textbf{2.83} & \textbf{0.78}\\
+Median BCR (95\% PSA interval) & 2.82 (1.06--5.08) & 0.76 (0.20--1.62)\\
+Mean of draw ratios E[B/C] (descriptive) & 2.82 & 0.77\\
+P(BCR $>$ 1) / P(BCR $>$ 2) & 97.6\% / 76.8\% & 30.8\% / 0.0\%\\
+P(BCR $>$ 3) / P(BCR $>$ 5) & 41.6\% / 3.2\% & 0.0\% / 0.0\%\\
+Point-value BCR (production inputs) & 2.38 & 0.71\\
+Draws with incremental cost $\le$ 0 & 0 & 0\\
+\bottomrule
+\end{tabular}
+\endgroup{}
+\end{table}
+
+\sourceline{B: deaths averted $\times$ reference VSL; C: scale-up minus reference cost; discounted 3\% to 2026, constant 2025 US\$, 2026--2050. With C $>$ 0, BCR $>$ 1 $\Leftrightarrow$ INB $>$ 0: the decision the VOI addresses.}
+\end{frame}
+
+\begin{frame}{Indonesia clears a benefit-cost hurdle of 2 in most draws;
+Uganda never does}
+\phantomsection\label{indonesia-clears-a-benefit-cost-hurdle-of-2-in-most-draws-uganda-never-does}
+\begin{center}\includegraphics[width=1\linewidth]{slideck-voi_files/figure-beamer/fig-hurdle-1} \end{center}
+
+\sourceline{Share of 500 draws with B $-$ r C $>$ 0 (equal to P(BCR $>$ r) since every draw has C $>$ 0); 2026--2050, discounted. Descriptive: the decision rule is BCR $>$ 1.}
+\end{frame}
+
+\begin{frame}{A higher benefit-cost hurdle is a different objective, not
+a larger welfare gain}
+\phantomsection\label{a-higher-benefit-cost-hurdle-is-a-different-objective-not-a-larger-welfare-gain}
+\[G_r = B - r\,C = r\left[\tfrac{1}{r}B - C\right]\]
+
+\begin{table}
+\centering
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{2.4cm}>{\raggedleft\arraybackslash}p{4.4cm}>{\raggedleft\arraybackslash}p{4.4cm}}
+\toprule
+Hurdle & Indonesia, US\$ million & Uganda, US\$ million\\
+\midrule
+r = 2 & 11 (8.4--13) & 0\\
+r = 3 & 31 (26--35) & 0\\
+r = 5 & 0.69 (0.32--1.1) & 0\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\sourceline{VOI of the objective $G_r$ (joint, bootstrap 95\%). $G_r$ re-weights costs by r, so its VOI is not a welfare value; it equals r times the EVPI at a VSL multiple of 1/r.}
+\end{frame}
+
+\begin{frame}{Priors on the four inputs are provisional and not
+expert-agreed}
+\phantomsection\label{priors-on-the-four-inputs-are-provisional-and-not-expert-agreed}
+\setlength{\tabcolsep}{4pt}
+
+\begin{table}
+\centering\begingroup\fontsize{9}{11}\selectfont
+
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{3.3cm}>{\raggedleft\arraybackslash}p{0.9cm}>{\raggedright\arraybackslash}p{4.4cm}>{\raggedleft\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{2.8cm}}
+\toprule
+Input & Point & Prior: median (95\%) & P(prior $\geq$ point) & Sampled, n = 500\\
+\midrule
+Efficacy, A $\rightarrow$ B & 0.45 & 0.30 (0.036--0.73) & 36\% & 0.33 (0.036--0.73)\\
+\quad trial regime &  & 0.093 (0.030--0.29) & $<$1\% & \\
+\quad recurrence regime &  & 0.52 (0.31--0.78) & 72\% \vphantom{1} & \\
+Efficacy, B $\rightarrow$ C & 0.45 & 0.38 (0.081--0.75) & 39\% & 0.38 (0.074--0.75)\\
+\quad trial regime &  & 0.20 (0.068--0.59) & 7\% & \\
+\quad recurrence regime &  & 0.52 (0.31--0.78) & 72\% & \\
+Age to which protection lasts & 39 & 20 / 39 / 100 with P 0.25 / 0.5 / 0.25 & 75\% & 137 / 222 / 141\\
+Protection with partial adherence & 0.50 & Beta(4.54, 4.54): 0.50 (0.20--0.80) & 50\% & 0.52 (0.21--0.78)\\
+\bottomrule
+\end{tabular}
+\endgroup{}
+\end{table}
+
+\sourceline{Equal-weight mixture, one regime indicator for both transitions: trial efficacy \parencite{Beaton2022, Bray2024}, or benefit only via fewer rheumatic fever recurrences, $M = 1 - s(1-RR)$ with RR 0.22--0.69 \parencite{Bray2024} and an unelicited share s (one M for both). Point M = 0.45 is the recurrence RR of \textcite{Manyemba2002} used directly as a progression multiplier (s = 1): inside the prior, above its median. Partial adherence after \textcite{deDassel2018}.}
+\end{frame}
+
+\begin{frame}{Information values come from one set of 500 paired draws
+per country}
+\phantomsection\label{information-values-come-from-one-set-of-500-paired-draws-per-country}
+\[\mathrm{EVPI} = \mathrm{E}_\theta\big[\max_d \mathrm{NB}(d,\theta)\big] - \max_d \mathrm{E}_\theta\big[\mathrm{NB}(d,\theta)\big]\]
+
+\begin{itemize}
+\tightlist
+\item
+  Joint value of the four inputs = EVPI, only because nothing else
+  varies here
+\item
+  Single input: GAM regression of B and C on that input
+  \parencite{Strong2014}
+\item
+  Single-input values overlap; never summed or stacked
+  \parencite{Rothery2020}
+\item
+  Intervals: 1,000 bootstrap resamples of whole paired draws (estimator
+  precision)
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Calibration, starting state, cascade, costs and valuation
+are held fixed}
+\phantomsection\label{calibration-starting-state-cascade-costs-and-valuation-are-held-fixed}
+\begin{columns}[T]
+\begin{column}{0.48\linewidth}
+\textbf{Held fixed}
+
+\begin{itemize}
+\tightlist
+\item
+  Calibrated natural history and incidence (fit to GBD: inadequate)
+\item
+  2026 engine state, care cascade, unit costs
+\item
+  Reference-case VSL \parencite{Robinson2019}
+\end{itemize}
+\end{column}
+
+\begin{column}{0.48\linewidth}
+\textbf{Not assessed}
+
+\begin{itemize}
+\tightlist
+\item
+  SAP effect on C \(\rightarrow\) D and on stage-D death (fixed at none)
+\item
+  Effect waning; recalibration under other SAP values
+\item
+  Value of a specific study (EVSI)
+\end{itemize}
+\end{column}
+\end{columns}
+
+\sourceline{Efficacy (M) is full-adherence efficacy; achieved adherence and coverage are separate, fixed cascade inputs. Calibration fit: inadequate (outside its GBD diagnostic tolerances) in both countries, so all results are preliminary.}
+\end{frame}
+
+\begin{frame}{Scale comparisons use one year of GDP and of domestic
+government health spending}
+\phantomsection\label{scale-comparisons-use-one-year-of-gdp-and-of-domestic-government-health-spending}
+\begin{table}
+\centering
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{6.2cm}>{\raggedleft\arraybackslash}p{3.0cm}>{\raggedleft\arraybackslash}p{3.0cm}}
+\toprule
+Constant 2025 US\$ & Indonesia & Uganda\\
+\midrule
+Gross programme cost, 2026--2050 (discounted) & US\$678m & US\$255m\\
+GGHE-D, 2023 (one year) & US\$19.1bn & US\$502m\\
+GDP, 2023 (one year) & US\$1,320bn & US\$54.4bn\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\sourceline{GDP: current local currency \parencite{WorldBank2026}. GGHE-D: WHO share of GDP \parencite{WHO2025} times that GDP; excludes donor and private funds; not a ministry budget. 2023 is the latest common year. Converted with local CPI to 2025 and the 2025 market exchange rate \parencite{Turner2019}; not PPP.}
+\end{frame}
+
+\begin{frame}{In Indonesia, each value is under one-tenth of 1\% of
+programme cost}
+\phantomsection\label{in-indonesia-each-value-is-under-one-tenth-of-1-of-programme-cost}
+\setlength{\tabcolsep}{3pt}
+
+\begin{table}
+\centering\begingroup\fontsize{10}{12}\selectfont
+
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{3.4cm}>{\raggedleft\arraybackslash}p{2.9cm}>{\raggedleft\arraybackslash}p{1.1cm}>{\raggedleft\arraybackslash}p{1.6cm}>{\raggedleft\arraybackslash}p{1.6cm}>{\raggedleft\arraybackslash}p{1.8cm}}
+\toprule
+Input & EVPI, US\$ thousand (95\%) & P(top) & Programme & GGHE-D, 1 yr & GDP, 1 yr\\
+\midrule
+All four together (joint) & 500 (210--860) &  & 0.073\% & 0.0026\% & 0.000038\%\\
+Efficacy, A $\rightarrow$ B & 270 (43--620) & 37.4\% & 0.039\% & 0.0014\% & 0.000020\%\\
+Efficacy, B $\rightarrow$ C & 280 (45--650) & 62.4\% & 0.041\% & 0.0015\% & 0.000021\%\\
+Age to which protection lasts & 0 (0--0) & 0.0\% & 0\% & 0\% & 0\%\\
+Protection with partial adherence & 0 (0--0) & 0.0\% & 0\% & 0\% & 0\%\\
+\bottomrule
+\end{tabular}
+\endgroup{}
+\end{table}
+
+\sourceline{VSL $\times$ 1, 2026--2050, constant 2025 US\$. P(top): share of bootstrap replicates in which the input alone ranks first. Shares use one fixed denominator for estimate and bounds. Joint EVPI / expected incremental cost (US\$91.5m): 0.54\%.}
+\end{frame}
+
+\begin{frame}{In Uganda, perfect information is worth 0.60\% of
+programme cost}
+\phantomsection\label{in-uganda-perfect-information-is-worth-0.60-of-programme-cost}
+\setlength{\tabcolsep}{3pt}
+
+\begin{table}
+\centering\begingroup\fontsize{10}{12}\selectfont
+
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{3.4cm}>{\raggedleft\arraybackslash}p{2.9cm}>{\raggedleft\arraybackslash}p{1.1cm}>{\raggedleft\arraybackslash}p{1.6cm}>{\raggedleft\arraybackslash}p{1.6cm}>{\raggedleft\arraybackslash}p{1.8cm}}
+\toprule
+Input & EVPI, US\$ thousand (95\%) & P(top) & Programme & GGHE-D, 1 yr & GDP, 1 yr\\
+\midrule
+All four together (joint) & 1,500 (1,300--1,800) &  & 0.60\% & 0.31\% & 0.0028\%\\
+Efficacy, A $\rightarrow$ B & 58 (0--400) & 0.0\% & 0.023\% & 0.012\% & 0.00011\%\\
+Efficacy, B $\rightarrow$ C & 220 (15--650) & 2.9\% & 0.085\% & 0.043\% & 0.00040\%\\
+Age to which protection lasts & 610 (260--970) & 97.1\% & 0.24\% & 0.12\% & 0.0011\%\\
+Protection with partial adherence & 0 (0--0) & 0.0\% & 0\% & 0\% & 0\%\\
+\bottomrule
+\end{tabular}
+\endgroup{}
+\end{table}
+
+\sourceline{VSL $\times$ 1, 2026--2050, constant 2025 US\$. P(top): share of bootstrap replicates in which the input alone ranks first. Joint EVPI / expected incremental cost (US\$21.4m): 7.2\%.}
+\end{frame}
+
+\begin{frame}{At low valuations every draw favours current care, so EVPI
+is zero}
+\phantomsection\label{at-low-valuations-every-draw-favours-current-care-so-evpi-is-zero}
+\begin{table}
+\centering
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{6.0cm}>{\raggedleft\arraybackslash}p{3.2cm}>{\raggedleft\arraybackslash}p{3.2cm}}
+\toprule
+Valuation & Indonesia & Uganda\\
+\midrule
+VSL $\times$ 0.05 & 0.0\% / 0 & 0.0\% / 0\\
+VSL $\times$ 0.1 & 0.0\% / 0 & 0.0\% / 0\\
+VSL $\times$ 1 (reference, for contrast) & 97.6\% / US\$0.50m & 30.8\% / US\$1.5m\\
+0.5 $\times$ GNI pc per DALY (proxy) & 0.0\% / 0 & 0.0\% / 0\\
+1 $\times$ GNI pc per DALY (proxy) & 0.0\% / 0 & 0.0\% / 0\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\sourceline{Cells: P(scale-up better) / joint EVPI. DALY proxy: discounted deaths averted $\times$ 30; GNI per capita 2026 from the production income path. Zero VOI means one option wins in every sampled state, not that nothing is uncertain.}
+\end{frame}
+
+\begin{frame}{All 500 paired draws were used; single-input values remain
+imprecise}
+\phantomsection\label{all-500-paired-draws-were-used-single-input-values-remain-imprecise}
+\begin{table}
+\centering
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{6.0cm}>{\raggedleft\arraybackslash}p{3.2cm}>{\raggedleft\arraybackslash}p{3.2cm}}
+\toprule
+ & Indonesia & Uganda\\
+\midrule
+Draws requested / used / excluded & 500 / 500 / 0 & 500 / 500 / 0\\
+Joint EVPI, bootstrap relative SE & 0.35 & 0.10\\
+Joint EVPI, split halves (US\$ million) & 0.50 / 0.50 & 1.6 / 1.5\\
+Single inputs > 0 flagged imprecise & 2 of 2 & 3 of 3\\
+Smallest GAM k-index p-value & 0.23 & 0.30\\
+Bootstrap resamples (failed fits) & 1,000 (0) & 1,000 (0)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\sourceline{VSL $\times$ 1, 2026--2050. Imprecise: bootstrap relative SE above 0.20. Extending beyond 500 draws (same run, same prior) would tighten them; not done here.}
+\end{frame}
+
+\begin{frame}{The joint value moves with the weight given to trial-level
+efficacy}
+\phantomsection\label{the-joint-value-moves-with-the-weight-given-to-trial-level-efficacy}
+\begin{table}
+\centering
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{5.2cm}>{\raggedleft\arraybackslash}p{3.2cm}>{\raggedleft\arraybackslash}p{3.2cm}}
+\toprule
+Prior weight on trial efficacy & Indonesia & Uganda\\
+\midrule
+w = 0.25 & US\$0.74m & US\$0.89m\\
+w = 0.5 & US\$0.50m & US\$1.5m\\
+w = 0.75 & US\$0.25m & US\$2.2m\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\sourceline{Joint EVPI at VSL $\times$ 1, 2026--2050, re-weighting the same draws (importance weights; base case w = 0.5). Exploratory.}
+\end{frame}
+
+\begin{frame}{Scale-up averts about 550 deaths in Indonesia and 250 in
+Uganda by 2050}
+\phantomsection\label{scale-up-averts-about-550-deaths-in-indonesia-and-250-in-uganda-by-2050}
+\begin{table}
+\centering\begingroup\fontsize{10}{12}\selectfont
+
+\begin{tabular}[t]{>{\raggedright\arraybackslash}p{5.3cm}>{\raggedleft\arraybackslash}p{3.6cm}>{\raggedleft\arraybackslash}p{3.6cm}}
+\toprule
+Mean (95\% PSA interval) & Indonesia & Uganda\\
+\midrule
+RHD deaths averted (undiscounted) & 550 (200--1,030) & 250 (60--540)\\
+DALYs averted, proxy (discounted) & 9,600 (3,600--17,800) & 4,200 (1,100--9,100)\\
+Gross scale-up cost, US\$ million (discounted) & 678 (672--692) & 255 (254--257)\\
+\bottomrule
+\end{tabular}
+\endgroup{}
+\end{table}
+
+\sourceline{2026--2050, national population, 500 draws. DALY proxy: discounted deaths averted $\times$ 30 (no age-specific years of life lost, no disability); not modelled DALYs.}
+\end{frame}
+
+\begin{frame}[allowframebreaks]{References}
+  \bibliographytrue
+  \printbibliography[heading=none]
+\end{frame}
+
+\end{document}

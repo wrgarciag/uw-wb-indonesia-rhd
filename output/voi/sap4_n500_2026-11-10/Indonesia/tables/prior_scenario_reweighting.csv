@@ -1,0 +1,16 @@
+country,tid,family,label,w_trial,ess,E_INB,P_INB_pos,EVPI,note
+Indonesia,28,VSL multiple,VSL x 0.05,0.25,402.595943837754,19122530.2460113,0.496062992125984,37926210.6040438,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,28,VSL multiple,VSL x 0.05,0.5,500,51931378.6053535,0.588,28437780.3562354,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,28,VSL multiple,VSL x 0.05,0.75,397.477832512315,85807181.3828857,0.682926829268293,18640783.2711,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,37,VSL multiple,VSL x 0.1,0.25,402.595943837754,267022591.209699,0.87007874015748,6624723.93031025,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,37,VSL multiple,VSL x 0.1,0.5,500,333352240.921396,0.912,4487146.34213018,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,37,VSL multiple,VSL x 0.1,0.75,397.477832512315,401838952.412335,0.955284552845528,2280054.03563523,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,64,VSL multiple,VSL x 1 (reference case),0.25,402.595943837754,4729223688.55608,1,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,64,VSL multiple,VSL x 1 (reference case),0.5,500,5398927762.61016,1,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,64,VSL multiple,VSL x 1 (reference case),0.75,397.477832512315,6090410830.94242,1,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",0.25,402.595943837754,-90110330.5459419,0.078740157480315,3544666.66207512,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",0.5,500,-72108410.4332693,0.128,6589515.8227017,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",0.75,397.477832512315,-53521062.0242495,0.178861788617886,9733384.46822671,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",0.25,402.595943837754,48556869.6257925,0.612204724409449,27318424.0711444,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",0.5,500,85272662.8441502,0.708,19500106.4440501,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",0.75,397.477832512315,123182465.598064,0.806910569105691,11427534.5851803,importance re-weighting of the same draws; joint quantities only; exploratory

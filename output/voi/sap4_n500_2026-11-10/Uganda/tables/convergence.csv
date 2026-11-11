@@ -1,0 +1,176 @@
+country,tid,family,label,n,parameter,value,quantity
+Uganda,28,VSL multiple,VSL x 0.05,100,M_AB,1219474.23445689,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,200,M_AB,1303936.89795685,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,300,M_AB,2216021.51446478,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,400,M_AB,2330364.62938667,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,500,M_AB,2021042.48495974,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,100,M_BC,646011.351437782,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,200,M_BC,1855963.80171482,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,300,M_BC,2543816.63714312,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,400,M_BC,2790764.2126995,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,500,M_BC,2519858.43615891,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,100,joint_SAP,7360825.98960548,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,200,joint_SAP,7975958.96442329,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,300,joint_SAP,8612263.08841885,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,400,joint_SAP,9145693.28707489,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,500,joint_SAP,8527344.00543356,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,100,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,200,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,300,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,400,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,500,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,100,sap_protection_age_max,5420380.22604086,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,200,sap_protection_age_max,5499786.75381115,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,300,sap_protection_age_max,6050280.24287994,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,400,sap_protection_age_max,6695912.26958075,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,500,sap_protection_age_max,5942169.94396815,EVPPI / EVPI
+Uganda,28,VSL multiple,VSL x 0.05,100,INB,-14073447.1092217,E[INB]
+Uganda,28,VSL multiple,VSL x 0.05,200,INB,-10929290.1746565,E[INB]
+Uganda,28,VSL multiple,VSL x 0.05,300,INB,-9798008.08328256,E[INB]
+Uganda,28,VSL multiple,VSL x 0.05,400,INB,-9617542.91879457,E[INB]
+Uganda,28,VSL multiple,VSL x 0.05,500,INB,-10091859.3961883,E[INB]
+Uganda,28,VSL multiple,VSL x 0.05,100,INB,0.34,P(INB > 0)
+Uganda,28,VSL multiple,VSL x 0.05,200,INB,0.36,P(INB > 0)
+Uganda,28,VSL multiple,VSL x 0.05,300,INB,0.373333333333333,P(INB > 0)
+Uganda,28,VSL multiple,VSL x 0.05,400,INB,0.3675,P(INB > 0)
+Uganda,28,VSL multiple,VSL x 0.05,500,INB,0.366,P(INB > 0)
+Uganda,37,VSL multiple,VSL x 0.1,100,M_AB,2199767.5472905,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,200,M_AB,1395487.15267026,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,300,M_AB,1764912.24014559,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,400,M_AB,1508616.44362681,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,500,M_AB,1520573.54945446,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,100,M_BC,2287347.68103023,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,200,M_BC,1504972.50792051,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,300,M_BC,1944761.62667699,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,400,M_BC,1686665.82760918,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,500,M_BC,1670871.82643028,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,100,joint_SAP,9356608.67218069,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,200,joint_SAP,7699052.54901547,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,300,joint_SAP,7183808.2012582,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,400,joint_SAP,7248617.0151876,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,500,joint_SAP,7085955.13112554,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,100,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,200,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,300,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,400,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,500,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,100,sap_protection_age_max,8032978.77597113,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,200,sap_protection_age_max,6839334.15403491,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,300,sap_protection_age_max,5980553.97572044,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,400,sap_protection_age_max,6237019.88249161,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,500,sap_protection_age_max,6045092.96716733,EVPPI / EVPI
+Uganda,37,VSL multiple,VSL x 0.1,100,INB,35396615.3983238,E[INB]
+Uganda,37,VSL multiple,VSL x 0.1,200,INB,41712247.2070917,E[INB]
+Uganda,37,VSL multiple,VSL x 0.1,300,INB,43975674.1817439,E[INB]
+Uganda,37,VSL multiple,VSL x 0.1,400,INB,44324654.4588756,E[INB]
+Uganda,37,VSL multiple,VSL x 0.1,500,INB,43367751.9228414,E[INB]
+Uganda,37,VSL multiple,VSL x 0.1,100,INB,0.58,P(INB > 0)
+Uganda,37,VSL multiple,VSL x 0.1,200,INB,0.655,P(INB > 0)
+Uganda,37,VSL multiple,VSL x 0.1,300,INB,0.666666666666667,P(INB > 0)
+Uganda,37,VSL multiple,VSL x 0.1,400,INB,0.65,P(INB > 0)
+Uganda,37,VSL multiple,VSL x 0.1,500,INB,0.66,P(INB > 0)
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,M_AB,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,M_AB,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,M_AB,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,M_AB,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,M_AB,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,M_BC,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,M_BC,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,M_BC,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,M_BC,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,M_BC,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,joint_SAP,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,joint_SAP,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,joint_SAP,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,joint_SAP,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,joint_SAP,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,sap_protection_age_max,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,sap_protection_age_max,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,sap_protection_age_max,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,sap_protection_age_max,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,sap_protection_age_max,0,EVPPI / EVPI
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,INB,925857740.534144,E[INB]
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,INB,989259920.078559,E[INB]
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,INB,1011901954.95222,E[INB]
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,INB,1015284207.25694,E[INB]
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,INB,1005640755.66538,E[INB]
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,INB,1,P(INB > 0)
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,INB,1,P(INB > 0)
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,INB,1,P(INB > 0)
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,INB,1,P(INB > 0)
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,INB,1,P(INB > 0)
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,M_AB,144627.819168983,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,M_AB,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,M_AB,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,M_AB,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,M_AB,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,M_BC,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,M_BC,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,M_BC,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,M_BC,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,M_BC,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,joint_SAP,1575364.43654113,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,joint_SAP,1825256.50609689,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,joint_SAP,2005350.01598351,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,joint_SAP,2347404.31085079,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,joint_SAP,2066071.93592589,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,sap_protection_age_max,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,sap_protection_age_max,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,sap_protection_age_max,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,sap_protection_age_max,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,sap_protection_age_max,0,EVPPI / EVPI
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,INB,-27300983.9764033,E[INB]
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,INB,-24965185.2473561,E[INB]
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,INB,-24140111.2411762,E[INB]
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,INB,-24044119.4144248,E[INB]
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,INB,-24340031.9969919,E[INB]
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,INB,0.11,P(INB > 0)
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,INB,0.11,P(INB > 0)
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,INB,0.116666666666667,P(INB > 0)
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,INB,0.13,P(INB > 0)
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,INB,0.12,P(INB > 0)
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,M_AB,5609461.62238663,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,M_AB,4292822.74607567,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,M_AB,4761095.40385933,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,M_AB,4592629.39223059,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,M_AB,4515490.10181027,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,M_BC,5631676.05522759,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,M_BC,4528293.31514546,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,M_BC,4811747.06403626,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,M_BC,4628007.25151132,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,M_BC,4600966.22620965,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,joint_SAP,13896714.1128902,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,joint_SAP,11691142.4521718,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,joint_SAP,11160846.3391207,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,joint_SAP,11394426.4653379,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,joint_SAP,11141510.4122557,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,partial_adherence_relative_protection,0,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,sap_protection_age_max,11440961.2470935,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,sap_protection_age_max,9706047.44897768,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,sap_protection_age_max,8619187.26727457,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,sap_protection_age_max,9095191.06820328,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,sap_protection_age_max,8780860.39531468,EVPPI / EVPI
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,INB,8941541.66396081,E[INB]
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,INB,13640457.0616926,E[INB]
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,INB,15291467.8659566,E[INB]
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,INB,15471501.4676151,E[INB]
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,INB,14871406.7212342,E[INB]
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,INB,0.51,P(INB > 0)
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,INB,0.57,P(INB > 0)
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,INB,0.573333333333333,P(INB > 0)
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,INB,0.565,P(INB > 0)
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,INB,0.572,P(INB > 0)

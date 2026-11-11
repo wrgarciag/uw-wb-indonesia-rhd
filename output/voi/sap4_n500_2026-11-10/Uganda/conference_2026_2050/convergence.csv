@@ -1,0 +1,281 @@
+country,tid,family,label,n,parameter,value,quantity,horizon
+Uganda,28,VSL multiple,VSL x 0.05,100,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,200,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,300,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,400,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,500,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,100,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,200,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,300,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,400,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,500,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,100,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,200,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,300,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,400,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,500,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,100,NB,-20594979.7474853,E[NB],2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,200,NB,-20580570.3843349,E[NB],2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,300,NB,-20574753.9205435,E[NB],2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,400,NB,-20571139.445614,E[NB],2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,500,NB,-20573518.2532878,E[NB],2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,100,NB,0,P(NB > 0),2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,200,NB,0,P(NB > 0),2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,300,NB,0,P(NB > 0),2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,400,NB,0,P(NB > 0),2026-2050
+Uganda,28,VSL multiple,VSL x 0.05,500,NB,0,P(NB > 0),2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,100,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,200,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,300,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,400,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,500,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,100,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,200,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,300,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,400,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,500,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,100,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,200,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,300,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,400,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,500,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,100,NB,-19821292.4912819,E[NB],2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,200,NB,-19757858.9524912,E[NB],2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,300,NB,-19735947.6057403,E[NB],2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,400,NB,-19731982.1735905,E[NB],2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,500,NB,-19738176.8038141,E[NB],2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,100,NB,0,P(NB > 0),2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,200,NB,0,P(NB > 0),2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,300,NB,0,P(NB > 0),2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,400,NB,0,P(NB > 0),2026-2050
+Uganda,37,VSL multiple,VSL x 0.1,500,NB,0,P(NB > 0),2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,M_AB,81825.2523099608,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,M_AB,118295.447172073,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,M_AB,88635.7058803234,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,M_AB,65691.0425407425,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,M_AB,57764.2417400762,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,M_BC,68358.4247210145,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,M_BC,158668.431284527,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,M_BC,242375.639855601,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,M_BC,215671.990240332,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,joint_SAP,1218979.79912523,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,joint_SAP,1423868.20224396,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,joint_SAP,1545988.64877661,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,joint_SAP,1653324.34050797,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,joint_SAP,1537341.71839145,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,sap_protection_age_max,430684.495915592,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,sap_protection_age_max,467051.533078673,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,sap_protection_age_max,619354.720833639,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,sap_protection_age_max,761381.788620929,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,sap_protection_age_max,610121.842454443,EVPPI / EVPI,2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,NB,-5894921.87962071,E[NB],2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,NB,-4949053.17930414,E[NB],2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,NB,-4637433.93928411,E[NB],2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,NB,-4627151.27716882,E[NB],2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,NB,-4702030.71328738,E[NB],2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),100,NB,0.26,P(NB > 0),2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),200,NB,0.29,P(NB > 0),2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),300,NB,0.32,P(NB > 0),2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),400,NB,0.315,P(NB > 0),2026-2050
+Uganda,64,VSL multiple,VSL x 1 (reference case),500,NB,0.308,P(NB > 0),2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,NB,-18773076.3408801,E[NB],2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,NB,-18644217.3600108,E[NB],2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,NB,-18600940.3485884,E[NB],2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,NB,-18596415.266035,E[NB],2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,NB,-18607669.6502388,E[NB],2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,100,NB,0,P(NB > 0),2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,200,NB,0,P(NB > 0),2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,300,NB,0,P(NB > 0),2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,400,NB,0,P(NB > 0),2026-2050
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,500,NB,0,P(NB > 0),2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,NB,-16177485.6780714,E[NB],2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,NB,-15885152.9038429,E[NB],2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,NB,-15788320.4618302,E[NB],2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,NB,-15782533.8144325,E[NB],2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,NB,-15806479.5977161,E[NB],2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",100,NB,0,P(NB > 0),2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",200,NB,0,P(NB > 0),2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",300,NB,0,P(NB > 0),2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",400,NB,0,P(NB > 0),2026-2050
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",500,NB,0,P(NB > 0),2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,100,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,200,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,300,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,400,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,500,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,100,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,200,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,300,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,400,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,500,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,100,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,200,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,300,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,400,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,500,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,100,NB,-27263588.8833094,E[NB],2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,200,NB,-26352334.9954828,E[NB],2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,300,NB,-26050994.1746307,E[NB],2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,400,NB,-26037447.9948062,E[NB],2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,500,NB,-26110890.4160489,E[NB],2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,100,NB,0,P(NB > 0),2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,200,NB,0,P(NB > 0),2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,300,NB,0,P(NB > 0),2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,400,NB,0,P(NB > 0),2026-2050
+Uganda,137,BCR hurdle,BCR hurdle r = 2,500,NB,0,P(NB > 0),2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,100,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,200,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,300,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,400,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,500,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,100,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,200,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,300,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,400,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,500,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,100,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,200,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,300,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,400,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,500,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,100,NB,-48632255.8869981,E[NB],2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,200,NB,-47755616.8116614,E[NB],2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,300,NB,-47464554.4099773,E[NB],2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,400,NB,-47447744.7124436,E[NB],2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,500,NB,-47519750.1188105,E[NB],2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,100,NB,0,P(NB > 0),2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,200,NB,0,P(NB > 0),2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,300,NB,0,P(NB > 0),2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,400,NB,0,P(NB > 0),2026-2050
+Uganda,138,BCR hurdle,BCR hurdle r = 3,500,NB,0,P(NB > 0),2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,100,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,200,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,300,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,400,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,500,M_AB,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,100,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,200,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,300,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,400,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,500,M_BC,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,100,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,200,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,300,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,400,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,500,joint_SAP,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,100,NB,-91369589.8943754,E[NB],2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,200,NB,-90562180.4440187,E[NB],2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,300,NB,-90291674.8806704,E[NB],2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,400,NB,-90268338.1477184,E[NB],2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,500,NB,-90337469.5243336,E[NB],2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,100,NB,0,P(NB > 0),2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,200,NB,0,P(NB > 0),2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,300,NB,0,P(NB > 0),2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,400,NB,0,P(NB > 0),2026-2050
+Uganda,140,BCR hurdle,BCR hurdle r = 5,500,NB,0,P(NB > 0),2026-2050

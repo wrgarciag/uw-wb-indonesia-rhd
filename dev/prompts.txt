@@ -3,6 +3,49 @@
 
 Write a prompt to ask claude to
 
+Goal: Produce a 15 minuste VOI slideck for a conference
+
+create a new reports/slideck-voi.Rmd to render the Beamer presentation
+
+use beatiful slideck skill
+
+also include the Benefit cost ratio
+
+Include limitations and be hones about what is being estimated
+
+Also for  standardize the VOI outputs: expressed as a multiple of program costs, GDP, and govt health expenditure.
+ 
+focus on 2026-2050 results period
+
+attach further references if needed to library/references.bib
+
+export the prompt as a .MD
+
+this is a separate presentation from the modeli pipeline, so add minimal details
+
+this is a conference presentation, so prioritize deliver the message, is ok to have backup technical detalil
+do not print warning in main text
+
+use reports/beamer_template.tex template
+
+for figures prioritize using ggplot palette = "PuOr"
+
+Its fine to combine countries for messaging but customary to have Pillar 3 · What would better evidence be worth?
+Pillar 3 · What would better evidence be worth?
+[Headline: research on effectiveness is worth more than it costs] slides
+[Headline: the value of knowing how well secondary prophylaxis works]
+
+for every country separately
+modify only scripts/voi/04_analyse_and_plot.R and the created reports/slideck-voi.Rmd
+
+library/references.bib
+
+
+
+##########################333333
+
+Write a prompt to ask claude to
+
 Goal: adjust the model for more realistic history and capture in a better way and approximate better to GBD
 the number of deaths above 20 which is currently overestimated,adjust RHD mortality over 20 wich is undertestimated.
 

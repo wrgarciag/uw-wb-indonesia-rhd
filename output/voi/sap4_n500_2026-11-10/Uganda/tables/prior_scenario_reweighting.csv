@@ -1,0 +1,16 @@
+country,tid,family,label,w_trial,ess,E_INB,P_INB_pos,EVPI,note
+Uganda,28,VSL multiple,VSL x 0.05,0.25,402.595943837754,-16651743.0868497,0.260826771653543,5383552.75607017,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,28,VSL multiple,VSL x 0.05,0.5,500,-10091859.3961883,0.366,8527344.00543356,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,28,VSL multiple,VSL x 0.05,0.75,397.477832512315,-3318646.1546111,0.474593495934959,11773372.3685974,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,37,VSL multiple,VSL x 0.1,0.25,402.595943837754,30356369.8887465,0.639763779527559,8984274.36780797,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,37,VSL multiple,VSL x 0.1,0.5,500,43367751.9228414,0.66,7085955.13112554,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,37,VSL multiple,VSL x 0.1,0.75,397.477832512315,56802268.3320288,0.680894308943089,5125901.9355266,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,64,VSL multiple,VSL x 1 (reference case),0.25,402.595943837754,876502403.449478,1,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,64,VSL multiple,VSL x 1 (reference case),0.5,500,1005640755.66538,1,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,64,VSL multiple,VSL x 1 (reference case),0.75,397.477832512315,1138978729.09155,1,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,0.25,402.595943837754,-29105583.6572889,0.0748031496062992,1107063.43245113,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,0.5,500,-24340031.9969919,0.12,2066071.93592589,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,0.75,397.477832512315,-19419503.0469291,0.166666666666667,3056267.70780634,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",0.25,402.595943837754,5448688.74786812,0.511811023622047,13139881.5289666,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",0.5,500,14871406.7212342,0.572,11141510.4122557,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",0.75,397.477832512315,24600554.5473928,0.634146341463415,9078151.61695248,importance re-weighting of the same draws; joint quantities only; exploratory

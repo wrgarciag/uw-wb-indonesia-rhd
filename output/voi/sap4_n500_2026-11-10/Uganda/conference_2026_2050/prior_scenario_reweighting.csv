@@ -1,0 +1,25 @@
+country,horizon,tid,family,label,w_trial,ess,E_NB,P_NB_pos,EVPI,note
+Uganda,2026-2050,28,VSL multiple,VSL x 0.05,0.25,402.595943837754,-20634726.7283639,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,28,VSL multiple,VSL x 0.05,0.5,500,-20573518.2532878,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,28,VSL multiple,VSL x 0.05,0.75,397.477832512315,-20510319.2586971,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,37,VSL multiple,VSL x 0.1,0.25,402.595943837754,-19893971.3622483,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,37,VSL multiple,VSL x 0.1,0.5,500,-19738176.8038141,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,37,VSL multiple,VSL x 0.1,0.75,397.477832512315,-19577315.7556748,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,64,VSL multiple,VSL x 1 (reference case),0.25,402.595943837754,-6560374.77216746,0.190944881889764,887774.739910338,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,64,VSL multiple,VSL x 1 (reference case),0.5,500,-4702030.71328738,0.308,1537341.71839145,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,64,VSL multiple,VSL x 1 (reference case),0.75,397.477832512315,-2783252.70127299,0.428861788617886,2208032.82625407,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,0.25,402.595943837754,-18891079.9107017,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,0.5,500,-18607669.6502388,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,0.75,397.477832512315,-18315042.7959397,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",0.25,402.595943837754,-16406677.7269239,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",0.5,500,-15806479.5977161,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",0.75,397.477832512315,-15186762.83016,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,137,BCR hurdle,BCR hurdle r = 2,0.25,402.595943837754,-27935856.866647,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,137,BCR hurdle,BCR hurdle r = 2,0.5,500,-26110890.4160489,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,137,BCR hurdle,BCR hurdle r = 2,0.75,397.477832512315,-24226575.4629924,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,138,BCR hurdle,BCR hurdle r = 3,0.25,402.595943837754,-49311338.9611265,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,138,BCR hurdle,BCR hurdle r = 3,0.5,500,-47519750.1188105,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,138,BCR hurdle,BCR hurdle r = 3,0.75,397.477832512315,-45669898.2247118,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,140,BCR hurdle,BCR hurdle r = 5,0.25,402.595943837754,-92062303.1500856,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,140,BCR hurdle,BCR hurdle r = 5,0.5,500,-90337469.5243336,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Uganda,2026-2050,140,BCR hurdle,BCR hurdle r = 5,0.75,397.477832512315,-88556543.7481507,0,0,importance re-weighting of the same draws; joint quantities only; exploratory

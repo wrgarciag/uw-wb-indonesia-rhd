@@ -1,0 +1,24 @@
+country,check_id,description,value,tolerance,pass,severity,note
+Uganda,V11a,engines loaded into isolated environments: no abcd_* objects created in the global environment,0,0,TRUE,hard,""
+Uganda,V11b,"production engine environment unchanged by loading the VOI engine (abcd_sap_hr bodies differ, production body = file)",0,0,TRUE,hard,""
+Uganda,V0a,engine spec: saved baseline == VOI engine == production engine,0,0,TRUE,hard,""
+Uganda,V0b,"saved production point values equal VOI_POINT (M 0.45 shared, protection age 39, partial 0.5)",0,0,TRUE,hard,""
+Uganda,V0c,"fixed SAP specification: C->D, D->death and prior-A multipliers 1; transitions A_to_B, B_to_C",0,0,TRUE,hard,""
+Uganda,V1,"production engine re-run reproduces saved 06 outputs (annual deaths, deaths 0-19, prevalence, screening, on-BPG PY, surgeries, confirmations, diagnoses, protected PY)",1.19621879676108e-15,1e-09,TRUE,hard,""
+Uganda,V1b,"production run flags: no population deficit, care violation or onset-cap hit",0,0,TRUE,hard,""
+Uganda,V2,"VOI engine (production shared multiplier) == production engine: annual sums, every cycle matrix, final state (max abs diff)",0,0,TRUE,hard,""
+Uganda,V3,"VOI engine SEPARATE multipliers at M_AB = M_BC = 0.45 == shared form (max abs diff, every cycle/cell/final state)",0,0,TRUE,hard,""
+Uganda,V3b,effect matrices identical: production abcd_sap_hr vs VOI shared vs VOI separate at the point values,0,0,TRUE,hard,""
+Uganda,V4a,"economic totals reproduce saved 08 summary (disc/undisc cost, benefit, net benefit, BCR, deaths averted, cost/death, cost/DALY)",6.35102909260031e-16,1e-09,TRUE,hard,""
+Uganda,V4b,annual arm costs and RHD deaths reproduce saved 08 $incremental (every year),9.38097977193517e-16,1e-09,TRUE,hard,""
+Uganda,V4c,unit costs taken as saved APPLIED 2025 US$ (no repeated price conversion); VSL schedule = saved 08 schedule,0,0,TRUE,info,"screen 0.5248, SAP 52.48 per PY, surgery 6560 (constant 2025 US$)"
+Uganda,V5a,"M_AB = 0.45, M_BC = 1: A->B multiplier = 1 - a(1 - 0.45) at age <= 39, B->C multiplier = 1 everywhere",0,1e-15,TRUE,hard,""
+Uganda,V5b,"M_AB = 1, M_BC = 0.45: A->B multiplier = 1 everywhere, B->C multiplier = 1 - a(1 - 0.45) at age <= 39",0,1e-15,TRUE,hard,""
+Uganda,V5c,removing either channel lowers deaths averted (informational; deaths averted: point / A->B only / B->C only),7385.95346252254,,TRUE,info,point 7386.0 | A->B effect only 933.2 | B->C effect only 6857.7
+Uganda,V6,"M_AB = M_BC = 1 (no SAP effect): |deaths averted| / total deaths and |benefit| / point benefit ~ 0, so INB = -incremental cost",1.02392951944588e-15,1e-09,TRUE,hard,deaths averted -5.46e-12; INB -6.391e+07 = -cost 6.391e+07
+Uganda,V7a,protection age 20: multipliers follow attained age <= 20 and equal 1 above 20,0,1e-15,TRUE,hard,""
+Uganda,V7b,protection age 100 (no cap): multipliers < 1 at every attained age (adherence > 0),0,1e-15,TRUE,hard,""
+Uganda,V8,partial protection 0.2: adherence factor rebuilt every year in both arms (ref 0.64; scale-up 0.64 -> 0.87) and used by the multipliers,0,1e-15,TRUE,hard,ref 0.640; scale-up 0.640 -> 0.870
+Uganda,V9,engine refuses invalid / ambiguous SAP specifications and accepts valid ones,0,0,TRUE,hard,"refused: M_AB_zero, M_BC_above_1, M_AB_NA, only_one_split, shared_and_split, per_transition_rrr_mismatch, protection_age_non_integer, protection_age_above_max, C_to_D_not_1, D_death_not_1, shared_rrr_mismatch"
+Uganda,V10,abcd_project re-prepares the effect matrices for each draw (a stale cached .sap_hr from another draw is overwritten),0,0,TRUE,hard,""
+Uganda,V11c,global environment still free of engine objects after all validation runs,0,0,TRUE,hard,""

@@ -1,0 +1,2 @@
+country,n_draws,n_excluded,n_boot,n_boot_failed_fits,min_category_n,regime_trial_n,regime_recurrence_n,n_reference_estimates,n_exploratory,n_stable,n_negligible,n_evpi_zero,n_exceeds_joint,n_bound_violation,max_rel_change_E_INB_400_to_500,note
+Uganda,500,0,1000,0,137,242,258,20,6,9,5,4,0,0,0.0469999094094466,N = 500 is the initial sample; no automatic increase. Estimates flagged EXPLORATORY need more draws (extend by raising N_DRAWS under the same run_id).

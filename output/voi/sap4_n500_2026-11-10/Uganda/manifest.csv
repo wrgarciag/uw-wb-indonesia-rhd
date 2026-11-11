@@ -1,0 +1,116 @@
+field,value
+run_id,sap4_n500_2026-11-10
+country,Uganda
+seed,20261110
+n_draws,500
+n_pilot,20
+prior.scenario,base
+prior.status,PROVISIONAL: proposed for this exploratory VOI analysis; NOT expert-agreed (no SAP-effect distribution has been agreed)
+prior.w_trial,0.5
+prior.M_AB_trial,-2.372216126660800;  0.578756436142055;  0.030000000000000;  0.290000000000000
+prior.M_BC_trial,-1.607940157944201;  0.551187381188204;  0.068000000000000;  0.590000000000000
+prior.rho_log_trial,0.5
+prior.RR_recurrence,-0.942595707010304;  0.291603330534461;  0.220000000000000;  0.690000000000000
+prior.share_recurrence,8; 2
+prior.M_upper,1
+prior.max_rejections,1000
+prior.protection_age.values, 20;  39; 100
+prior.protection_age.probs,0.25; 0.50; 0.25
+prior.partial_protection,4.537; 4.537
+prior.sources,"Bray et al. 2024 (Cochrane rapid review) early/mild RHD RR 0.09 (0.03-0.29) = GOAL pooled latent-RHD progression (Beaton 2022); pooled endpoint used for A->B (see README); GOAL mild-definite subgroup 2-y risks 0.119 vs 0.025 as recorded in 00_run_all.R block H (HR 0.200); interval from workbook S2 (log-sd 0.551)                             ; workbook S2 (within-regime log correlation 0.5)                                                                                                                           ; Bray et al. 2024 RF recurrence RR 0.39 (0.22-0.69), 6 RCTs                                                                                                                ; NEW provisional judgement for this analysis (not in the workbook); requires elicitation                                                                                   ; workbook S3 (0.5; scenarios 0.25 / 0.75)                                                                                                                                  ; workbook S8                                                                                                                                                               ; workbook S9; de Dassel et al. 2018                                                                                                                                        "
+prior_hash,c34b624368b1fd8f3a85ac0e81c292b6
+prior_status,PROVISIONAL: proposed for this exploratory VOI analysis; NOT expert-agreed (no SAP-effect distribution has been agreed)
+rng,L'Ecuyer-CMRG streams (draw i = i-th nextRNGStream)
+r_version,R version 4.5.1 (2025-06-13 ucrt)
+last_updated,2026-11-10 11:06:57 PST
+validation.n_checks,23
+validation.n_hard_failed,0
+validation.n_info_flagged,0
+validation.seconds_per_paired_run,0.450000000000001
+validation.tolerances.engine_identity,0
+validation.tolerances.saved_outputs,1e-09
+validation.tolerances.economics,1e-09
+validation.tolerances.no_effect_deaths,1e-09
+input_fingerprints,60542a5fc0e61c22b7f095adc14ab817; 241791f08ee929f653ba4ce9af12ce2f; cd1170869a8a23d62a5397982ca99220
+engine_files,1957752df5fd1fe10805edd0b01feb3b; 4fc5349b85be68bf8ad83d537dff8f8d
+engine_version,voi_sap_split_v1 (copy of production engine abcd_first_diagnosis_v1_adult_prog_mult_sap55_dmort_age)
+engine_spec,abcd_first_diagnosis_v1_adult_prog_mult_sap55_dmort_age
+fixed_assumptions.calibration,"04b calibrated natural history, incidence and bridged 2026 engine state held FIXED (from baseline_state.rds); produced under the production point SAP values (reference care)"
+fixed_assumptions.calibration_adequacy,"INADEQUATE (not a credible calibrated baseline): outside diagnostic tolerances -- prevalence, all ages: OUTSIDE tolerance in 10 of 10 scored years (ratio 0.56-0.60; 2019: 0.60) | prevalence, ages 20+: OUTSIDE tolerance in 10 of 10 scored years (ratio 0.53-0.54; 2019: 0.54) | RHD deaths, all ages: OUTSIDE tolerance in 10 of 10 scored years (ratio 3.21-4.09; 2019: 4.09) | RHD deaths, ages 0-19: OUTSIDE tolerance in 10 of 10 scored years (ratio 3.23-3.98; 2019: 3.98) | RHD deaths, ages 20+: OUTSIDE tolerance in 10 of 10 scored years (ratio 3.20-4.11; 2019: 4.11) | prevalence, ages 0-19: OUTSIDE tolerance in 10 of 10 scored years (ratio 0.64-0.75; 2019: 0.75) | prevalence, ages 21+ (convention diagnostic): OUTSIDE tolerance in 10 of 10 scored years (ratio 0.53-0.55; 2019: 0.54) | RHD deaths, ages 21+ (convention diagnostic): OUTSIDE tolerance in 10 of 10 scored years (ratio 3.22-4.12; 2019: 4.12) | incidence (validation): validation only (ratio 0.35-0.35; 2019: 0.35)"
+fixed_assumptions.natural_history.tr.p_A_to_no_rhd,0.08
+fixed_assumptions.natural_history.tr.p_A_to_B,0.03
+fixed_assumptions.natural_history.tr.p_B_to_A,0.08
+fixed_assumptions.natural_history.tr.p_B_to_C,0.08
+fixed_assumptions.natural_history.tr.p_C_to_B,0.025
+fixed_assumptions.natural_history.tr.p_C_to_D,0.08
+fixed_assumptions.natural_history.tr.p_D_to_C,0
+fixed_assumptions.natural_history.adult_prog_hazard_mult,0.5
+fixed_assumptions.natural_history.p_rhd_death_D_child,0.06
+fixed_assumptions.natural_history.p_rhd_death_D_adult,0.03
+fixed_assumptions.natural_history.d_death_adult_age_min,20
+fixed_assumptions.natural_history.entry_mix_child,0.75; 0.25; 0.00; 0.00
+fixed_assumptions.natural_history.entry_mix_adult,0; 1; 0; 0
+fixed_assumptions.natural_history.p_B_to_no_rhd_adult,0.02
+fixed_assumptions.care_constants.sensitivity,0.9
+fixed_assumptions.care_constants.confirm_completion,0.9
+fixed_assumptions.care_constants.confirm_sensitivity,1
+fixed_assumptions.care_constants.partial_relative_protection,0.5
+fixed_assumptions.care_constants.screen_age_lo,5
+fixed_assumptions.care_constants.screen_age_hi,39
+fixed_assumptions.care_constants.screen_window_years,35
+fixed_assumptions.surgery.frac_C_requiring_surgery,0.1
+fixed_assumptions.surgery.frac_D_requiring_surgery,0.4
+fixed_assumptions.surgery.coverage_ref_baseline,0.03
+fixed_assumptions.surgery.coverage_ref_target,0.03
+fixed_assumptions.surgery.coverage_up_baseline,0.03
+fixed_assumptions.surgery.coverage_up_target,0.03
+fixed_assumptions.unit_costs_usd2025,   0.524800794652288;   52.480079465228812; 6560.009933153602105
+fixed_assumptions.disc_rate,0.03
+fixed_assumptions.discount_base_year,2026
+fixed_assumptions.dalys_per_death,30
+fixed_assumptions.horizon,2026; 2100
+fixed_assumptions.sap_fixed.sap_hr_C_to_D,1
+fixed_assumptions.sap_fixed.sap_hr_D_to_rhd_death,1
+fixed_assumptions.sap_fixed.sap_hr_prior_A_to_B_adult,1
+run_pilot.stage,pilot
+run_pilot.n_requested,20
+run_pilot.n_ok,20
+run_pilot.n_failed_or_flagged,0
+run_pilot.seconds_simulated,0
+run_pilot.workers,0
+run_pilot.mean_seconds_per_paired_draw,0.28
+run_pilot.engine_version,voi_sap_split_v1 (copy of production engine abcd_first_diagnosis_v1_adult_prog_mult_sap55_dmort_age)
+run_pilot.input_fingerprints,60542a5fc0e61c22b7f095adc14ab817; 241791f08ee929f653ba4ce9af12ce2f; cd1170869a8a23d62a5397982ca99220
+run_pilot.engine_md5,1957752df5fd1fe10805edd0b01feb3b
+run_pilot.functions_md5,d6f841ebb55fc67fbc7055e06c84bbd4
+run_pilot.script_md5,aa859113b4e427908b524e0ce7cf9ef4; 146bcb9f2f0006f59bb497bec57b03ee; 7459cf8dd61d08c8eb5e1d0f829ca330; e2e3c90953122b4d5b1378cb6377d797; 586c98b44d615dec9e1d16d82017321e
+run_pilot.projected_main_minutes,0.194444444444444
+run_psa.stage,psa
+run_psa.n_requested,500
+run_psa.n_ok,500
+run_psa.n_failed_or_flagged,0
+run_psa.seconds_simulated,0
+run_psa.workers,0
+run_psa.mean_seconds_per_paired_draw,0.51644
+run_psa.engine_version,voi_sap_split_v1 (copy of production engine abcd_first_diagnosis_v1_adult_prog_mult_sap55_dmort_age)
+run_psa.input_fingerprints,60542a5fc0e61c22b7f095adc14ab817; 241791f08ee929f653ba4ce9af12ce2f; cd1170869a8a23d62a5397982ca99220
+run_psa.engine_md5,1957752df5fd1fe10805edd0b01feb3b
+run_psa.functions_md5,d6f841ebb55fc67fbc7055e06c84bbd4
+run_psa.script_md5,aa859113b4e427908b524e0ce7cf9ef4; 146bcb9f2f0006f59bb497bec57b03ee; 7459cf8dd61d08c8eb5e1d0f829ca330; e2e3c90953122b4d5b1378cb6377d797; 586c98b44d615dec9e1d16d82017321e
+analysis.n_draws,500
+analysis.n_excluded,0
+analysis.n_boot,1000
+analysis.boot_seed,20261111
+analysis.gni_pc_ref_usd2025,1322.39930985822
+analysis.N0,53451243
+analysis.reference_thresholds,"VSL x 0.05                ; VSL x 0.1                 ; VSL x 1 (reference case)  ; 0.5 x GNI pc = US$661/DALY; 1 x GNI pc = US$1,322/DALY"
+analysis.gam_basis.M_AB.B,10
+analysis.gam_basis.M_AB.D,10
+analysis.gam_basis.M_AB.C,10
+analysis.gam_basis.M_BC.B,10
+analysis.gam_basis.M_BC.D,10
+analysis.gam_basis.M_BC.C,10
+analysis.gam_basis.partial_adherence_relative_protection.B,10
+analysis.gam_basis.partial_adherence_relative_protection.D,10
+analysis.gam_basis.partial_adherence_relative_protection.C,10
+analysis.completed,2026-11-10 11:06:57

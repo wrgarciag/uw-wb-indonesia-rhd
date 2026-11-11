@@ -1,0 +1,26 @@
+country,family,label,parameter,estimate,split_half_1,split_half_2
+Indonesia,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",M_AB,0,77316.9616340706,0
+Indonesia,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",M_BC,875.276803213716,287452.241337651,211334.048805084
+Indonesia,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",joint_SAP,6589515.8227017,6721899.79095264,6457131.85445076
+Indonesia,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",partial_adherence_relative_protection,0,0,0
+Indonesia,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",sap_protection_age_max,0,0,0
+Indonesia,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",M_AB,10380479.2652307,9957464.1314065,9837752.10509902
+Indonesia,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",M_BC,10771708.6612456,10532305.8510695,10458752.7588536
+Indonesia,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",joint_SAP,19500106.4440501,19761298.7350296,19238914.1530705
+Indonesia,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",partial_adherence_relative_protection,0,0,0
+Indonesia,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",sap_protection_age_max,8857180.58068483,8889728.80378303,8824632.35758664
+Indonesia,VSL multiple,VSL x 0.05,M_AB,15472288.3993291,14813525.3444768,15451850.7486016
+Indonesia,VSL multiple,VSL x 0.05,M_BC,15811480.2823768,15581595.6025031,15774319.6372551
+Indonesia,VSL multiple,VSL x 0.05,joint_SAP,28437780.3562354,28239003.0260427,28636557.6864282
+Indonesia,VSL multiple,VSL x 0.05,partial_adherence_relative_protection,0,0,0
+Indonesia,VSL multiple,VSL x 0.05,sap_protection_age_max,18489533.8747687,18425160.7024203,18553907.0471171
+Indonesia,VSL multiple,VSL x 0.1,M_AB,1064755.97683036,1132675.61583233,625494.925508082
+Indonesia,VSL multiple,VSL x 0.1,M_BC,1285976.88516414,1212093.49964499,1037454.1864655
+Indonesia,VSL multiple,VSL x 0.1,joint_SAP,4487146.34213018,5015206.48561203,3959086.19864821
+Indonesia,VSL multiple,VSL x 0.1,partial_adherence_relative_protection,0,0,0
+Indonesia,VSL multiple,VSL x 0.1,sap_protection_age_max,0,0,0
+Indonesia,VSL multiple,VSL x 1 (reference case),M_AB,0,0,0
+Indonesia,VSL multiple,VSL x 1 (reference case),M_BC,0,0,0
+Indonesia,VSL multiple,VSL x 1 (reference case),joint_SAP,0,0,0
+Indonesia,VSL multiple,VSL x 1 (reference case),partial_adherence_relative_protection,0,0,0
+Indonesia,VSL multiple,VSL x 1 (reference case),sap_protection_age_max,0,0,0

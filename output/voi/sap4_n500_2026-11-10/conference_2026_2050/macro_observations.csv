@@ -1,0 +1,15 @@
+series,iso3,year,value,units,source,role,retrieved
+NY.GDP.MKTP.CN,IDN,2023,2.08923123e+16,"current IDR (GDP, local currency units)","World Bank World Development Indicators (api.worldbank.org/v2, source=2), last updated 2026-10-08",denominator,2026-11-10
+NY.GDP.MKTP.CN,UGA,2023,183004386312800,"current UGX (GDP, local currency units)","World Bank World Development Indicators (api.worldbank.org/v2, source=2), last updated 2026-10-08",denominator,2026-11-10
+GHED_GGHE-DGDP_SHA2011,IDN,2023,1.44882917,% of GDP (GGHE-D: domestic general government health expenditure),"WHO Global Health Expenditure Database via the WHO GHO OData API (ghoapi.azureedge.net), indicator GHED_GGHE-DGDP_SHA2011, data dated 2025-12-05; identical to WDI SH.XPD.GHED.GD.ZS",denominator,2026-11-10
+GHED_GGHE-DGDP_SHA2011,UGA,2023,0.92339057,% of GDP (GGHE-D: domestic general government health expenditure),"WHO Global Health Expenditure Database via the WHO GHO OData API (ghoapi.azureedge.net), indicator GHED_GGHE-DGDP_SHA2011, data dated 2025-12-05; identical to WDI SH.XPD.GHED.GD.ZS",denominator,2026-11-10
+FP.CPI.TOTL,IDN,2023,169.053520242749,"index, 2010 = 100","World Bank World Development Indicators (api.worldbank.org/v2, source=2), last updated 2026-10-08",price conversion,2026-11-10
+FP.CPI.TOTL,IDN,2025,176.046565851866,"index, 2010 = 100","World Bank World Development Indicators (api.worldbank.org/v2, source=2), last updated 2026-10-08",price conversion (must equal 08's value),2026-11-10
+FP.CPI.TOTL,UGA,2023,209.931348222213,"index, 2010 = 100","World Bank World Development Indicators (api.worldbank.org/v2, source=2), last updated 2026-10-08",price conversion,2026-11-10
+FP.CPI.TOTL,UGA,2025,224.675273352364,"index, 2010 = 100","World Bank World Development Indicators (api.worldbank.org/v2, source=2), last updated 2026-10-08",price conversion (must equal 08's value),2026-11-10
+PA.NUS.FCRF,IDN,2025,16477.8651797835,"IDR per US$, 2025 average","World Bank World Development Indicators (api.worldbank.org/v2, source=2), last updated 2026-10-08",price conversion (must equal 08's value),2026-11-10
+PA.NUS.FCRF,UGA,2025,3602.98994206813,"UGX per US$, 2025 average","World Bank World Development Indicators (api.worldbank.org/v2, source=2), last updated 2026-10-08",price conversion (must equal 08's value),2026-11-10
+PA.NUS.FCRF,IDN,2023,15236.8846620506,"IDR per US$, 2023 average","World Bank World Development Indicators (api.worldbank.org/v2, source=2), last updated 2026-10-08",cross-check only,2026-11-10
+PA.NUS.FCRF,UGA,2023,3726.14045997085,"UGX per US$, 2023 average","World Bank World Development Indicators (api.worldbank.org/v2, source=2), last updated 2026-10-08",cross-check only,2026-11-10
+NY.GDP.MKTP.CD,IDN,2023,1371166925749.88,current US$ (GDP),"World Bank World Development Indicators (api.worldbank.org/v2, source=2), last updated 2026-10-08",cross-check only,2026-11-10
+NY.GDP.MKTP.CD,UGA,2023,48768955863.3175,current US$ (GDP),"World Bank World Development Indicators (api.worldbank.org/v2, source=2), last updated 2026-10-08",cross-check only,2026-11-10

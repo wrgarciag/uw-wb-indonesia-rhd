@@ -1,0 +1,25 @@
+country,horizon,tid,family,label,parameter,evppi_binned10,evppi_gam
+Uganda,2026-2050,28,VSL multiple,VSL x 0.05,M_AB,0,0
+Uganda,2026-2050,28,VSL multiple,VSL x 0.05,M_BC,0,0
+Uganda,2026-2050,28,VSL multiple,VSL x 0.05,partial_adherence_relative_protection,0,0
+Uganda,2026-2050,37,VSL multiple,VSL x 0.1,M_AB,0,0
+Uganda,2026-2050,37,VSL multiple,VSL x 0.1,M_BC,0,0
+Uganda,2026-2050,37,VSL multiple,VSL x 0.1,partial_adherence_relative_protection,0,0
+Uganda,2026-2050,64,VSL multiple,VSL x 1 (reference case),M_AB,76074.373013325,57764.2417400762
+Uganda,2026-2050,64,VSL multiple,VSL x 1 (reference case),M_BC,240794.096447036,215671.990240332
+Uganda,2026-2050,64,VSL multiple,VSL x 1 (reference case),partial_adherence_relative_protection,0,0
+Uganda,2026-2050,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,M_AB,0,0
+Uganda,2026-2050,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,M_BC,0,0
+Uganda,2026-2050,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,partial_adherence_relative_protection,0,0
+Uganda,2026-2050,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",M_AB,0,0
+Uganda,2026-2050,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",M_BC,0,0
+Uganda,2026-2050,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",partial_adherence_relative_protection,0,0
+Uganda,2026-2050,137,BCR hurdle,BCR hurdle r = 2,M_AB,0,0
+Uganda,2026-2050,137,BCR hurdle,BCR hurdle r = 2,M_BC,0,0
+Uganda,2026-2050,137,BCR hurdle,BCR hurdle r = 2,partial_adherence_relative_protection,0,0
+Uganda,2026-2050,138,BCR hurdle,BCR hurdle r = 3,M_AB,0,0
+Uganda,2026-2050,138,BCR hurdle,BCR hurdle r = 3,M_BC,0,0
+Uganda,2026-2050,138,BCR hurdle,BCR hurdle r = 3,partial_adherence_relative_protection,0,0
+Uganda,2026-2050,140,BCR hurdle,BCR hurdle r = 5,M_AB,0,0
+Uganda,2026-2050,140,BCR hurdle,BCR hurdle r = 5,M_BC,0,0
+Uganda,2026-2050,140,BCR hurdle,BCR hurdle r = 5,partial_adherence_relative_protection,0,0

@@ -1,0 +1,281 @@
+country,tid,family,label,n,parameter,value,quantity,horizon
+Indonesia,28,VSL multiple,VSL x 0.05,100,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,200,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,300,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,400,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,500,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,100,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,200,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,300,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,400,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,500,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,100,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,200,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,300,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,400,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,500,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,100,NB,-79088773.9669829,E[NB],2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,200,NB,-78719954.2527889,E[NB],2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,300,NB,-78607377.4178484,E[NB],2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,400,NB,-78517987.0817813,E[NB],2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,500,NB,-78587423.9311843,E[NB],2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,100,NB,0,P(NB > 0),2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,200,NB,0,P(NB > 0),2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,300,NB,0,P(NB > 0),2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,400,NB,0,P(NB > 0),2026-2050
+Indonesia,28,VSL multiple,VSL x 0.05,500,NB,0,P(NB > 0),2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,100,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,200,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,300,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,400,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,500,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,100,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,200,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,300,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,400,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,500,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,100,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,200,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,300,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,400,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,500,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,100,NB,-66741820.5709738,E[NB],2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,200,NB,-65916489.2336367,E[NB],2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,300,NB,-65665999.6438382,E[NB],2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,400,NB,-65483727.1412748,E[NB],2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,500,NB,-65646247.8462946,E[NB],2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,100,NB,0,P(NB > 0),2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,200,NB,0,P(NB > 0),2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,300,NB,0,P(NB > 0),2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,400,NB,0,P(NB > 0),2026-2050
+Indonesia,37,VSL multiple,VSL x 0.1,500,NB,0,P(NB > 0),2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),100,M_AB,134977.002434731,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),200,M_AB,111206.375803083,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),300,M_AB,368268.426005274,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),400,M_AB,246721.359769851,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),500,M_AB,265847.997240722,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),100,M_BC,129098.867871881,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),200,M_BC,86357.2606783807,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),300,M_BC,389167.230646342,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),400,M_BC,262617.104981005,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),500,M_BC,280864.764815837,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),100,joint_SAP,237302.929843515,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),200,joint_SAP,391864.854788333,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),300,joint_SAP,602483.638677716,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),400,joint_SAP,491085.015934348,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),500,joint_SAP,498128.317975968,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),100,NB,155503340.55719,E[NB],2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),200,NB,164545881.111103,E[NB],2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),300,NB,167278800.288344,E[NB],2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),400,NB,169132951.787843,E[NB],2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),500,NB,167294921.68172,E[NB],2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),100,NB,0.97,P(NB > 0),2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),200,NB,0.975,P(NB > 0),2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),300,NB,0.973333333333333,P(NB > 0),2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),400,NB,0.9775,P(NB > 0),2026-2050
+Indonesia,64,VSL multiple,VSL x 1 (reference case),500,NB,0.976,P(NB > 0),2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",100,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",200,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",300,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",400,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",500,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",100,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",200,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",300,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",400,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",500,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",100,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",200,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",300,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",400,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",500,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",100,NB,-69312601.0183406,E[NB],2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",200,NB,-68592590.1979565,E[NB],2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",300,NB,-68374961.239688,E[NB],2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",400,NB,-68209797.3054,E[NB],2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",500,NB,-68351407.6878673,E[NB],2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",100,NB,0,P(NB > 0),2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",200,NB,0,P(NB > 0),2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",300,NB,0,P(NB > 0),2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",400,NB,0,P(NB > 0),2026-2050
+Indonesia,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",500,NB,0,P(NB > 0),2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",100,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",200,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",300,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",400,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",500,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",100,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",200,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",300,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",400,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",500,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",100,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",200,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",300,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",400,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",500,joint_SAP,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",100,NB,-47189474.6736892,E[NB],2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",200,NB,-45661761.1239718,E[NB],2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",300,NB,-45201167.2875174,E[NB],2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",400,NB,-44867347.5885122,E[NB],2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",500,NB,-45174215.3596607,E[NB],2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",100,NB,0,P(NB > 0),2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",200,NB,0,P(NB > 0),2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",300,NB,0,P(NB > 0),2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",400,NB,0,P(NB > 0),2026-2050
+Indonesia,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",500,NB,0,P(NB > 0),2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,100,M_AB,8682240.40878877,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,200,M_AB,7205557.00248612,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,300,M_AB,7884462.05616452,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,400,M_AB,7437888.07871778,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,500,M_AB,7502110.33995123,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,100,M_BC,9267737.92899746,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,200,M_BC,7423047.79672514,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,300,M_BC,8297293.87889937,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,400,M_BC,7791974.1741062,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,500,M_BC,7815566.77612454,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,100,joint_SAP,12994414.303606,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,200,joint_SAP,11069655.3033298,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,300,joint_SAP,11288041.4809439,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,400,joint_SAP,10661429.7620239,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,500,joint_SAP,10507558.2495929,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,100,NB,64067613.1941981,E[NB],2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,200,NB,73022461.8391622,E[NB],2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,300,NB,75730045.0964858,E[NB],2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,400,NB,77580704.7655549,E[NB],2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,500,NB,75766321.6656457,E[NB],2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,100,NB,0.72,P(NB > 0),2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,200,NB,0.76,P(NB > 0),2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,300,NB,0.763333333333333,P(NB > 0),2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,400,NB,0.7675,P(NB > 0),2026-2050
+Indonesia,137,BCR hurdle,BCR hurdle r = 2,500,NB,0.768,P(NB > 0),2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,100,M_AB,18000814.0784418,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,200,M_AB,21403043.6129849,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,300,M_AB,24399542.3361305,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,400,M_AB,25236445.6559774,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,500,M_AB,24126470.0623203,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,100,M_BC,20014616.9639906,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,200,M_BC,24157345.9241911,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,300,M_BC,26420144.090064,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,400,M_BC,27310083.1644522,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,500,M_BC,26009294.5656852,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,100,joint_SAP,25136418.9270314,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,200,joint_SAP,28665829.4090493,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,300,joint_SAP,30843430.7743529,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,400,joint_SAP,32060308.0686173,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,500,joint_SAP,30697143.7683096,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,100,sap_protection_age_max,10662885.6504841,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,200,sap_protection_age_max,10976553.2442106,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,300,sap_protection_age_max,12875727.7156281,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,400,sap_protection_age_max,14798568.0393355,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,500,sap_protection_age_max,12617168.1791663,EVPPI / EVPI,2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,100,NB,-27368114.1687938,E[NB],2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,200,NB,-18500957.4327789,E[NB],2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,300,NB,-15818710.0953727,E[NB],2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,400,NB,-13971542.256733,E[NB],2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,500,NB,-15762278.3504282,E[NB],2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,100,NB,0.4,P(NB > 0),2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,200,NB,0.405,P(NB > 0),2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,300,NB,0.423333333333333,P(NB > 0),2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,400,NB,0.4225,P(NB > 0),2026-2050
+Indonesia,138,BCR hurdle,BCR hurdle r = 3,500,NB,0.416,P(NB > 0),2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,100,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,200,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,300,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,400,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,500,M_AB,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,100,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,200,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,300,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,400,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,500,M_BC,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,100,joint_SAP,525896.231118867,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,200,joint_SAP,639272.117055992,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,300,joint_SAP,734737.374922878,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,400,joint_SAP,857526.156720321,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,500,joint_SAP,688493.143485413,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,100,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,200,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,300,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,400,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,500,partial_adherence_relative_protection,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,100,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,200,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,300,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,400,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,500,sap_protection_age_max,0,EVPPI / EVPI,2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,100,NB,-210239568.894778,E[NB],2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,200,NB,-201547795.976661,E[NB],2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,300,NB,-198916220.47909,E[NB],2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,400,NB,-197076036.301309,E[NB],2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,500,NB,-198819478.382576,E[NB],2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,100,NB,0.01,P(NB > 0),2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,200,NB,0.02,P(NB > 0),2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,300,NB,0.0266666666666667,P(NB > 0),2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,400,NB,0.0375,P(NB > 0),2026-2050
+Indonesia,140,BCR hurdle,BCR hurdle r = 5,500,NB,0.032,P(NB > 0),2026-2050

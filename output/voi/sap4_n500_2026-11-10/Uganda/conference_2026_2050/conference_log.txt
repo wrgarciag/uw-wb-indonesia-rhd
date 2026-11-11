@@ -1,0 +1,11 @@
+[2026-11-10 12:07:29] conference 2026-2050: 500 requested, 500 successful, 0 excluded paired draws | 140 thresholds | bootstrap 1000 | point BCR 0.709
+[2026-11-10 12:08:10] bootstrap: 1000 replicates x 5 estimators x 140 thresholds in 40.0 s (0 failed fits)
+[2026-11-10 12:08:12] VSL x 0.05                       E[NB]    -20.57 m | P(NB>0) 0.000 | EVPI   0.000 m (95% 0.000-0.000)
+[2026-11-10 12:08:12] VSL x 0.1                        E[NB]    -19.74 m | P(NB>0) 0.000 | EVPI   0.000 m (95% 0.000-0.000)
+[2026-11-10 12:08:12] VSL x 1 (reference case)         E[NB]     -4.70 m | P(NB>0) 0.308 | EVPI   1.537 m (95% 1.251-1.836)
+[2026-11-10 12:08:12] 0.5 x GNI pc = US$661/DALY       E[NB]    -18.61 m | P(NB>0) 0.000 | EVPI   0.000 m (95% 0.000-0.000)
+[2026-11-10 12:08:12] 1 x GNI pc = US$1,322/DALY       E[NB]    -15.81 m | P(NB>0) 0.000 | EVPI   0.000 m (95% 0.000-0.000)
+[2026-11-10 12:08:12] BCR hurdle r = 2                 E[NB]    -26.11 m | P(NB>0) 0.000 | EVPI   0.000 m (95% 0.000-0.000)
+[2026-11-10 12:08:12] BCR hurdle r = 3                 E[NB]    -47.52 m | P(NB>0) 0.000 | EVPI   0.000 m (95% 0.000-0.000)
+[2026-11-10 12:08:12] BCR hurdle r = 5                 E[NB]    -90.34 m | P(NB>0) 0.000 | EVPI   0.000 m (95% 0.000-0.000)
+[2026-11-10 12:08:12] BCR 2026-2050: median 0.76 (95% 0.20-1.62) | E[B]/E[C] 0.78 | P(BCR>1) 0.308 | point 0.71 | gross programme cost 254.9 m

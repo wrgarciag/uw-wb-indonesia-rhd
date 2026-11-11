@@ -1,0 +1,3 @@
+country,horizon,n_requested,n_successful,n_excluded,n_boot,n_boot_failed_fits,min_category_n,regime_trial_n,regime_recurrence_n,n_reference_individual,n_exploratory,n_stable,n_negligible,n_evpi_zero,n_exceeds_joint,max_rel_change_E_NB_400_to_500,max_abs_cost_check,full_horizon_reproduction_max_rel_diff,point_vs_08_max_rel_diff,note
+Indonesia,2026-2050,500,500,0,1000,0,137,242,258,32,5,6,9,16,0,0.113608962732637,0,0,1.37265259927192e-14,N = 500 initial sample (not extended). EXPLORATORY estimates need more draws (raise N_DRAWS under the same run id).
+Uganda,2026-2050,500,500,0,1000,0,137,242,258,32,3,1,1,28,0,0.0159249142943627,0,0,1.99426555845311e-14,N = 500 initial sample (not extended). EXPLORATORY estimates need more draws (raise N_DRAWS under the same run id).

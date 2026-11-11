@@ -1,0 +1,16 @@
+country,tid,family,label,parameter,evppi_binned10,evppi_gam
+Uganda,28,VSL multiple,VSL x 0.05,M_AB,2048580.96582669,2021042.48495974
+Uganda,28,VSL multiple,VSL x 0.05,M_BC,2797019.73885926,2519858.43615891
+Uganda,28,VSL multiple,VSL x 0.05,partial_adherence_relative_protection,0,0
+Uganda,37,VSL multiple,VSL x 0.1,M_AB,1761055.35764687,1520573.54945446
+Uganda,37,VSL multiple,VSL x 0.1,M_BC,1793622.26210855,1670871.82643028
+Uganda,37,VSL multiple,VSL x 0.1,partial_adherence_relative_protection,0,0
+Uganda,64,VSL multiple,VSL x 1 (reference case),M_AB,0,0
+Uganda,64,VSL multiple,VSL x 1 (reference case),M_BC,0,0
+Uganda,64,VSL multiple,VSL x 1 (reference case),partial_adherence_relative_protection,0,0
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,M_AB,0,0
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,M_BC,0,0
+Uganda,84,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,partial_adherence_relative_protection,0,0
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",M_AB,4817617.83997168,4515490.10181027
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",M_BC,4899870.95501342,4600966.22620965
+Uganda,94,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",partial_adherence_relative_protection,0,0

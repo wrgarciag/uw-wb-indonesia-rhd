@@ -1,0 +1,26 @@
+country,family,label,parameter,estimate,split_half_1,split_half_2
+Uganda,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,M_AB,0,0,0
+Uganda,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,M_BC,0,0,0
+Uganda,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,joint_SAP,2066071.93592589,2100570.90814896,2031572.96370282
+Uganda,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,partial_adherence_relative_protection,0,0,0
+Uganda,US$ per DALY (proxy),0.5 x GNI pc = US$661/DALY,sap_protection_age_max,0,0,0
+Uganda,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",M_AB,4515490.10181027,4320839.42525621,4465935.57229234
+Uganda,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",M_BC,4600966.22620965,4490789.99562981,4609144.27751555
+Uganda,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",joint_SAP,11141510.4122557,11096956.9526661,11186063.8718453
+Uganda,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",partial_adherence_relative_protection,0,0,0
+Uganda,US$ per DALY (proxy),"1 x GNI pc = US$1,322/DALY",sap_protection_age_max,8780860.39531468,8733963.31931761,8827757.47131176
+Uganda,VSL multiple,VSL x 0.05,M_AB,2021042.48495974,1893769.96649122,2283428.01551045
+Uganda,VSL multiple,VSL x 0.05,M_BC,2519858.43615891,2636940.6513902,2534744.00821661
+Uganda,VSL multiple,VSL x 0.05,joint_SAP,8527344.00543356,8681230.3535815,8373457.65728562
+Uganda,VSL multiple,VSL x 0.05,partial_adherence_relative_protection,0,0,0
+Uganda,VSL multiple,VSL x 0.05,sap_protection_age_max,5942169.94396815,6076540.78856304,5807799.09937327
+Uganda,VSL multiple,VSL x 0.1,M_AB,1520573.54945446,1535917.15925817,1166053.56527112
+Uganda,VSL multiple,VSL x 0.1,M_BC,1670871.82643028,1629150.76547772,1568461.73761255
+Uganda,VSL multiple,VSL x 0.1,joint_SAP,7085955.13112554,7124400.38162772,7047509.88062336
+Uganda,VSL multiple,VSL x 0.1,partial_adherence_relative_protection,0,0,0
+Uganda,VSL multiple,VSL x 0.1,sap_protection_age_max,6045092.96716733,6021572.69408408,6068613.24025058
+Uganda,VSL multiple,VSL x 1 (reference case),M_AB,0,0,0
+Uganda,VSL multiple,VSL x 1 (reference case),M_BC,0,0,0
+Uganda,VSL multiple,VSL x 1 (reference case),joint_SAP,0,0,0
+Uganda,VSL multiple,VSL x 1 (reference case),partial_adherence_relative_protection,0,0,0
+Uganda,VSL multiple,VSL x 1 (reference case),sap_protection_age_max,0,0,0

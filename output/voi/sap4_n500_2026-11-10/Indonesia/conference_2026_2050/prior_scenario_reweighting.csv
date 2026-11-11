@@ -1,0 +1,25 @@
+country,horizon,tid,family,label,w_trial,ess,E_NB,P_NB_pos,EVPI,note
+Indonesia,2026-2050,28,VSL multiple,VSL x 0.05,0.25,402.595943837754,-79969633.7514988,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,28,VSL multiple,VSL x 0.05,0.5,500,-78587423.9311843,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,28,VSL multiple,VSL x 0.05,0.75,397.477832512315,-77160264.198014,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,37,VSL multiple,VSL x 0.1,0.25,402.595943837754,-68569685.1234848,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,37,VSL multiple,VSL x 0.1,0.5,500,-65646247.8462946,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,37,VSL multiple,VSL x 0.1,0.75,397.477832512315,-62627739.4381389,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,64,VSL multiple,VSL x 1 (reference case),0.25,402.595943837754,136629390.180767,0.964566929133858,735425.666303098,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,64,VSL multiple,VSL x 1 (reference case),0.5,500,167294921.68172,0.976,498128.317975938,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,64,VSL multiple,VSL x 1 (reference case),0.75,397.477832512315,198957706.239614,0.987804878048781,253113.982711375,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",0.25,402.595943837754,-70952985.6172111,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",0.5,500,-68351407.6878673,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,84,US$ per DALY (proxy),"0.5 x GNI pc = US$2,415/DALY",0.75,397.477832512315,-65665225.5982197,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",0.25,402.595943837754,-50536388.8549093,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",0.5,500,-45174215.3596607,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,94,US$ per DALY (proxy),"1 x GNI pc = US$4,830/DALY",0.75,397.477832512315,-39637662.2385503,0,0,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,137,BCR hurdle,BCR hurdle r = 2,0.25,402.595943837754,45259807.8012545,0.669291338582677,14901392.6075116,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,137,BCR hurdle,BCR hurdle r = 2,0.5,500,75766321.6656457,0.768,10507558.2495929,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,137,BCR hurdle,BCR hurdle r = 2,0.75,397.477832512315,107264917.281724,0.869918699186992,5970834.96946538,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,138,BCR hurdle,BCR hurdle r = 3,0.25,402.595943837754,-46109774.5782583,0.261811023622047,17616086.4971231,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,138,BCR hurdle,BCR hurdle r = 3,0.5,500,-15762278.3504282,0.416,30697143.7683096,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,138,BCR hurdle,BCR hurdle r = 3,0.75,397.477832512315,15572128.3238353,0.57520325203252,28631472.9521221,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,140,BCR hurdle,BCR hurdle r = 5,0.25,402.595943837754,-228848939.337284,0.015748031496063,338825.365888491,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,140,BCR hurdle,BCR hurdle r = 5,0.5,500,-198819478.382576,0.032,688493.143485413,importance re-weighting of the same draws; joint quantities only; exploratory
+Indonesia,2026-2050,140,BCR hurdle,BCR hurdle r = 5,0.75,397.477832512315,-167813449.591943,0.0487804878048781,1049532.23092289,importance re-weighting of the same draws; joint quantities only; exploratory

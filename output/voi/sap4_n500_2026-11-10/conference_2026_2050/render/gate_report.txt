@@ -1,0 +1,74 @@
+
+== CITATION LEDGER (read each row against the source) ==
+  Bray2024                     Bray +14 (2024). Long-term antibiotic prophylaxis for prevention of rheuma~ | Cochrane Database of Systematic Reviews
+  Beaton2022                   Beaton +24 (2022). Secondary Antibiotic Prophylaxis for Latent Rheumatic Hea~ | New England Journal of Medicine
+  WHO2025                      World Health Organization (2025). Global Health Expenditure Database | dataset
+  WorldBank2026                World Bank (2026). World Development Indicators | dataset
+  Manyemba2002                 Manyemba +1 (2002). Penicillin for secondary prevention of rheumatic fever | Cochrane Database of Systematic Reviews
+  deDassel2018                 Dassel +3 (2018). How many doses make a difference? An analysis of secondar~ | Journal of the American Heart Association
+  Strong2014                   Strong +2 (2014). Estimating multiparameter partial expected value of perfe~ | Medical Decision Making
+  Rothery2020                  Rothery +9 (2020). Value of Information Analytical Methods: Report 2 of the ~ | Value in Health
+  Robinson2019                 Robinson +2 (2019). Valuing mortality risk reductions in global benefit-cost ~ | Journal of Benefit-Cost Analysis
+  Turner2019                   Turner +4 (2019). Adjusting for inflation and currency changes within healt~ | Value in Health
+
+== STORYBOARD (the titles alone must carry the argument) ==
+    1  We value perfect knowledge of four prophylaxis inputs for one decision 
+    2  One trial of 818 participants anchors the effect of prophylaxis on early RHD 
+    3  By `r Y1`, scale-up returns US\$`r fmt_f(I$roe, 1)` per dollar in Indonesia, US\$`r fmt_f(U$roe, 2)` in Uganda 
+    4  Perfect information pays only in draws where the other option wins 
+    5  In Indonesia, perfect evidence is worth at most `r fmt_mill(I$evpi)` 
+    6  In Uganda, perfect evidence, worth up to `r fmt_mill(U$evpi)`, could flip the choice 
+    7  In Indonesia, only the two efficacy inputs carry information value 
+    8  In Uganda, the age to which protection lasts is the most valuable single input 
+    9  Information value peaks where the decision sits near break-even 
+   10  These are upper bounds from a fixed model with provisional priors 
+   11  For this decision, research on these inputs costing more than the cap cannot pay off 
+CLOSE  Through `r Y1`, knowing how well prophylaxis works could change Uganda's scale-up decision but rarely Indones~ 
+     -- Backup --
+  bk   The BCR is incremental and discounted, and counts only benefits to `r Y1` 
+  bk   Indonesia clears a benefit-cost hurdle of 2 in most draws; Uganda never does 
+  bk   A higher benefit-cost hurdle is a different objective, not a larger welfare gain 
+  bk   Priors on the four inputs are provisional and not expert-agreed 
+  bk   Information values come from one set of `r fmt_n(N_DRAW)` paired draws per country 
+  bk   Calibration, starting state, cascade, costs and valuation are held fixed 
+  bk   Scale comparisons use one year of GDP and of domestic government health spending 
+  bk   In Indonesia, each value is under one-tenth of 1\% of programme cost 
+  bk   In Uganda, perfect information is worth `r fmt_pct(U$r_prog$multiple)` of programme cost 
+  bk   At low valuations every draw favours current care, so EVPI is zero 
+  bk   All `r fmt_n(N_DRAW)` paired draws were used; single-input values remain imprecise 
+  bk   The joint value moves with the weight given to trial-level efficacy 
+  bk   Scale-up averts about `r fmt_n(I$da$mean, -1)` deaths in Indonesia and `r fmt_n(U$da$mean, -1)` in Uganda by `r Y1` 
+
+  content slides: 11 (plus title and closing)   words per slide: median 26.5, max 58
+
+== COMPILE ==
+  LaTeX errors           0
+  overfull/underfull     0
+  LaTeX warnings         0
+  missing characters     0
+  biber warnings         0
+  R warnings in slides   0
+  R/pandoc warnings      0
+  pages: 29   references: 10
+
+== BIB NOTES (handled at render; fix at the source when convenient) ==
+  - Beaton2022: malformed DOI in .bib (trimmed at render)
+
+== REVIEW (resolve or justify each) ==
+  - Beaton2022: title stored in Title Case; APA prints sentence case (fix in the reference manager)
+  - WHO2025: title stored in Title Case; APA prints sentence case (fix in the reference manager)
+  - Rothery2020: title stored in Title Case; APA prints sentence case (fix in the reference manager)
+  - slide 1 (line 384) 'We value perfect knowledge of four prop~': 58 words on the slide; cut or split
+  - slide 3 (line 426) 'By `r Y1`, scale-up returns US\$`r fmt_~': title over 78 characters; it will wrap
+  - slide 3 (line 426) 'By `r Y1`, scale-up returns US\$`r fmt_~': typed statistic(s) 95\%; use inline R, or verify in the source and record  <!-- src: key, page -->
+  - slide 5 (line 480) 'In Indonesia, perfect evidence is worth~': 42 words on the slide; cut or split
+  - slide 5 (line 480) 'In Indonesia, perfect evidence is worth~': typed statistic(s) 95\%; use inline R, or verify in the source and record  <!-- src: key, page -->
+  - slide 6 (line 505) 'In Uganda, perfect evidence, worth up t~': title over 78 characters; it will wrap
+  - slide 6 (line 505) 'In Uganda, perfect evidence, worth up t~': typed statistic(s) 95\%; use inline R, or verify in the source and record  <!-- src: key, page -->
+  - slide 7 (line 523) 'In Indonesia, only the two efficacy inp~': typed statistic(s) 95\%; use inline R, or verify in the source and record  <!-- src: key, page -->
+  - slide 8 (line 552) 'In Uganda, the age to which protection ~': typed statistic(s) 95\%; use inline R, or verify in the source and record  <!-- src: key, page -->
+  - slide 9 (line 564) 'Information value peaks where the decis~': typed statistic(s) 95\%; use inline R, or verify in the source and record  <!-- src: key, page -->
+  - slide 10 (line 590) 'These are upper bounds from a fixed mod~': 55 words on the slide; cut or split
+  - slide 11 (line 613) 'For this decision, research on these in~': title over 78 characters; it will wrap
+
+GATE PASSED: 0 failure(s), 15 review item(s)

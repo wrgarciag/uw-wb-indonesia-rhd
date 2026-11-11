@@ -1,0 +1,892 @@
+---
+title: "Better evidence on secondary prophylaxis could change Uganda's scale-up decision, but rarely Indonesia's"
+subtitle: "Pillar 3 · What would better evidence be worth? Value of information for RHD prophylaxis, 2026--2050"
+author: "William Garcia"
+institute: "University of Washington · World Bank"
+date: "`r format(Sys.Date(), '%B %Y')`"
+output:
+  beamer_presentation:
+    includes:
+      in_header: beamer_preamble.tex
+    slide_level: 2
+    latex_engine: xelatex
+    citation_package: biblatex
+# beamer_addons.tex (beautiful-deck toolchain) is embedded in header-includes below, so this deck
+# stays a single file; beamer_preamble.tex is the shared house template (a header include, not a
+# full pandoc template), read only.
+bibliography: ../library/references.bib
+biblio-title: References
+biblatexoptions: [style=apa, backend=biber, natbib=true]
+classoption: "aspectratio=169"
+header-includes:
+  - |
+    ```{=latex}
+    % ---- VOI-deck additions (the house preamble stays untouched) -------------------------
+    \usepackage{etoolbox}
+    % -- APA 7 citations and generated reference list: rmarkdown loads biblatex with the YAML
+    %    biblatexoptions (style=apa, backend=biber, natbib=true); these settings follow it --
+    \DeclareFieldFormat{apacase}{#1}
+    \setlength{\bibhang}{0pt}
+    \setlength{\bibitemsep}{0.6\baselineskip}
+    \renewcommand*{\bibfont}{\footnotesize\raggedright}
+    \setcounter{biburlbigbreakpenalty}{5000}
+    \setcounter{biburlbreakpenalty}{5000}
+    \setbeamertemplate{frametitle continuation}{}
+    \setbeamertemplate{bibliography item}{}
+    \setbeamercolor{bibliography item}{fg=black}
+    \setbeamercolor{bibliography entry author}{fg=black}
+    \setbeamercolor{bibliography entry title}{fg=black}
+    \setbeamercolor{bibliography entry location}{fg=black}
+    \setbeamercolor{bibliography entry note}{fg=black}
+    % Render-time repairs for reference-manager exports (the .bib itself is not edited here).
+    \DeclareSourcemap{
+      \maps[datatype=bibtex]{
+        \map{
+          \step[fieldset=abstract, null]
+          \step[fieldset=keywords, null]
+          \step[fieldset=month, null]
+          \step[fieldset=issn, null]
+          \step[fieldset=pmid, null]
+        }
+        \map{
+          \step[fieldsource=note, match=\regexp{^\s*doi:}, final]
+          \step[fieldset=note, null]
+        }
+        \map{
+          \step[fieldsource=title, match=\regexp{\\([\x{25}\x{26}\x{23}])}, replace=\regexp{$1}]
+          \step[fieldsource=title, match=\regexp{([\x{25}\x{26}\x{23}])}, replace=\regexp{\\$1}]
+          \step[fieldsource=journal, match=\regexp{\\([\x{25}\x{26}\x{23}])}, replace=\regexp{$1}]
+          \step[fieldsource=journal, match=\regexp{([\x{25}\x{26}\x{23}])}, replace=\regexp{\\$1}]
+        }
+        \map{
+          \step[fieldsource=doi, match=\regexp{^(10\.\d{4,9}/[^\s;]+?)(?:/ASSET/.*|;.*)$}, replace=\regexp{$1}]
+          \step[fieldsource=url, match=\regexp{^(\S+)\s.*$}, replace=\regexp{$1}]
+        }
+        \map{
+          \step[fieldsource=pages, match=\regexp{^(\w+)\s*-+\s*\1$}, replace=\regexp{$1}]
+          \step[fieldsource=journal, match=\regexp{\s+\d{4}\s+\d+:\d+$}, replace=\regexp{}]
+        }
+        \map[overwrite=false]{
+          \step[fieldsource=issue, fieldtarget=number]
+        }
+      }
+    }
+    \makeatletter
+    \AtBeginBibliography{%
+      \global\beamer@frametopskipautobreak=.45cm plus .5\paperheight\relax
+      \global\beamer@framebottomskipautobreak=0pt plus 1fill\relax}
+    \AtBeginDocument{%
+      \patchcmd{\abx@macro@title}{\bbx@tempa\newblock\unspace}{\bbx@tempa\newblock}{}{}}
+    % -- Closing slide  ## {.standout}: full-bleed navy, unnumbered; it ends the main deck,
+    %    so backup slides and references are numbered separately (B1, B2, ...).
+    \usepackage{appendixnumberbeamer}
+    \renewcommand{\appendixname}{Backup}
+    \AtBeginPart{}
+    \newif\ifdeckbk
+    \newif\ifdeck@standout
+    \define@key{beamerframe}{standout}[true]{%
+      \deck@standouttrue
+      \begingroup
+      \setkeys{beamerframe}{c,noframenumbering}%
+      \setbeamercolor{background canvas}{bg=wbnavy}%
+      \setbeamercolor{normal text}{fg=white}%
+      \setbeamertemplate{footline}{}%
+      \usebeamercolor[fg]{normal text}%
+      \centering\Large}
+    \pretocmd{\beamer@reseteecodes}{%
+      \ifdeck@standout\endgroup\deck@standoutfalse\global\deckbktrue
+        \ifnum\currentgrouplevel>0 \aftergroup\appendix\else\appendix\fi
+      \fi}{}{}
+    \makeatother
+    % -- No section-divider slides in this deck --
+    \AtBeginSection[]{}
+    % -- One number that carries a slide; grey source line under figures and tables --
+    \newcommand{\bignumber}[2]{%
+      \begin{center}
+        {\fontsize{34}{38}\selectfont\bfseries\textcolor{wbnavy}{#1}}\par\vspace{3pt}
+        {\large #2}\par
+      \end{center}}
+    \newcommand{\sourceline}[1]{\par\vspace{4pt}{\footnotesize\raggedright\textcolor{black!60}{#1}\par}}
+    % -- Caveat box (amber), at most one per slide --
+    \definecolor{caveatcol}{HTML}{B35806}
+    \newenvironment{uncertaintyblock}[1]{%
+      \setbeamercolor{block title}{bg=caveatcol!14, fg=caveatcol!85!black}%
+      \setbeamercolor{block body}{bg=caveatcol!5}%
+      \begin{block}{#1}}{\end{block}}
+    % -- Footer: house layout; the recurring Pillar 3 kicker sits in the centre; backup frames are B1, B2, ... --
+    \setbeamertemplate{footline}{\leavevmode\hbox{%
+      \begin{beamercolorbox}[wd=0.30\paperwidth, ht=2.25ex, dp=1ex, left]{author in head/foot}%
+        \hspace{1em}\textcolor{black!60}{\footnotesize Disease Control Priorities}\end{beamercolorbox}%
+      \begin{beamercolorbox}[wd=0.60\paperwidth, ht=2.25ex, dp=1ex, center]{title in head/foot}%
+        \textcolor{black!60}{\footnotesize Pillar 3 \textperiodcentered{} What would better evidence be worth?}\end{beamercolorbox}%
+      \begin{beamercolorbox}[wd=0.10\paperwidth, ht=2.25ex, dp=1ex, right]{date in head/foot}%
+        \textcolor{black!60}{\footnotesize\ifdeckbk B\insertframenumber\else\insertframenumber/\inserttotalframenumber\fi}%
+        \hspace{0.5em}\end{beamercolorbox}}\vskip0pt}
+    ```
+---
+
+```{r setup, include=FALSE}
+# ==============================================================================================
+# STORYBOARD (15-minute conference talk; audience: global-health, health-economics and RHD researchers)
+# Triage: conference talk, ethos 35 / pathos 15 / logos 50; ~1 content slide per minute; no literature
+# review, no pipeline walkthrough. Horizon 2026-2050 INCLUSIVE for every number, ratio, probability,
+# VOI estimate, ranking and normalisation. Recurring kicker "Pillar 3 · What would better evidence be
+# worth?": title-slide subtitle + footer centre (not a title, not a divider).
+# One sentence: through 2050, perfect evidence on how well secondary prophylaxis (SAP) works could
+# change Uganda's scale-up decision but rarely Indonesia's, and it is worth at most a few US$ million.
+#
+#  #  Assertion title (data-dependent parts in brackets)             Element             Saved object / field                         Min
+#  1  Title: could change Uganda's decision, rarely Indonesia's       title (claim)       decision: P_draws_favour_optimal, EVPI       0.5
+#  2  We value perfect knowledge of four SAP inputs for one decision two columns + box  meta$prior, meta$point                       1.0
+#  3  One trial of 818 participants anchors the early-RHD effect      big number          Bray2024 abstract (literature, typed + src)  1.0
+#  4  Through 2050 scale-up returns US$[2.8] / US$[0.78] per dollar   density figure      bcr; draw_totals (B_d, C_d)                  1.5
+#  5  Perfect information pays only where the other option wins      histogram figure    draw_totals (B_d - C_d); decision            1.5
+#  6  Indonesia: perfect evidence worth at most US$[0.50] million     big number + table  decision; denominators; normalised           1.25
+#  7  Uganda: worth up to US$[1.5] million, could reverse the choice  big number + table  decision; denominators; normalised           1.25
+#  8  Indonesia: only the two efficacy multipliers carry value       dot-interval fig    evppi_reference (VSL x 1)                    1.0
+#  9  Uganda: age to which protection lasts matters most             dot-interval fig    evppi_reference (VSL x 1), p_rank_first      1.25
+# 10  Value peaks where the valuation puts the decision near even    curve figure        curves (VSL multiple, joint_SAP)             1.25
+# 11  These are upper bounds from a fixed model, provisional priors  two columns         meta$provenance (calibration status)         1.25
+# 12  Studies costing more than the caps cannot pay off (this decision) table            decision; evppi_reference                    1.0
+# 13  Closing sentence (guarded)                                    standout            as above                                     0.5
+# Backup (numbered B1, B2, ...): BCR definition and summary; P(BCR > r) curve; BCR-hurdle objective G_r;
+# priors and evidence; VOI methods; what is fixed / not assessed; denominators; normalised tables
+# (Indonesia, Uganda); low valuations (zero VOI); Monte Carlo diagnostics; prior-scenario sensitivity;
+# deaths averted. References generated by biblatex.
+#
+# DENOMINATORS (also saved in output/voi/<run>/conference_2026_2050/denominators.csv and in each
+# country's provenance.rds; written by scripts/voi/04_analyse_and_plot.R, VOI_CONF_MACRO):
+#  * Gross programme cost = E[sum_t df_t cost_sap,t], 2026-2050, same 500 draws (constant 2025 US$,
+#    discounted 3% to 2026; screening, on-BPG person-years, surgery in the scale-up arm).
+#  * Incremental cost = E[C] (backup only, labelled distinctly; requires E[C] > 0).
+#  * GDP 2023: WDI NY.GDP.MKTP.CN (current LCU, WDI last updated 2026-10-08, retrieved 2026-11-10),
+#    x FP.CPI.TOTL(2025)/FP.CPI.TOTL(2023) / PA.NUS.FCRF(2025) -> constant 2025 US$ (local CPI + market
+#    exchange rate, as production 08 for unit costs; Turner et al. 2019). Not PPP; not GNI.
+#  * GGHE-D 2023: WHO GHED GHED_GGHE-DGDP_SHA2011 (% of GDP; GHO API, data dated 2025-12-05; identical
+#    to WDI SH.XPD.GHED.GD.ZS) x the WDI GDP above, same conversion. Domestic general government health
+#    expenditure only: excludes external (donor) funds and private / out-of-pocket spending; not total
+#    health expenditure; not a ministry budget. 2023 is the latest year GHED reports for both
+#    countries; no 2026 value is observed and no forecast is used.
+#  Ratios to GDP / GGHE-D are 2026-2050 VOI / ONE year of the aggregate: scale comparisons only, never
+#  fiscal savings, research budgets or research benefit-cost ratios.
+#
+# NOTES slide 1 (title, 0.5 min, cumulative 0.5): The answer first. If we knew exactly how well
+# secondary prophylaxis works, would we choose differently about scaling up echo screening plus
+# prophylaxis by 2050? In Uganda, sometimes; in Indonesia, rarely. The rest of the talk shows why,
+# and what that knowledge could be worth at most.
+# ==============================================================================================
+
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = TRUE,   # warnings stay visible; fix them at the cause
+  dev = "cairo_pdf", fig.align = "center", cache = FALSE,
+  fig.width = 6, fig.height = 2.7, out.width = "100%"
+)
+library(data.table)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+
+# ---- Repository root (portable) -----------------------------------------------------------
+# Walk up from this file to the folder holding scripts/voi/00_run_voi.R. Set RHD_REPO_ROOT when
+# rendering a copy outside the repository.
+find_repo_root <- function() {
+  env <- Sys.getenv("RHD_REPO_ROOT")
+  if (nzchar(env)) return(normalizePath(env, winslash = "/", mustWork = TRUE))
+  d <- tryCatch(dirname(knitr::current_input(dir = TRUE)), error = function(e) getwd())
+  d <- normalizePath(d, winslash = "/", mustWork = FALSE)
+  repeat {
+    if (file.exists(file.path(d, "scripts", "voi", "00_run_voi.R")) && file.exists(file.path(d, "R", "abcd_engine.R"))) return(d)
+    up <- dirname(d)
+    if (identical(up, d)) stop("Cannot find the repository root (folder holding scripts/voi/00_run_voi.R). Set RHD_REPO_ROOT.", call. = FALSE)
+    d <- up
+  }
+}
+ROOT      <- find_repo_root()
+COUNTRIES <- c("Indonesia", "Uganda")
+RUN_ID    <- "sap4_n500_2026-11-10"           # the VOI run this deck reports (one run, one prior)
+Y0 <- 2026L; Y1 <- 2050L                      # horizon, inclusive
+CONF_DIR  <- file.path(ROOT, "output", "voi", RUN_ID, "conference_2026_2050")
+
+# ---- Saved results only: the deck never runs or modifies the analysis -----------------------
+f_res <- file.path(CONF_DIR, "voi_conference_2026_2050.rds")
+if (!file.exists(f_res))
+  stop("Missing VOI conference results: ", f_res, "\n  Produced by scripts/voi/04_analyse_and_plot.R (conference path):\n",
+       "  \"C:/Program Files/R/R-4.5.1/bin/Rscript.exe\" -e \"VOI_ANALYSIS_PATH <- 'conference'; source('scripts/voi/04_analyse_and_plot.R')\"",
+       "\n  The deck reads saved results only.", call. = FALSE)
+RS <- readRDS(f_res)
+
+check <- function(ok, msg, fix = "re-run the conference path of scripts/voi/04_analyse_and_plot.R")
+  if (!isTRUE(ok)) stop("Deck input check failed: ", msg, "\n  Upstream regeneration needed: ", fix, call. = FALSE)
+claim <- function(ok, title) if (!isTRUE(ok)) stop("Saved results no longer support the title: ", title, call. = FALSE)
+
+# ---- Integrity checks (consistency of the saved results, never an expected value) -----------
+check(identical(RS$meta$run_id, RUN_ID), "results come from another VOI run")
+check(identical(as.integer(RS$meta$horizon), c(Y0, Y1)), "results are not for 2026-2050")
+check(setequal(RS$meta$countries, COUNTRIES), "results do not cover Indonesia and Uganda")
+PV <- RS$meta$provenance
+for (ct in COUNTRIES) {
+  pv <- PV[[ct]]
+  check(identical(as.integer(pv$horizon), c(Y0, Y1)) && pv$n_excluded == 0L && pv$n_successful == pv$n_requested,
+        paste(ct, ": failed or incomplete paired draws; VOI must not be reported on a complete-case subset"),
+        "re-run stage 'psa' of scripts/voi/00_run_voi.R, then the conference path")
+  check(identical(pv$price_year, 2025L) && identical(pv$currency, "USD") && pv$discount_base_year == Y0,
+        paste(ct, ": economics are not constant 2025 US$ discounted to", Y0))
+}
+check(identical(PV$Indonesia$prior_hash, PV$Uganda$prior_hash) && identical(PV$Indonesia$engine_spec, PV$Uganda$engine_spec) &&
+        identical(PV$Indonesia$disc_rate, PV$Uganda$disc_rate),
+      "the two countries were analysed under different priors, engines or discounting")
+DT <- RS$draw_totals; DEC <- RS$decision; EVR <- RS$evppi_reference; DEN <- RS$denominators; NRM <- RS$normalised
+BCR <- RS$bcr; CRV <- RS$curves; OUT <- RS$outcomes; MCL <- RS$mc_limitations; HC <- RS$hurdle_curve
+is_k1 <- function(tab) tab$family == "VSL multiple" & abs(tab$x - 1) < 1e-10
+for (ct in COUNTRIES) {
+  d <- DT[country == ct]; nb <- d$B_d - d$C_d
+  ev <- mean(pmax(nb, 0)) - max(mean(nb), 0)
+  dk <- DEC[country == ct & is_k1(DEC)]; ek <- EVR[country == ct & is_k1(EVR)]; b <- BCR[country == ct]
+  check(nrow(d) == PV[[ct]]$n_successful && nrow(dk) == 1L && nrow(ek) == 5L, paste(ct, ": incomplete saved tables"))
+  check(abs(ev - dk$EVPI) <= 1e-9 * max(1, abs(ev)) + 1e-3 && abs(ek[parameter == "joint_SAP", estimate] - dk$EVPI) <= 1e-6,
+        paste(ct, ": joint EVPI differs between the draw totals, the decision table and the VOI table"))
+  check(abs(mean(nb) - dk$E_NB) <= 1e-6 * max(1, abs(mean(nb))) && abs(mean(nb > 0) - dk$P_NB_pos) < 1e-12 &&
+          identical(dk$optimal_current_info, if (mean(nb) > 0) "sap (scale-up)" else "ref (reference care)"),
+        paste(ct, ": decision summary differs from the draw totals"))
+  check(abs(mean(d$B_d) / mean(d$C_d) - b$ratio_of_expectations) <= 1e-9 && abs(mean(d$B_d > d$C_d) - b$p_bcr_gt_1) < 1e-12,
+        paste(ct, ": BCR summary differs from the draw totals"))
+  check(all(ek$bound_check %in% c("reference (joint)", "0 <= EVPPI <= joint: OK", "exceeds joint, within bootstrap error")) &&
+          all(ek$estimate >= 0) && all(ek$ci_lo <= ek$estimate + 1e-6) && all(ek$ci_hi >= ek$estimate - 1e-6),
+        paste(ct, ": VOI bounds or intervals are inconsistent"))
+  g <- DEN[country == ct & denominator == "programme_cost_gross", value_usd2025]
+  check(abs(mean(d$cost_sap_d) / g - 1) < 1e-12, paste(ct, ": gross programme-cost denominator differs from the draw totals"))
+  nk <- NRM[country == ct & is_k1(NRM)]
+  check(nrow(nk) > 0L && max(abs(nk$multiple - nk$estimate_usd / nk$denominator_usd2025)) < 1e-15 &&
+          max(abs(nk$multiple_ci_hi - nk$ci_hi_usd / nk$denominator_usd2025)) < 1e-15,
+        paste(ct, ": normalised VOI is not the estimate (and its bootstrap bounds) over one fixed denominator"))
+  # GDP and GGHE-D recomputed from the saved macro observations (2023 LCU -> constant 2025 US$)
+  iso <- if (ct == "Indonesia") "IDN" else "UGA"; mo <- RS$macro_observations[iso3 == iso]
+  gv <- function(s, y) mo[series == s & year == y, value]
+  gdp <- gv("NY.GDP.MKTP.CN", 2023) * gv("FP.CPI.TOTL", 2025) / gv("FP.CPI.TOTL", 2023) / gv("PA.NUS.FCRF", 2025)
+  check(abs(DEN[country == ct & denominator == "gdp_2023", value_usd2025] / gdp - 1) < 1e-12 &&
+          abs(DEN[country == ct & denominator == "gghed_2023", value_usd2025] / (gdp * gv("GHED_GGHE-DGDP_SHA2011", 2023) / 100) - 1) < 1e-12,
+        paste(ct, ": GDP / GGHE-D denominators do not follow from the saved macro observations"))
+}
+
+# ---- Formatting (strings valid in markdown and in LaTeX table cells) --------------------------
+num_sig1 <- function(v, d = 2) {                        # d significant figures, fixed notation
+  if (!is.finite(v)) return("--")
+  if (v == 0) return("0")
+  s <- signif(v, d); k <- max(0, d - 1 - floor(log10(abs(s))))
+  formatC(round(s, k), format = "f", digits = k, big.mark = ",")
+}
+num_sig  <- function(v, d = 2) vapply(v, num_sig1, "", d = d)                              # vectorised
+fmt_n    <- function(x, d = 0) formatC(round(x, d), format = "f", digits = max(d, 0), big.mark = ",")
+fmt_f    <- function(x, d = 2) formatC(x, format = "f", digits = d)
+fmt_p1   <- function(p) paste0(formatC(100 * p, format = "f", digits = 1), "\\%")          # probabilities
+fmt_pct  <- function(m, d = 2) paste0(num_sig(100 * m, d), "\\%")                           # shares (2 s.f.)
+neg      <- function(x) ifelse(x < 0, "$-$", "")
+fmt_mill <- function(x, d = 2) paste0(neg(x), "US\\$", num_sig(abs(x) / 1e6, d), " million")
+fmt_m    <- function(x, d = 2) paste0(neg(x), "US\\$", num_sig(abs(x) / 1e6, d), "m")
+fmt_big  <- function(x, d = 3) ifelse(abs(x) >= 1e9, paste0("US\\$", num_sig(x / 1e9, d), "bn"), fmt_m(x, d))
+fmt_k    <- function(x) ifelse(x == 0, "0", paste0("US\\$", num_sig(x / 1e3, 2), "k"))
+plain    <- function(x) gsub("\\", "", gsub("\\$", "$", x, fixed = TRUE), fixed = TRUE)    # LaTeX string -> ggplot text
+
+# ---- Per-country quantities (VSL x 1 = reference-case valuation) ---------------------------
+PAR <- c("M_AB", "M_BC", "sap_protection_age_max", "partial_adherence_relative_protection")
+PAR_LAB <- c(M_AB = "Efficacy, stage A to B (minimal to mild)", M_BC = "Efficacy, stage B to C (mild to advanced)",
+             sap_protection_age_max = "Age to which protection lasts", partial_adherence_relative_protection = "Protection with partial adherence",
+             joint_SAP = "All four inputs together (joint)")
+PAR_TEX <- c(M_AB = "Efficacy, A $\\rightarrow$ B", M_BC = "Efficacy, B $\\rightarrow$ C",
+             sap_protection_age_max = "Age to which protection lasts", partial_adherence_relative_protection = "Protection with partial adherence",
+             joint_SAP = "All four together (joint)")
+V <- setNames(lapply(COUNTRIES, function(ct) {
+  b <- BCR[country == ct]; dk <- DEC[country == ct & is_k1(DEC)]; ek <- EVR[country == ct & is_k1(EVR)]
+  den <- function(k) DEN[country == ct & denominator == k, value_usd2025]
+  nr <- function(k, p = "joint_SAP") NRM[country == ct & is_k1(NRM) & denominator == k & parameter == p]
+  ind <- ek[parameter != "joint_SAP"]
+  top <- ind[!is.na(rank_among_individual) & rank_among_individual == 1L]
+  da <- OUT[country == ct & outcome == "DA"]
+  list(ct = ct, roe = b$ratio_of_expectations, med = b$bcr_median, lo = b$bcr_q025, hi = b$bcr_q975, mdr = b$bcr_mean_of_draw_ratios,
+       p1 = b$p_bcr_gt_1, p2 = b$p_bcr_gt_2, p3 = b$p_bcr_gt_3, p5 = b$p_bcr_gt_5, pt = b$point_bcr, ncneg = b$n_C_nonpositive,
+       EB = b$E_B, EC = b$E_C, einb = dk$E_NB, ppos = dk$P_NB_pos, scale_up = dk$optimal_current_info == "sap (scale-up)",
+       pfav = dk$P_draws_favour_optimal, pswitch = 1 - dk$P_draws_favour_optimal,
+       evpi = dk$EVPI, evlo = dk$EVPI_ci_lo, evhi = dk$EVPI_ci_hi, ek = ek, top = top,
+       prog = den("programme_cost_gross"), inc = den("programme_cost_incremental"), gdp = den("gdp_2023"), gghed = den("gghed_2023"),
+       r_prog = nr("programme_cost_gross"), r_gdp = nr("gdp_2023"), r_gghed = nr("gghed_2023"), r_inc = nr("programme_cost_incremental"),
+       da = da, n = PV[[ct]]$n_successful)
+}), COUNTRIES)
+I <- V$Indonesia; U <- V$Uganda
+NB_BOOT <- RS$meta$n_boot; N_DRAW <- I$n
+dec_txt <- function(v) if (v$scale_up) "scale-up" else "current care"
+other_txt <- function(v) if (v$scale_up) "current care" else "scale-up"
+
+# ---- Guards for every title that states a result ----------------------------------------
+claim(U$pswitch > 0.10 && I$pswitch < 0.10 && U$evpi > I$evpi,
+      "Title: better evidence could change Uganda's scale-up decision, but rarely Indonesia's")
+claim(I$roe > 1 && U$roe < 1 && I$ncneg == 0L && U$ncneg == 0L, "Slide 4: scale-up returns more than its cost in Indonesia, less in Uganda")
+claim(I$scale_up && I$evpi > 0, "Slide 6: Indonesia, perfect evidence worth at most [EVPI] (scale-up preferred)")
+claim(!U$scale_up && U$pswitch > 0.10 && U$evpi > 0, "Slide 7: Uganda, perfect evidence could reverse the choice")
+EF <- c("M_AB", "M_BC")
+claim(all(I$ek[parameter %in% EF, estimate] > 0) && all(I$ek[!parameter %in% c(EF, "joint_SAP"), estimate] == 0),
+      "Slide 8: in Indonesia only the two efficacy multipliers carry information value")
+claim(nrow(U$top) == 1L && U$top$parameter == "sap_protection_age_max" && U$top$p_rank_first_unique > 0.9,
+      "Slide 9: in Uganda the age to which protection lasts is the most valuable single input")
+claim(U$evpi > max(U$ek[parameter != "joint_SAP", ci_hi]), "Slide 9 note: Uganda's joint value exceeds every single input")
+PEAK <- CRV[family == "VSL multiple" & parameter == "joint_SAP", .SD[which.max(estimate)], by = country]
+claim(PEAK[country == "Indonesia", x] < 1 && PEAK[country == "Indonesia", estimate] > I$evpi,
+      "Slide 10: Indonesia's information value would be higher at a lower valuation of deaths averted")
+
+# ---- Backup-slide helpers and guards ----------------------------------------------------
+norm_tab <- function(v) {
+  e <- v$ek[order(match(parameter, c("joint_SAP", PAR)))]
+  r <- function(k) NRM[country == v$ct & is_k1(NRM) & denominator == k][match(e$parameter, parameter)]
+  rp <- r("programme_cost_gross"); rg <- r("gghed_2023"); rd <- r("gdp_2023")
+  k3 <- function(x) if (x == 0) "0" else num_sig(x / 1e3, 2)
+  df <- data.frame(a = PAR_TEX[e$parameter],
+                   b = sprintf("%s (%s--%s)", vapply(e$estimate, k3, ""), vapply(e$ci_lo, k3, ""), vapply(e$ci_hi, k3, "")),
+                   c = ifelse(e$parameter == "joint_SAP", "", ifelse(is.na(e$p_rank_first_unique), "--", fmt_p1(e$p_rank_first_unique))),
+                   d = vapply(rp$multiple, fmt_pct, ""), g = vapply(rg$multiple, fmt_pct, ""), h = vapply(rd$multiple, fmt_pct, ""))
+  names(df) <- c("Input", "EVPI, US\\$ thousand (95\\%)", "P(top)", "Programme", "GGHE-D, 1 yr", "GDP, 1 yr")
+  kb(df, "lrrrrr", widths = c("3.4cm", "2.9cm", "1.1cm", "1.6cm", "1.6cm", "1.8cm"), fs = 10)
+}
+cal_ok <- vapply(PV, function(p) grepl("^INADEQUATE", p$calibration_adequacy), NA)
+CAL_TXT <- if (all(cal_ok)) "inadequate (outside its GBD diagnostic tolerances) in both countries, so all results are preliminary" else
+  paste(names(PV), vapply(PV, function(p) sub(" \\(.*$", "", p$calibration_adequacy), ""), sep = ": ", collapse = "; ")
+claim(I$p2 > 0.5 && U$p2 == 0, "Backup: Indonesia clears a hurdle of 2 in most draws; Uganda never does")
+LOW <- DEC[is_ref == TRUE & family != "BCR hurdle" & !(family == "VSL multiple" & abs(x - 1) < 1e-10)]
+claim(all(LOW$P_NB_pos == 0) && all(LOW$EVPI == 0), "Backup: at low valuations every draw favours current care; information worth nothing")
+claim(all(vapply(COUNTRIES, function(ct) any(grepl("^EXPLORATORY", V[[ct]]$ek[parameter != "joint_SAP" & estimate > 0, status])), NA)),
+      "Backup: single-input values remain imprecise")
+RW  <- merge(RS$reweighting, DEC[, .(country, tid, x)], by = c("country", "tid"))   # threshold value by threshold id
+RW1 <- RW[family == "VSL multiple" & abs(x - 1) < 1e-10]
+claim(RW1[, max(EVPI) / min(EVPI), by = country][, all(V1 > 1.1)], "Backup: the joint value moves with the weight on trial efficacy")
+claim(all(NRM[country == "Indonesia" & is_k1(NRM) & denominator == "programme_cost_gross", multiple] < 0.001),
+      "Backup: in Indonesia every value is below one-tenth of a percent of programme cost")
+PK_P <- merge(PEAK[, .(country, x)], DEC[family == "VSL multiple", .(country, x, P_NB_pos)], by = c("country", "x"))
+claim(nrow(PK_P) == 2L && all(PK_P$P_NB_pos > 0.15 & PK_P$P_NB_pos < 0.85), "Slide 10: value peaks where the decision is close to break-even")
+cap1 <- function(x) paste0(toupper(substring(x, 1, 1)), substring(x, 2))
+
+# ---- House palette: RColorBrewer PuOr (fixed named vectors; same variable, same colour) ------
+deck_font <- "Calibri"
+col_ct  <- c(Indonesia = "#542788", Uganda = "#B35806")                 # PuOr ends: one colour per country
+col_par <- c(M_AB = "#8073AC", M_BC = "#2D004B",                        # efficacy pair: purples
+             sap_protection_age_max = "#E08214", partial_adherence_relative_protection = "#7F3B08",  # durability / adherence: oranges
+             joint_SAP = "grey25")
+col_mute <- "grey78"
+theme_deck <- theme_minimal(base_size = 11, base_family = deck_font) +
+  theme(panel.grid.minor = element_blank(), axis.title = element_text(size = 10, colour = "grey30"),
+        legend.position = "none", strip.text = element_text(face = "bold", hjust = 0, size = 11),
+        plot.margin = margin(2, 6, 2, 2))
+kb <- function(df, align, widths = NULL, fs = NULL) {
+  k <- kbl(df, format = "latex", booktabs = TRUE, align = align, escape = FALSE, linesep = "", row.names = FALSE)
+  k <- if (is.null(fs)) kable_styling(k, position = "center") else kable_styling(k, position = "center", font_size = fs)
+  if (!is.null(widths)) for (i in seq_along(widths)) if (!is.na(widths[i])) k <- column_spec(k, i, width = widths[i])
+  k
+}
+```
+
+## We value perfect knowledge of four prophylaxis inputs for one decision
+
+:::: columns
+::: {.column width="44%"}
+**One decision, `r Y0`--`r Y1`**
+
+Current care, or scale up echo screening plus secondary antibiotic prophylaxis (SAP)?
+:::
+::: {.column width="52%"}
+**Four uncertain SAP inputs**
+
+1. Efficacy, stage A $\rightarrow$ B (minimal $\rightarrow$ mild)
+2. Efficacy, stage B $\rightarrow$ C (mild $\rightarrow$ advanced)
+3. Age to which protection lasts
+4. Protection with partial adherence
+:::
+::::
+
+\medskip
+
+\begin{uncertaintyblock}{Held fixed}
+Disease model, care cascade, costs, valuation. No SAP effect on late stages or on deaths.
+\end{uncertaintyblock}
+
+<!-- NOTES slide 2 (1.0 min, cumulative 1.5): One decision, two options, two countries: keep reference care, or scale up echo screening with confirmation and benzathine penicillin G prophylaxis over 2026 to 2050. We sample four inputs jointly, `r fmt_n(N_DRAW)` paired draws per country, and run both options on each draw. Efficacy is full-adherence efficacy: a multiplier on the progression hazard of treated people, applied as h x [1 - adherence x (1 - M)]; achieved adherence and coverage are separate model inputs, not part of efficacy. Everything else is held at the production values: the calibrated natural history, the 2026 starting state, the care cascade, unit costs and the value of a statistical life. Prophylaxis effects on progression from advanced to complicated disease (stage C to D) and on death in stage D are fixed at no effect; that uncertainty is not assessed here. Transition: why these inputs are uncertain. -->
+
+## One trial of 818 participants anchors the effect of prophylaxis on early RHD
+
+<!-- src: Bray2024, abstract (PubMed 39312290): early or mild RHD, intramuscular prophylaxis vs none, RR 0.09, 95% CI 0.03 to 0.29; 1 study, 818 participants; moderate-certainty evidence. The study is the GOAL trial (Beaton2022). -->
+
+\bignumber{0.09}{risk ratio for progression of early RHD on prophylaxis (95\% CI 0.03--0.29)}
+
+\medskip
+
+\begin{center}
+Effects at other stages, older ages and partial adherence are extrapolations
+\end{center}
+
+\sourceline{Systematic review of long-term antibiotic prophylaxis \parencite{Bray2024}; the trial is GOAL \parencite{Beaton2022}.}
+
+<!-- NOTES slide 3 (1.0 min, cumulative 2.5): The evidence that prophylaxis slows early rheumatic heart disease rests on a single randomised trial, GOAL, in Uganda. In the Cochrane review, people with early or mild RHD progressed far less often on intramuscular prophylaxis, risk ratio 0.09. Everything the model needs beyond that is judgement: how much of that effect applies to progression from mild to advanced disease (stage B to C), whether protection persists into adulthood, and how much protection partial adherence buys. The older trials measure rheumatic fever recurrence, not valve progression (risk ratio 0.39 for recurrence in the same review), and a recurrence risk ratio is not a progression-hazard multiplier. That is exactly the kind of uncertainty value-of-information analysis prices. Transition: first, the decision itself. -->
+
+## By `r Y1`, scale-up returns US\$`r fmt_f(I$roe, 1)` per dollar in Indonesia, US\$`r fmt_f(U$roe, 2)` in Uganda
+
+```{r fig-bcr, fig.height = 2.45}
+bd <- DT[, .(country, bcr = B_d / C_d)]
+qs <- bd[, .(med = median(bcr), lo = quantile(bcr, 0.025), hi = quantile(bcr, 0.975)), by = country]
+dens <- bd[, { de <- density(bcr, from = 0, n = 512); .(x = de$x, y = de$y / max(de$y)) }, by = country]
+lab <- data.table(country = COUNTRIES, x = c(I$hi, U$hi) + 0.25, y = 0.80,
+                  txt = c(sprintf("E[B]/E[C] = %.2f\nP(BCR > 1) = %.1f%%", I$roe, 100 * I$p1),
+                          sprintf("E[B]/E[C] = %.2f\nP(BCR > 1) = %.1f%%", U$roe, 100 * U$p1)))
+xmax <- ceiling(max(c(I$hi, U$hi)) + 2.2)
+ggplot(dens, aes(x, y)) +
+  geom_area(aes(fill = country), alpha = 0.35) +
+  geom_line(aes(colour = country), linewidth = 0.6) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "grey35", linewidth = 0.4) +
+  geom_errorbar(data = qs, aes(y = -0.12, xmin = lo, xmax = hi, colour = country), width = 0.08, linewidth = 0.6,
+                orientation = "y", inherit.aes = FALSE) +
+  geom_point(data = qs, aes(x = med, y = -0.12, colour = country), size = 2.2, inherit.aes = FALSE) +
+  geom_text(data = lab, aes(x = x, y = y, label = txt), hjust = 0, vjust = 1, family = deck_font, size = 3.6, colour = "grey15", lineheight = 0.95) +
+  geom_text(data = data.table(country = "Indonesia", x = 1.04, y = 1.02, t = "Break-even"), aes(x, y, label = t), inherit.aes = FALSE,
+            hjust = 0, vjust = 1, family = deck_font, size = 3.3, colour = "grey35") +
+  facet_wrap(~country, ncol = 1) +
+  scale_fill_manual(values = col_ct) + scale_colour_manual(values = col_ct) +
+  scale_x_continuous(limits = c(0, xmax), breaks = 0:xmax, expand = c(0, 0)) +
+  scale_y_continuous(breaks = NULL) +
+  labs(x = "Benefit-cost ratio, 2026-2050 (draw by draw)", y = NULL) +
+  theme_deck + theme(panel.grid.major.y = element_blank())
+```
+
+\sourceline{Incremental benefit (deaths averted $\times$ reference VSL) $\div$ incremental programme cost, discounted `r fmt_pct(PV$Indonesia$disc_rate, 1)` to `r Y0`, constant 2025 US\$, `r Y0`--`r Y1` only. Bars: median and 95\% PSA interval, `r fmt_n(N_DRAW)` draws.}
+
+<!-- NOTES slide 4 (1.5 min, cumulative 4.0): The benefit-cost ratio is incremental: discounted monetised mortality benefits of scale-up over reference care, divided by discounted incremental programme costs, counting only what accrues by 2050; benefits after 2050 are excluded. Across the `r fmt_n(N_DRAW)` draws, the ratio of expected benefits to expected costs is `r fmt_f(I$roe, 2)` in Indonesia, median `r fmt_f(I$med, 2)` with a 95% interval of `r fmt_f(I$lo, 2)` to `r fmt_f(I$hi, 2)`, and `r fmt_f(U$roe, 2)` in Uganda, `r fmt_f(U$lo, 2)` to `r fmt_f(U$hi, 2)`. The deterministic point values are `r fmt_f(I$pt, 2)` and `r fmt_f(U$pt, 2)`. We choose on expected benefits over expected costs, not the average of the ratios. Every draw has positive incremental cost, so a ratio above one is the same as a positive net benefit. Transition: what this means for the value of information. -->
+
+## Perfect information pays only in draws where the other option wins
+
+```{r fig-inb}
+nb <- DT[, .(country, inb = (B_d - C_d) / 1e6)]
+nb[, wins_other := if (V[[country[1]]]$scale_up) inb < 0 else inb > 0, by = country]
+nb[, grp := fifelse(wins_other, country, "other")]
+strip_lab <- setNames(c(sprintf("Indonesia\n%s better in %.1f%% of draws", if (I$scale_up) "Current care" else "Scale-up", 100 * I$pswitch),
+                         sprintf("Uganda\n%s better in %.1f%% of draws", if (U$scale_up) "Current care" else "Scale-up", 100 * U$pswitch)), COUNTRIES)
+ggplot(nb, aes(inb, fill = grp)) +
+  geom_histogram(bins = 40, colour = "white", linewidth = 0.15, boundary = 0) +
+  geom_vline(xintercept = 0, colour = "grey30", linewidth = 0.4) +
+  facet_wrap(~country, scales = "free", ncol = 2, labeller = as_labeller(strip_lab)) +
+  scale_fill_manual(values = c(col_ct, other = col_mute)) +
+  scale_y_continuous(breaks = NULL) +
+  labs(x = "Incremental net benefit of scale-up, US$ million (axes differ by country)", y = NULL) +
+  theme_deck + theme(panel.grid.major.y = element_blank(), panel.spacing = unit(1.2, "lines"))
+```
+
+\sourceline{Colour: draws in which the option not chosen on current evidence is better. EVPI = average net benefit regained in those draws. VSL $\times$ 1, `r Y0`--`r Y1`, discounted, constant 2025 US\$.}
+
+<!-- NOTES slide 5 (1.5 min, cumulative 5.5): This is the intuition for the expected value of perfect information. On current evidence we pick the option with the higher expected net benefit: scale-up in Indonesia (expected `r fmt_mill(I$einb)`), current care in Uganda (expected `r fmt_mill(U$einb)`). If we knew the true values of the four inputs, we would switch in the coloured draws, and gain their net benefit. EVPI is the average of that gain over all draws. It is zero when every draw favours the same option. It is large when many draws sit on the other side, and when they sit far from zero. Indonesia has few such draws, Uganda many. Transition: how large, country by country. -->
+
+## In Indonesia, perfect evidence is worth at most `r fmt_mill(I$evpi)`
+
+\framesubtitle{The value of knowing how well secondary prophylaxis works \textperiodcentered{} Indonesia}
+
+\bignumber{`r fmt_m(I$evpi)`}{expected value of perfect information, `r Y0`--`r Y1`}
+
+\begin{center}
+`r cap1(dec_txt(I))` preferred on current evidence (BCR `r fmt_f(I$roe, 2)`); better in `r fmt_p1(I$pfav)` of draws
+\end{center}
+
+```{r tab-scale-idn}
+scale_tab <- function(v) {
+  df <- data.frame(a = c(sprintf("Programme cost, %d--%d", Y0, Y1), "Govt. health spending (GGHE-D), 1 year (2023)", "GDP, 1 year (2023)"),
+                   b = c(fmt_big(v$prog), fmt_big(v$gghed), fmt_big(v$gdp)),
+                   c = c(fmt_pct(v$r_prog$multiple), fmt_pct(v$r_gghed$multiple), fmt_pct(v$r_gdp$multiple)))
+  names(df) <- c("Perfect information compared with", "US\\$ (2025)", "Share")
+  kb(df, "lrr", widths = c("7.2cm", "2.4cm", "2.4cm")) |> column_spec(3, bold = TRUE)
+}
+scale_tab(I)
+```
+
+\sourceline{EVPI bootstrap 95\%: `r fmt_m(I$evlo)`--`r fmt_m(I$evhi)`. Gross programme cost, discounted; GGHE-D and GDP in 2023 \parencite{WHO2025, WorldBank2026}. Scale comparisons, not budgets.}
+
+<!-- NOTES slide 6 (1.25 min, cumulative 6.75): In Indonesia, the expected value of perfect information about the four inputs is `r fmt_mill(I$evpi)` over 2026 to 2050, with a bootstrap interval of `r fmt_mill(I$evlo)` to `r fmt_mill(I$evhi)`; that interval is Monte Carlo precision of the estimator, not parameter uncertainty. It is small because scale-up is better in `r fmt_p1(I$pfav)` of plausible states: learning the truth would rarely change the choice. As a scale comparison: `r fmt_pct(I$r_prog$multiple)` of the expected gross programme cost of `r fmt_mill(I$prog, 3)`, `r fmt_pct(I$r_gghed$multiple)` of one year of domestic government health spending, `r fmt_pct(I$r_gdp$multiple, 2)` of one year of GDP. Those ratios are not savings and not a research budget. Zero or small VOI here does not mean the disease model is certain; only these four inputs vary, at this valuation and horizon. Transition: Uganda. -->
+
+## In Uganda, perfect evidence, worth up to `r fmt_mill(U$evpi)`, could flip the choice
+
+\framesubtitle{The value of knowing how well secondary prophylaxis works \textperiodcentered{} Uganda}
+
+\bignumber{`r fmt_m(U$evpi)`}{expected value of perfect information, `r Y0`--`r Y1`}
+
+\begin{center}
+`r cap1(dec_txt(U))` preferred (BCR `r fmt_f(U$roe, 2)`); `r other_txt(U)` better in `r fmt_p1(U$pswitch)` of draws
+\end{center}
+
+```{r tab-scale-uga}
+scale_tab(U)
+```
+
+\sourceline{EVPI bootstrap 95\%: `r fmt_m(U$evlo)`--`r fmt_m(U$evhi)`. Gross programme cost, discounted; GGHE-D and GDP in 2023 \parencite{WHO2025, WorldBank2026}. Scale comparisons, not budgets.}
+
+<!-- NOTES slide 7 (1.25 min, cumulative 8.0): Uganda is the opposite case. On current evidence, current care is preferred: expected net benefit of scale-up `r fmt_mill(U$einb)`, benefit-cost ratio `r fmt_f(U$roe, 2)`. But in `r fmt_p1(U$pswitch)` of plausible states scale-up would be better, so perfect information could reverse the decision. Its expected value is `r fmt_mill(U$evpi)`, bootstrap interval `r fmt_mill(U$evlo)` to `r fmt_mill(U$evhi)`: three times Indonesia's in absolute terms, `r fmt_pct(U$r_prog$multiple)` of the expected gross programme cost, and `r fmt_pct(U$r_gghed$multiple)` of one year of domestic government health spending (Uganda's government share of health spending is small; external funds are excluded from this comparator). Again: a cap on what knowing could be worth for this decision, not a fiscal saving. Transition: which input carries that value? -->
+
+## In Indonesia, only the two efficacy inputs carry information value
+
+\framesubtitle{Which uncertainty is worth resolving? \textperiodcentered{} Indonesia}
+
+```{r fig-par-idn, fig.height = 2.3}
+par_fig <- function(v) {
+  e <- copy(v$ek)
+  e[, lab := factor(PAR_LAB[parameter], levels = rev(PAR_LAB[c("joint_SAP", PAR)]))]
+  e[, txt := fifelse(estimate == 0, "0", sprintf("US$%sk", vapply(estimate / 1e3, function(z) plain(num_sig(z, 2)), "")))]
+  e[, is_joint := parameter == "joint_SAP"]
+  xr <- max(e$ci_hi) / 1e3
+  e[, lx := pmax(ci_hi / 1e3, 0.02 * xr)]
+  ggplot(e, aes(estimate / 1e3, lab, colour = parameter)) +
+    geom_hline(yintercept = 4.5, colour = "grey80", linewidth = 0.3) +
+    geom_errorbar(aes(xmin = ci_lo / 1e3, xmax = ci_hi / 1e3), width = 0.25, linewidth = 0.7, orientation = "y") +
+    geom_point(aes(shape = is_joint), size = 2.8) +
+    geom_text(aes(x = lx, label = txt), hjust = -0.3, family = deck_font, size = 3.7, colour = "grey15") +
+    scale_colour_manual(values = col_par) + scale_shape_manual(values = c(`FALSE` = 16, `TRUE` = 18)) +
+    scale_x_continuous(limits = c(0, xr * 1.42), expand = expansion(mult = c(0.01, 0))) +
+    labs(x = "EVPI, US$ thousand, 2026-2050", y = NULL) +
+    theme_deck + theme(panel.grid.major.y = element_blank(), axis.text.y = element_text(size = 11, colour = "grey15"))
+}
+par_fig(I)
+```
+
+\sourceline{Learning one input alone, others still uncertain; values overlap and do not add. Bars: bootstrap 95\%; imprecise at `r fmt_n(N_DRAW)` draws.}
+
+<!-- NOTES slide 8 (1.0 min, cumulative 9.0): Partial EVPI asks: what if we learned only this one input? In Indonesia, only the two efficacy multipliers carry value, about `r fmt_mill(I$ek[parameter == "M_BC", estimate])` and `r fmt_mill(I$ek[parameter == "M_AB", estimate])`. They overlap because the prior links them strongly: learning one largely reveals the other, so they cannot be added. The age to which protection lasts and protection under partial adherence carry no value here: learning either alone never changes the choice. These single-input estimates are imprecise at `r fmt_n(N_DRAW)` draws (bootstrap relative SE about `r fmt_f(I$ek[parameter == "M_BC", rel_se], 1)`); the ranking of the two efficacy inputs is not settled (first in `r fmt_p1(I$ek[parameter == "M_BC", p_rank_first_unique])` and `r fmt_p1(I$ek[parameter == "M_AB", p_rank_first_unique])` of bootstrap replicates). Transition: Uganda looks different. -->
+
+## In Uganda, the age to which protection lasts is the most valuable single input
+
+\framesubtitle{Which uncertainty is worth resolving? \textperiodcentered{} Uganda}
+
+```{r fig-par-uga, fig.height = 2.3}
+par_fig(U)
+```
+
+\sourceline{The joint value exceeds every single input: combinations of inputs, not one alone, flip the decision. Bars: bootstrap 95\%.}
+
+<!-- NOTES slide 9 (1.25 min, cumulative 10.25): In Uganda the single most valuable input is how long protection lasts with age: `r fmt_mill(U$top$estimate)`, first in `r fmt_p1(U$top$p_rank_first_unique)` of bootstrap replicates. A later age limit keeps treated people protected longer, and in Uganda that is what decides whether scale-up pays by 2050. Efficacy on stage B to C follows, and efficacy on early disease carries little value alone. Partial adherence carries none. The joint value, `r fmt_mill(U$evpi)`, is far above any single input: it is combinations, strong efficacy together with longer protection, that flip the decision. So research on one input alone captures only part of the value. Single-input estimates remain imprecise at `r fmt_n(N_DRAW)` draws. Transition: how much all this depends on how we value deaths averted. -->
+
+## Information value peaks where the decision sits near break-even
+
+```{r fig-curve, fig.height = 2.45}
+cv <- CRV[family == "VSL multiple" & parameter == "joint_SAP" & x >= 0.05]
+pk <- PEAK[, .(country, x, estimate, txt = sprintf("Peak US$%sm at %s x VSL", vapply(estimate / 1e6, function(z) plain(num_sig(z, 2)), ""),
+                                                   vapply(x, function(z) plain(num_sig(z, 2)), "")))]
+r1 <- cv[abs(x - 1) < 1e-10, .(country, x, estimate)]
+ggplot(cv, aes(x, estimate / 1e6, colour = country, fill = country)) +
+  geom_ribbon(aes(ymin = ci_lo / 1e6, ymax = ci_hi / 1e6), alpha = 0.18, colour = NA) +
+  geom_line(linewidth = 0.8) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "grey35", linewidth = 0.4) +
+  geom_point(data = r1, size = 2.4) +
+  geom_text(data = pk, aes(x = 0.05, y = Inf, label = txt), vjust = 1.3, hjust = 0, family = deck_font, size = 3.5, colour = "grey15") +
+  facet_wrap(~country, scales = "free_y", ncol = 2) +
+  scale_fill_manual(values = col_ct) + scale_colour_manual(values = col_ct) +
+  scale_x_log10(breaks = c(0.05, 0.1, 0.2, 0.5, 1, 2), labels = c("0.05", "0.1", "0.2", "0.5", "1", "2")) +
+  scale_y_continuous(expand = expansion(mult = c(0.02, 0.28))) +
+  labs(x = "Multiple of the reference VSL (log scale; dashed line: reference)",
+       y = "EVPI, US$ million") +
+  theme_deck + theme(panel.spacing = unit(1.2, "lines"))
+```
+
+\sourceline{Joint EVPI with deaths averted valued at a multiple of the reference VSL; y-axes differ by country. Dot: reference. Band: bootstrap 95\%.}
+
+<!-- NOTES slide 10 (1.25 min, cumulative 11.5): Information is worth most where the decision is on a knife edge. Scaling the value of a death averted moves the benefit-cost ratio. If deaths averted were valued at about `r plain(num_sig(PEAK[country == "Indonesia", x], 2))` of the reference VSL, Indonesia's choice would sit near break-even and perfect information would be worth up to `r fmt_mill(PEAK[country == "Indonesia", estimate])`. Uganda peaks at about `r plain(num_sig(PEAK[country == "Uganda", x], 2))` times the reference value (`r fmt_mill(PEAK[country == "Uganda", estimate])`). At very low valuations every draw favours current care, so the value of information falls to zero: that zero means the same option wins in every sampled state, not that nothing is uncertain. A valuation multiple k corresponds to requiring a benefit-cost ratio of 1/k (backup). Transition: what these numbers can and cannot tell you. -->
+
+## These are upper bounds from a fixed model with provisional priors
+
+:::: columns
+::: {.column width="48%"}
+**A skeptic would say**
+
+Priors are not expert-agreed, the model misses GBD burden, and no study gives perfect information.
+:::
+::: {.column width="48%"}
+**What the analysis supports**
+
+A cap on what resolving these four inputs is worth for this decision; a real study is worth less.
+:::
+::::
+
+\medskip
+
+\begin{uncertaintyblock}{Not assessed}
+SAP effects on stage C $\rightarrow$ D; recalibration; any specific study design.
+\end{uncertaintyblock}
+
+<!-- NOTES slide 11 (1.25 min, cumulative 12.75): The strongest objection is that everything is conditional. The priors are provisional judgements, not an elicited consensus; the regime weight alone moves the joint value (backup). The disease model's fit to GBD is inadequate: it under-counts prevalence and over-counts adult deaths, so these are preliminary model results. The calibration, starting state, care cascade, costs and valuation are fixed; only four inputs vary, so the joint EVPPI equals the EVPI only within this restricted uncertainty model. Perfect information is an upper bound: a feasible trial or cohort study, with its own sample size and follow-up, is worth less, which an expected value of sample information analysis would quantify. And prophylaxis effects on progression from stage C to D, and on death in stage D, were fixed at none, so their value is not assessed. Transition: what we can say for research priorities. -->
+
+## For this decision, research on these inputs costing more than the cap cannot pay off
+
+```{r tab-impl}
+top_txt <- function(v) {
+  t <- v$ek[parameter != "joint_SAP" & !is.na(rank_among_individual)]
+  if (nrow(t) == 0L) return("None")
+  if (all(c("M_AB", "M_BC") %in% t$parameter) && max(t[parameter %in% c("M_AB", "M_BC"), p_rank_first_unique]) < 0.9 &&
+      all(t[!parameter %in% c("M_AB", "M_BC"), estimate] == 0)) return("Efficacy, A $\\rightarrow$ B or B $\\rightarrow$ C (overlap)")
+  PAR_TEX[[t[rank_among_individual == 1L, parameter][1]]]
+}
+im <- data.frame(c = COUNTRIES,
+                 d = c(sprintf("%s (%s of draws)", cap1(dec_txt(I)), fmt_p1(I$pfav)),
+                       sprintf("%s (%s of draws)", cap1(dec_txt(U)), fmt_p1(U$pfav))),
+                 e = c(fmt_m(I$evpi), fmt_m(U$evpi)),
+                 f = c(top_txt(I), top_txt(U)))
+names(im) <- c("", "Choice on current evidence", "Cap (EVPI)", "Most valuable single input")
+kb(im, "llrl", widths = c("1.8cm", "4.0cm", "1.9cm", "4.4cm")) |> column_spec(3, bold = TRUE)
+```
+
+\sourceline{EVPI caps the expected value of any study on these four inputs for the national scale-up decision, `r Y0`--`r Y1`; other decisions or countries could add value.}
+
+<!-- NOTES slide 12 (1.0 min, cumulative 13.75): Turning this into priorities. The value of perfect information is a necessary condition: research on these inputs that costs more than about `r fmt_mill(U$evpi)` in Uganda, or `r fmt_mill(I$evpi)` in Indonesia, cannot pay off through this decision alone. Whether a specific study is worthwhile needs its design, cost and expected sample information, which we have not computed. In Uganda, evidence on how long protection lasts with age is the most valuable single target; in Indonesia, efficacy evidence carries what little value there is. Research that informs several countries or later decisions could justify more. Transition: the one sentence. -->
+
+## {.standout}
+
+Through `r Y1`, knowing how well prophylaxis works could change Uganda's scale-up decision but rarely Indonesia's, and is worth at most `r fmt_mill(U$evpi)` in Uganda and `r fmt_mill(I$evpi)` in Indonesia.
+
+<!-- NOTES slide 13 (0.5 min, cumulative 14.25): Pause on the sentence. Backup slides follow for questions. -->
+
+# Backup
+
+## The BCR is incremental and discounted, and counts only benefits to `r Y1`
+
+```{r tab-bcr}
+row <- function(lbl, f) c(lbl, f(I), f(U))
+bt <- rbind(
+  row("Expected benefit E[B]", function(v) fmt_m(v$EB, 3)),
+  row("Expected incremental cost E[C]", function(v) fmt_m(v$EC, 3)),
+  row("\\textbf{E[B] / E[C] (decision ratio)}", function(v) paste0("\\textbf{", fmt_f(v$roe, 2), "}")),
+  row("Median BCR (95\\% PSA interval)", function(v) sprintf("%s (%s--%s)", fmt_f(v$med, 2), fmt_f(v$lo, 2), fmt_f(v$hi, 2))),
+  row("Mean of draw ratios E[B/C] (descriptive)", function(v) fmt_f(v$mdr, 2)),
+  row("P(BCR $>$ 1) / P(BCR $>$ 2)", function(v) paste(fmt_p1(v$p1), fmt_p1(v$p2), sep = " / ")),
+  row("P(BCR $>$ 3) / P(BCR $>$ 5)", function(v) paste(fmt_p1(v$p3), fmt_p1(v$p5), sep = " / ")),
+  row("Point-value BCR (production inputs)", function(v) fmt_f(v$pt, 2)),
+  row("Draws with incremental cost $\\le$ 0", function(v) fmt_n(v$ncneg)))
+bt <- as.data.frame(bt); names(bt) <- c("", "Indonesia", "Uganda")
+kb(bt, "lrr", widths = c("5.8cm", "3.4cm", "3.4cm"), fs = 10)
+```
+
+\sourceline{B: deaths averted $\times$ reference VSL; C: scale-up minus reference cost; discounted `r fmt_pct(PV$Indonesia$disc_rate, 1)` to `r Y0`, constant 2025 US\$, `r Y0`--`r Y1`. With C $>$ 0, BCR $>$ 1 $\Leftrightarrow$ INB $>$ 0: the decision the VOI addresses.}
+
+## Indonesia clears a benefit-cost hurdle of 2 in most draws; Uganda never does
+
+```{r fig-hurdle}
+hc <- HC[r <= 6]
+lb <- hc[, .SD[which.min(abs(r - 2.2))], by = country]
+ggplot(hc, aes(r, p_G_r_pos, colour = country)) +
+  geom_vline(xintercept = c(1, 2, 3, 5), colour = "grey85", linewidth = 0.3) +
+  geom_line(linewidth = 0.9) +
+  geom_text(data = lb, aes(label = country), hjust = 0, vjust = -0.6, family = deck_font, size = 3.8) +
+  scale_colour_manual(values = col_ct) +
+  scale_x_continuous(breaks = 0:6) + scale_y_continuous(labels = function(b) paste0(100 * b, "%"), limits = c(0, 1)) +
+  labs(x = "Benefit-cost hurdle r", y = "P(BCR > r)") + theme_deck
+```
+
+\sourceline{Share of `r fmt_n(N_DRAW)` draws with B $-$ r C $>$ 0 (equal to P(BCR $>$ r) since every draw has C $>$ 0); `r Y0`--`r Y1`, discounted. Descriptive: the decision rule is BCR $>$ 1.}
+
+## A higher benefit-cost hurdle is a different objective, not a larger welfare gain
+
+$$G_r = B - r\,C = r\left[\tfrac{1}{r}B - C\right]$$
+
+```{r tab-hurdle}
+hv <- EVR[family == "BCR hurdle" & parameter == "joint_SAP", .(country, x, estimate, ci_lo, ci_hi)]
+mm <- function(z) ifelse(z == 0, "0", num_sig(z / 1e6, 2))
+hw <- dcast(hv[, .(country, r = x, v = ifelse(estimate == 0 & ci_hi == 0, "0", sprintf("%s (%s--%s)", mm(estimate), mm(ci_lo), mm(ci_hi))))],
+            r ~ country, value.var = "v")
+hw[, r := paste0("r = ", r)]
+setnames(hw, c("r", "Indonesia", "Uganda"), c("Hurdle", "Indonesia, US\\$ million", "Uganda, US\\$ million"))
+kb(as.data.frame(hw), "lrr", widths = c("2.4cm", "4.4cm", "4.4cm"))
+```
+
+\sourceline{VOI of the objective $G_r$ (joint, bootstrap 95\%). $G_r$ re-weights costs by r, so its VOI is not a welfare value; it equals r times the EVPI at a VSL multiple of 1/r.}
+
+## Priors on the four inputs are provisional and not expert-agreed
+
+\setlength{\tabcolsep}{4pt}
+
+```{r tab-prior}
+pr <- RS$meta$prior; pt <- RS$meta$point; dd <- DT[country == "Indonesia"]
+w  <- pr$w_trial
+q   <- function(x) sprintf("%s (%s--%s)", num_sig1(median(x)), num_sig1(quantile(x, 0.025)), num_sig1(quantile(x, 0.975)))
+q3  <- function(v) sprintf("%s (%s--%s)", num_sig1(v[1]), num_sig1(v[2]), num_sig1(v[3]))   # median, 2.5%, 97.5%
+pc  <- function(p) ifelse(p > 0 & p < 0.005, "$<$1\\%", paste0(formatC(100 * p, format = "f", digits = 0), "\\%"))
+# The PRIOR columns are evaluated deterministically from the saved prior specification (no sampling),
+# so the table shows the full mixture rather than the trial interval alone (the point value 0.45 lies
+# outside the trial interval but inside the mixture).
+#   trial regime      : M ~ lognormal (declared 95% interval)
+#   recurrence regime : M = 1 - s (1 - RR), RR ~ lognormal, s ~ Beta; one M for both transitions.
+#                       Truncation at M <= 1 is exactly RR < 1, so the CDF is renormalised by P(RR < 1).
+#   mixture           : w x trial + (1 - w) x recurrence (shared regime indicator).
+# Trial-regime truncation at M <= 1 is ignored in the display; the check below confirms it is negligible.
+rr <- pr$RR_recurrence; sh <- pr$share_recurrence
+rec_cdf <- function(m) {
+  if (m <= 0) return(0); if (m >= 1) return(1)
+  f <- function(r) stats::pbeta((1 - m) / (1 - r), sh[["shape1"]], sh[["shape2"]], lower.tail = FALSE) *
+    stats::dlnorm(r, rr[["meanlog"]], rr[["sdlog"]])
+  stats::integrate(f, 0, 1, rel.tol = 1e-10)$value / stats::plnorm(1, rr[["meanlog"]], rr[["sdlog"]])
+}
+tri_cdf <- function(m, par) stats::plnorm(m, par[["meanlog"]], par[["sdlog"]])
+mix_cdf <- function(m, par) w * tri_cdf(m, par) + (1 - w) * rec_cdf(m)
+q_solve <- function(cdf, p) stats::uniroot(function(m) cdf(m) - p, c(1e-9, 1 - 1e-9), tol = 1e-12)$root
+qs  <- function(cdf) vapply(c(0.5, 0.025, 0.975), function(p) q_solve(cdf, p), 0)
+check(stats::plnorm(1, pr$M_AB_trial[["meanlog"]], pr$M_AB_trial[["sdlog"]], lower.tail = FALSE) +
+        stats::plnorm(1, pr$M_BC_trial[["meanlog"]], pr$M_BC_trial[["sdlog"]], lower.tail = FALSE) < 0.005,
+      "trial-regime truncation at M <= 1 is no longer negligible", "show the truncated trial marginals in the prior table")
+PRI <- list(
+  rec = qs(rec_cdf), p_rec = 1 - rec_cdf(pt$M_AB),
+  AB_tri = qs(function(m) tri_cdf(m, pr$M_AB_trial)), p_AB_tri = 1 - tri_cdf(pt$M_AB, pr$M_AB_trial),
+  BC_tri = qs(function(m) tri_cdf(m, pr$M_BC_trial)), p_BC_tri = 1 - tri_cdf(pt$M_BC, pr$M_BC_trial),
+  AB_mix = qs(function(m) mix_cdf(m, pr$M_AB_trial)), p_AB_mix = 1 - mix_cdf(pt$M_AB, pr$M_AB_trial),
+  BC_mix = qs(function(m) mix_cdf(m, pr$M_BC_trial)), p_BC_mix = 1 - mix_cdf(pt$M_BC, pr$M_BC_trial))
+check(identical(pt$M_AB, pt$M_BC), "production point values for A->B and B->C differ; revise the source line")
+claim(PRI$AB_mix[1] < pt$M_AB && PRI$AB_mix[3] > pt$M_AB && PRI$BC_mix[1] < pt$M_BC && PRI$BC_mix[3] > pt$M_BC,
+      "Prior slide source line: the point efficacy lies inside the prior 95% range but above its median")
+ag <- pr$protection_age; pp <- pr$partial_protection
+indent_row <- function(x) paste0("\\quad ", x)   # never name this `sub`: chunks share one environment
+ptab <- data.frame(
+  a = c(PAR_TEX[["M_AB"]], indent_row("trial regime"), indent_row("recurrence regime"),
+        PAR_TEX[["M_BC"]], indent_row("trial regime"), indent_row("recurrence regime"),
+        PAR_TEX[["sap_protection_age_max"]], PAR_TEX[["partial_adherence_relative_protection"]]),
+  b = c(fmt_f(pt$M_AB, 2), "", "", fmt_f(pt$M_BC, 2), "", "",
+        as.character(pt$sap_protection_age_max), fmt_f(pt$partial_adherence_relative_protection, 2)),
+  c = c(q3(PRI$AB_mix), q3(PRI$AB_tri), q3(PRI$rec), q3(PRI$BC_mix), q3(PRI$BC_tri), q3(PRI$rec),
+        sprintf("%s with P %s", paste(ag$values, collapse = " / "), paste(ag$probs, collapse = " / ")),
+        sprintf("Beta(%s, %s): %s", fmt_f(pp[["shape1"]], 2), fmt_f(pp[["shape2"]], 2),
+                q3(stats::qbeta(c(0.5, 0.025, 0.975), pp[["shape1"]], pp[["shape2"]])))),
+  e = c(pc(PRI$p_AB_mix), pc(PRI$p_AB_tri), pc(PRI$p_rec), pc(PRI$p_BC_mix), pc(PRI$p_BC_tri), pc(PRI$p_rec),
+        pc(sum(ag$probs[ag$values >= pt$sap_protection_age_max])),
+        pc(stats::pbeta(pt$partial_adherence_relative_protection, pp[["shape1"]], pp[["shape2"]], lower.tail = FALSE))),
+  d = c(q(dd$M_AB), "", "", q(dd$M_BC), "", "",
+        paste(dd[, .N, keyby = sap_protection_age_max]$N, collapse = " / "), q(dd$partial_adherence_relative_protection)))
+names(ptab) <- c("Input", "Point", "Prior: median (95\\%)", "P(prior $\\geq$ point)", sprintf("Sampled, n = %s", fmt_n(nrow(dd))))
+kb(ptab, "lrlrl", widths = c("3.3cm", "0.9cm", "4.4cm", "1.9cm", "2.8cm"), fs = 9)
+```
+
+\sourceline{Equal-weight mixture, one regime indicator for both transitions: trial efficacy \parencite{Beaton2022, Bray2024}, or benefit only via fewer rheumatic fever recurrences, $M = 1 - s(1-RR)$ with RR `r fmt_f(pr$RR_recurrence[["ci_lo"]], 2)`--`r fmt_f(pr$RR_recurrence[["ci_hi"]], 2)` \parencite{Bray2024} and an unelicited share s (one M for both). Point M = `r fmt_f(pt$M_AB, 2)` is the recurrence RR of \textcite{Manyemba2002} used directly as a progression multiplier (s = 1): inside the prior, above its median. Partial adherence after \textcite{deDassel2018}.}
+
+<!-- NOTES backup (priors): The point efficacy of `r fmt_f(pt$M_AB, 2)` is the production base case. It comes from the Cochrane recurrence risk ratio (Manyemba and Mayosi 2002), applied as if all of the progression benefit ran through prevented recurrences. It sits outside the trial-regime interval, because GOAL suggests a much stronger effect, but inside the full prior: about the `r formatC(100 * (1 - PRI$p_AB_mix), format = "f", digits = 0)`th percentile for A to B and the `r formatC(100 * (1 - PRI$p_BC_mix), format = "f", digits = 0)`th for B to C. The prior is centred on stronger efficacy than the point value, so the expected net benefit across draws differs from the deterministic point result; that is expected, not a discrepancy. The recurrence regime uses the newer pooled recurrence estimate (Bray 2024, RR `r fmt_f(exp(pr$RR_recurrence[["meanlog"]]), 2)`) rather than the single-trial 0.45. -->
+
+<!-- Prior columns are exact evaluations of the declared prior; "Sampled" is the realised n-draw PSA sample (Monte Carlo noise). -->
+
+
+
+## Information values come from one set of `r fmt_n(N_DRAW)` paired draws per country
+
+$$\mathrm{EVPI} = \mathrm{E}_\theta\big[\max_d \mathrm{NB}(d,\theta)\big] - \max_d \mathrm{E}_\theta\big[\mathrm{NB}(d,\theta)\big]$$
+
+- Joint value of the four inputs = EVPI, only because nothing else varies here
+- Single input: GAM regression of B and C on that input \parencite{Strong2014}
+- Single-input values overlap; never summed or stacked \parencite{Rothery2020}
+- Intervals: `r fmt_n(NB_BOOT)` bootstrap resamples of whole paired draws (estimator precision)
+
+## Calibration, starting state, cascade, costs and valuation are held fixed
+
+:::: columns
+::: {.column width="48%"}
+**Held fixed**
+
+- Calibrated natural history and incidence (fit to GBD: inadequate)
+- 2026 engine state, care cascade, unit costs
+- Reference-case VSL \parencite{Robinson2019}
+:::
+::: {.column width="48%"}
+**Not assessed**
+
+- SAP effect on C $\rightarrow$ D and on stage-D death (fixed at none)
+- Effect waning; recalibration under other SAP values
+- Value of a specific study (EVSI)
+:::
+::::
+
+\sourceline{Efficacy (M) is full-adherence efficacy; achieved adherence and coverage are separate, fixed cascade inputs. Calibration fit: `r CAL_TXT`.}
+
+## Scale comparisons use one year of GDP and of domestic government health spending
+
+```{r tab-den}
+dt_ <- DEN[denominator != "programme_cost_incremental"]
+dt_[, lab := fcase(denominator == "programme_cost_gross", "Gross programme cost, 2026--2050 (discounted)",
+                   denominator == "gdp_2023", "GDP, 2023 (one year)",
+                   denominator == "gghed_2023", "GGHE-D, 2023 (one year)")]
+dw <- dcast(dt_[, .(lab, country, v = vapply(value_usd2025, fmt_big, ""))], lab ~ country, value.var = "v")
+dw <- dw[match(c("Gross programme cost, 2026--2050 (discounted)", "GGHE-D, 2023 (one year)", "GDP, 2023 (one year)"), lab)]
+setnames(dw, "lab", "Constant 2025 US\\$")
+kb(as.data.frame(dw), "lrr", widths = c("6.2cm", "3.0cm", "3.0cm"))
+```
+
+\sourceline{GDP: current local currency \parencite{WorldBank2026}. GGHE-D: WHO share of GDP \parencite{WHO2025} times that GDP; excludes donor and private funds; not a ministry budget. 2023 is the latest common year. Converted with local CPI to 2025 and the 2025 market exchange rate \parencite{Turner2019}; not PPP.}
+
+
+## In Indonesia, each value is under one-tenth of 1\% of programme cost
+
+\setlength{\tabcolsep}{3pt}
+
+```{r tab-norm-idn}
+norm_tab(I)
+```
+
+\sourceline{VSL $\times$ 1, `r Y0`--`r Y1`, constant 2025 US\$. P(top): share of bootstrap replicates in which the input alone ranks first. Shares use one fixed denominator for estimate and bounds. Joint EVPI / expected incremental cost (`r fmt_m(I$inc, 3)`): `r fmt_pct(I$r_inc[1]$multiple)`.}
+
+## In Uganda, perfect information is worth `r fmt_pct(U$r_prog$multiple)` of programme cost
+
+\setlength{\tabcolsep}{3pt}
+
+```{r tab-norm-uga}
+norm_tab(U)
+```
+
+\sourceline{VSL $\times$ 1, `r Y0`--`r Y1`, constant 2025 US\$. P(top): share of bootstrap replicates in which the input alone ranks first. Joint EVPI / expected incremental cost (`r fmt_m(U$inc, 3)`): `r fmt_pct(U$r_inc[1]$multiple)`.}
+
+## At low valuations every draw favours current care, so EVPI is zero
+
+```{r tab-low}
+lv <- DEC[is_ref == TRUE & family != "BCR hurdle"]
+lv[, lab := fcase(family == "VSL multiple" & abs(x - 1) < 1e-10, "VSL $\\times$ 1 (reference, for contrast)",
+                  family == "VSL multiple", paste0("VSL $\\times$ ", x),
+                  default = paste0(sub(" x GNI pc.*$", "", label), " $\\times$ GNI pc per DALY (proxy)"))]
+lv[, `:=`(v = sprintf("%s / %s", fmt_p1(P_NB_pos), ifelse(EVPI == 0, "0", fmt_m(EVPI))), kx = fifelse(family == "VSL multiple", x, gni_mult))]
+lw <- dcast(lv, family + kx + lab ~ country, value.var = "v")
+setorder(lw, -family, kx)
+lw <- as.data.frame(lw[, .(lab, Indonesia, Uganda)]); names(lw) <- c("Valuation", "Indonesia", "Uganda")
+kb(lw, "lrr", widths = c("6.0cm", "3.2cm", "3.2cm"))
+```
+
+\sourceline{Cells: P(scale-up better) / joint EVPI. DALY proxy: discounted deaths averted $\times$ 30; GNI per capita 2026 from the production income path. Zero VOI means one option wins in every sampled state, not that nothing is uncertain.}
+
+## All `r fmt_n(N_DRAW)` paired draws were used; single-input values remain imprecise
+
+```{r tab-diag}
+gd <- RS$gam
+dg <- function(ct, f) f(ct)
+rows <- list(
+  c("Draws requested / used / excluded", sapply(COUNTRIES, function(ct) sprintf("%d / %d / %d", PV[[ct]]$n_requested, PV[[ct]]$n_successful, PV[[ct]]$n_excluded))),
+  c("Joint EVPI, bootstrap relative SE", sapply(COUNTRIES, function(ct) fmt_f(V[[ct]]$ek[parameter == "joint_SAP", rel_se], 2))),
+  c("Joint EVPI, split halves (US\\$ million)", sapply(COUNTRIES, function(ct) { e <- V[[ct]]$ek[parameter == "joint_SAP"]
+    paste(num_sig(e$split_half_1 / 1e6, 2), num_sig(e$split_half_2 / 1e6, 2), sep = " / ") })),
+  c("Single inputs > 0 flagged imprecise", sapply(COUNTRIES, function(ct) { e <- V[[ct]]$ek[parameter != "joint_SAP" & estimate > 0]
+    sprintf("%d of %d", sum(grepl("^EXPLORATORY", e$status)), nrow(e)) })),
+  c("Smallest GAM k-index p-value", sapply(COUNTRIES, function(ct) fmt_f(min(gd[country == ct, k_index_p]), 2))),
+  c("Bootstrap resamples (failed fits)", sapply(COUNTRIES, function(ct) sprintf("%s (%d)", fmt_n(NB_BOOT), MCL[country == ct, n_boot_failed_fits]))))
+dtab <- as.data.frame(do.call(rbind, rows)); names(dtab) <- c("", COUNTRIES)
+kb(dtab, "lrr", widths = c("6.0cm", "3.2cm", "3.2cm"))
+```
+
+\sourceline{VSL $\times$ 1, `r Y0`--`r Y1`. Imprecise: bootstrap relative SE above 0.20. Extending beyond `r fmt_n(N_DRAW)` draws (same run, same prior) would tighten them; not done here.}
+
+## The joint value moves with the weight given to trial-level efficacy
+
+```{r tab-rew}
+rw <- RW1
+rww <- dcast(rw[, .(w = paste0("w = ", w_trial), country, v = fmt_m(EVPI))], w ~ country, value.var = "v")
+setnames(rww, "w", "Prior weight on trial efficacy")
+kb(as.data.frame(rww), "lrr", widths = c("5.2cm", "3.2cm", "3.2cm"))
+```
+
+\sourceline{Joint EVPI at VSL $\times$ 1, `r Y0`--`r Y1`, re-weighting the same draws (importance weights; base case w = `r RS$meta$prior$w_trial`). Exploratory.}
+
+## Scale-up averts about `r fmt_n(I$da$mean, -1)` deaths in Indonesia and `r fmt_n(U$da$mean, -1)` in Uganda by `r Y1`
+
+```{r tab-da}
+o <- function(ct, k) OUT[country == ct & outcome == k]
+fo <- function(z, f) sprintf("%s (%s--%s)", f(z$mean), f(z$q025), f(z$q975))
+fmm <- function(x) num_sig(x / 1e6, 3)
+dtb <- data.frame(a = c("RHD deaths averted (undiscounted)", "DALYs averted, proxy (discounted)", "Gross scale-up cost, US\\$ million (discounted)"),
+                  b = c(fo(o("Indonesia", "DA"), function(x) fmt_n(x, -1)), fo(o("Indonesia", "DALY_d"), function(x) fmt_n(x, -2)), fo(o("Indonesia", "cost_sap_d"), fmm)),
+                  c = c(fo(o("Uganda", "DA"), function(x) fmt_n(x, -1)), fo(o("Uganda", "DALY_d"), function(x) fmt_n(x, -2)), fo(o("Uganda", "cost_sap_d"), fmm)))
+names(dtb) <- c("Mean (95\\% PSA interval)", "Indonesia", "Uganda")
+kb(dtb, "lrr", widths = c("5.3cm", "3.6cm", "3.6cm"), fs = 10)
+```
+
+\sourceline{`r Y0`--`r Y1`, national population, `r fmt_n(N_DRAW)` draws. DALY proxy: discounted deaths averted $\times$ 30 (no age-specific years of life lost, no disability); not modelled DALYs.}
